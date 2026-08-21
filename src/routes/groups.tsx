@@ -100,8 +100,9 @@ function GroupsPage() {
   const toggleGroupStatus = async (id: string, field: "ativo" | "autorizado", value: boolean) => {
     const { error } = await supabase
       .from("whatsapp_groups")
-      .update({ [field]: value })
+      .update({ [field]: value } as any)
       .eq("id", id);
+
 
     if (error) {
       toast.error("Erro ao atualizar grupo: " + error.message);
@@ -278,10 +279,11 @@ function GroupsPage() {
                         />
                         <span className="text-xs">{group.ativo ? "Ativo" : "Inativo"}</span>
                         {group.autorizado ? (
-                          <ShieldCheck className="h-4 w-4 text-emerald-500" title="Autorizado" />
+                          <ShieldCheck className="h-4 w-4 text-emerald-500" />
                         ) : (
-                          <ShieldAlert className="h-4 w-4 text-amber-500" title="Não Autorizado" />
+                          <ShieldAlert className="h-4 w-4 text-amber-500" />
                         )}
+
                       </div>
                     </TableCell>
                     <TableCell>

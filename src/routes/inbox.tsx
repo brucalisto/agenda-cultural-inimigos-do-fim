@@ -66,7 +66,7 @@ function InboxPage() {
       case "necessita_revisao": return <Badge className="bg-amber-500">Revisão</Badge>;
       case "aprovado": return <Badge className="bg-emerald-500">Aprovado</Badge>;
       case "publicado": return <Badge className="bg-blue-500">Publicado</Badge>;
-      case "ignorado": return <Badge variant="slate">Ignorado</Badge>;
+      case "ignorado": return <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-200">Ignorado</Badge>;
       case "erro": return <Badge variant="destructive">Erro</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
