@@ -14,6 +14,138 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      automation_actions: {
+        Row: {
+          action_type: Database["public"]["Enums"]["automation_action_type"]
+          created_at: string | null
+          error_message: string | null
+          executed_at: string | null
+          execution_mode: Database["public"]["Enums"]["automation_mode"]
+          id: string
+          message_id: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          rule_id: string | null
+          status: string
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["automation_action_type"]
+          created_at?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          execution_mode: Database["public"]["Enums"]["automation_mode"]
+          id?: string
+          message_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          rule_id?: string | null
+          status: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["automation_action_type"]
+          created_at?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          execution_mode?: Database["public"]["Enums"]["automation_mode"]
+          id?: string
+          message_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          rule_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_actions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_actions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_rules: {
+        Row: {
+          action_config: Json | null
+          action_type: Database["public"]["Enums"]["automation_action_type"]
+          ativo: boolean | null
+          conditions: Json | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          priority: number | null
+          requires_approval: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          action_config?: Json | null
+          action_type: Database["public"]["Enums"]["automation_action_type"]
+          ativo?: boolean | null
+          conditions?: Json | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          priority?: number | null
+          requires_approval?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          action_config?: Json | null
+          action_type?: Database["public"]["Enums"]["automation_action_type"]
+          ativo?: boolean | null
+          conditions?: Json | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          priority?: number | null
+          requires_approval?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       extracted_links: {
         Row: {
           created_at: string | null
@@ -506,6 +638,15 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "revisor"
+      automation_action_type:
+        | "apenas_registrar"
+        | "sinalizar"
+        | "ignorar"
+        | "enviar_para_revisao"
+        | "aprovar"
+        | "publicar"
+        | "responder"
+        | "solicitar_exclusao"
       automation_mode: "monitorar" | "simular" | "executar"
       processing_status:
         | "recebido"
@@ -645,6 +786,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "revisor"],
+      automation_action_type: [
+        "apenas_registrar",
+        "sinalizar",
+        "ignorar",
+        "enviar_para_revisao",
+        "aprovar",
+        "publicar",
+        "responder",
+        "solicitar_exclusao",
+      ],
       automation_mode: ["monitorar", "simular", "executar"],
       processing_status: [
         "recebido",

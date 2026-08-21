@@ -25,9 +25,11 @@ import {
   Copy,
   ExternalLink,
   History,
-  Save
+  Save,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,7 +52,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getInterpretedContentById, updateInterpretedContent, type InterpretedContent } from "@/lib/interpreted";
 import { reprocessMessage } from "@/lib/gemini.functions";
+import { simulateAutomation } from "@/lib/automation.functions";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+
 import { cn } from "@/lib/utils";
 
 interface InterpretedDetailsProps {
@@ -409,6 +415,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       {/* Footer Actions */}
       {!isEditing && (
         <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
+          <SimulateAutomationButton messageId={content.message_id} />
           <Button 
             variant="outline" 
             size="sm" 
@@ -423,6 +430,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
             <RotateCcw className="h-4 w-4" />
             Reprocessar
           </Button>
+
           <Button variant="outline" size="sm" className="gap-2" onClick={copyJson}>
             <Copy className="h-4 w-4" />
             Copiar JSON
@@ -464,3 +472,35 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
     </div>
   );
 }
+
+function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
+  const simulate = useMutation({
+    mutationFn: useServerFn(simulateAutomation),
+    onSuccess: (data: any) => {
+      if (data.status === "matched") {
+        toast.success(`Regra "${data.rule.nome}" acionada (SIMULAÇÃO)`);
+      } else {
+        toast.info("Nenhuma regra de automação correspondente.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Erro na simulação: " + err.message);
+    }
+  });
+
+  if (!messageId) return null;
+
+  return (
+    <Button 
+      variant="outline" 
+      size="sm" 
+      className="gap-2"
+      onClick={() => simulate.mutate({ data: { messageId } })}
+      disabled={simulate.isPending}
+    >
+      <Zap className={cn("h-4 w-4", simulate.isPending && "animate-pulse")} />
+      Simular Automação
+    </Button>
+  );
+}
+
