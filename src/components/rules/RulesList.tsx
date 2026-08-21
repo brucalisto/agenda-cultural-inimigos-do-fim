@@ -100,12 +100,18 @@ export function RulesList() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={cn(
-                        (rule.action_type === 'solicitar_exclusao' || rule.action_type === 'responder' || rule.action_type === 'publicar') && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                      )}>
-                        {rule.action_type}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className={cn(
+                          (rule.action_type === 'solicitar_exclusao' || rule.action_type === 'responder' || rule.action_type === 'publicar') && "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                        )}>
+                          {rule.action_type}
+                        </Badge>
+                        {(rule.action_type === 'solicitar_exclusao' || rule.action_type === 'responder' || rule.action_type === 'publicar') && (
+                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        )}
+                      </div>
                     </TableCell>
+
                     <TableCell>
                       <Badge variant={rule.ativo ? "default" : "secondary"}>
                         {rule.ativo ? "Ativa" : "Inativa"}
