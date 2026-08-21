@@ -8,7 +8,7 @@ import {
   Users, 
   Zap, 
   ScrollText, 
-  Settings,
+  Settings, ExternalLink,
   LogOut,
   Menu,
   X
@@ -57,7 +57,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center border-b px-6">
-            <span className="text-xl font-bold text-primary">ZapDash</span>
+            <span className="text-lg font-black text-primary">Inimigos do Fim</span>
           </div>
           
           <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
@@ -75,6 +75,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </nav>
 
           <div className="border-t p-4">
+            <Button asChild variant="outline" className="mb-2 w-full justify-start gap-3">
+              <a href="/agenda" target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Ver agenda pública</a>
+            </Button>
             <Button
               variant="ghost"
               className="w-full justify-start gap-3"
@@ -94,7 +97,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
               {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
-            <span className="text-lg font-semibold lg:hidden">ZapDash</span>
+            <span className="text-lg font-semibold lg:hidden">Inimigos do Fim</span>
           </div>
           
           <div className="flex items-center gap-4">
