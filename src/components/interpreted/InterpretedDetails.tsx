@@ -495,7 +495,7 @@ function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
       variant="outline" 
       size="sm" 
       className="gap-2"
-      onClick={() => simulate.mutate({ messageId })}
+      onClick={() => simulate.mutate({ data: { messageId } })}
       disabled={simulate.isPending}
     >
       <Zap className={cn("h-4 w-4", simulate.isPending && "animate-pulse")} />
