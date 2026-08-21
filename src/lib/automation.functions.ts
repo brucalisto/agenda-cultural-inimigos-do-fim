@@ -53,20 +53,51 @@ export const saveRule = createServerFn({ method: "POST" })
     };
     
     let result;
+    const { data: { user } } = await supabaseAdmin.auth.getUser();
+
     if (id) {
+      // Get old data for audit
+      const { data: oldData } = await supabaseAdmin
+        .from("automation_rules")
+        .select("*")
+        .eq("id", id)
+        .single();
+
       result = await supabaseAdmin
         .from("automation_rules")
         .update(payload)
         .eq("id", id)
         .select()
         .single();
+      
+      if (!result.error && user) {
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          user_id: user.id,
+          action: "UPDATE",
+          table_name: "automation_rules",
+          record_id: id as any,
+          old_data: oldData as any,
+          new_data: payload as any
+        });
+      }
     } else {
       result = await supabaseAdmin
         .from("automation_rules")
         .insert({ ...payload, created_at: new Date().toISOString() })
         .select()
         .single();
+
+      if (!result.error && user) {
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          user_id: user.id,
+          action: "INSERT",
+          table_name: "automation_rules",
+          record_id: result.data.id as any,
+          new_data: payload as any
+        });
+      }
     }
+
     
     if (result.error) throw result.error;
     return result.data;
