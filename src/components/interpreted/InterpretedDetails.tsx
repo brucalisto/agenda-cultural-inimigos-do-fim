@@ -470,3 +470,35 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
     </div>
   );
 }
+
+function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
+  const simulate = useMutation({
+    mutationFn: useServerFn(simulateAutomation),
+    onSuccess: (data: any) => {
+      if (data.status === "matched") {
+        toast.success(`Regra "${data.rule.nome}" acionada (SIMULAÇÃO)`);
+      } else {
+        toast.info("Nenhuma regra de automação correspondente.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Erro na simulação: " + err.message);
+    }
+  });
+
+  if (!messageId) return null;
+
+  return (
+    <Button 
+      variant="outline" 
+      size="sm" 
+      className="gap-2"
+      onClick={() => simulate.mutate({ messageId })}
+      disabled={simulate.isPending}
+    >
+      <Zap className={cn("h-4 w-4", simulate.isPending && "animate-pulse")} />
+      Simular Automação
+    </Button>
+  );
+}
+
