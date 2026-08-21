@@ -23,6 +23,9 @@ import {
   Pie,
   Cell
 } from "recharts";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -55,131 +58,160 @@ const activityData = [
 ];
 
 function Dashboard() {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+      if (!session) {
+        window.location.href = "/auth";
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) {
+        window.location.href = "/auth";
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) return null;
+  if (!session) return null;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
-        <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
-        <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-          Dados de demonstração
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
+          <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
+          <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+            Dados de demonstração
+          </div>
         </div>
-      </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                <h3 className="mt-1 text-2xl font-bold">{stat.value}</h3>
+        {/* KPI Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {stats.map((stat) => (
+            <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <h3 className="mt-1 text-2xl font-bold">{stat.value}</h3>
+                </div>
+                <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}>
+                  <stat.icon className="h-5 w-5" />
+                </div>
               </div>
-              <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}>
-                <stat.icon className="h-5 w-5" />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Activity Chart */}
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Atividade Recente</h3>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.929 0.013 255.508 / 0.5)" />
+                  <XAxis dataKey="time" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: "oklch(1 0 0)", 
+                      borderRadius: "8px", 
+                      border: "1px solid oklch(0.929 0.013 255.508)" 
+                    }} 
+                  />
+                  <Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Content Type Distribution */}
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Distribuição por Tipo</h3>
+              <PieChart className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={distributionData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {distributionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* API Status Section */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Zap className="h-5 w-5 text-amber-500" />
+                <h3 className="font-semibold">Evolution API</h3>
+              </div>
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+              <p className="text-sm">Conectado e Operacional</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Bot className="h-5 w-5 text-purple-500" />
+                <h3 className="font-semibold">Gemini AI</h3>
+              </div>
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+              <p className="text-sm">Online (v1.5 Pro)</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Webhook className="h-5 w-5 text-blue-500" />
+                <h3 className="font-semibold">Último Webhook</h3>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Activity Chart */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Atividade Recente</h3>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={activityData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.929 0.013 255.508 / 0.5)" />
-                <XAxis dataKey="time" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: "oklch(1 0 0)", 
-                    borderRadius: "8px", 
-                    border: "1px solid oklch(0.929 0.013 255.508)" 
-                  }} 
-                />
-                <Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Content Type Distribution */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Distribuição por Tipo</h3>
-            <PieChart className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={distributionData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {distributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p>
+              <p className="text-sm font-mono text-muted-foreground">2026-08-21 17:40:02</p>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* API Status Section */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Zap className="h-5 w-5 text-amber-500" />
-              <h3 className="font-semibold">Evolution API</h3>
-            </div>
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
-            <p className="text-sm">Conectado e Operacional</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Bot className="h-5 w-5 text-purple-500" />
-              <h3 className="font-semibold">Gemini AI</h3>
-            </div>
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
-            <p className="text-sm">Online (v1.5 Pro)</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Webhook className="h-5 w-5 text-blue-500" />
-              <h3 className="font-semibold">Último Webhook</h3>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p>
-            <p className="text-sm font-mono text-muted-foreground">2026-08-21 17:40:02</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </DashboardLayout>
   );
 }
