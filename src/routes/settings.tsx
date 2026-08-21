@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ExternalLink,ShieldCheck,Sparkles,Webhook } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-
-export const Route = createFileRoute("/settings")({
-  component: () => (
-    <DashboardLayout>
-      <h1 className="text-2xl font-bold">Configurações</h1>
-      <p className="text-muted-foreground">Configurações gerais da conta e do painel.</p>
-    </DashboardLayout>
-  ),
-});
+import { Card,CardContent,CardHeader,CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+export const Route=createFileRoute("/settings")({component:SettingsPage});
+function SettingsPage(){return <DashboardLayout><div className="space-y-6"><div><h1 className="text-2xl font-bold">Configurações</h1><p className="text-muted-foreground">Visão operacional e acessos do projeto.</p></div><div className="grid gap-4 md:grid-cols-2"><Card><CardHeader><CardTitle className="flex gap-2"><ShieldCheck className="text-emerald-500"/>Segredos protegidos</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">BAILEYS_API_URL, BAILEYS_API_KEY, GEMINI_API_KEY e WHATSAPP_WEBHOOK_SECRET devem existir apenas nos segredos do backend.</CardContent></Card><Card><CardHeader><CardTitle className="flex gap-2"><Webhook/>Webhook do Baileys</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Configure no servidor Baileys o endereço público terminado em <code>/api/public/whatsapp-webhook</code> e use o mesmo segredo HMAC.</CardContent></Card><Card><CardHeader><CardTitle className="flex gap-2"><Sparkles className="text-violet-500"/>Fluxo editorial</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Conteúdos entram pelo grupo autorizado, são interpretados pelo Gemini, passam por Revisão e só aparecem publicamente após publicação.</CardContent></Card><Card><CardHeader><CardTitle>Agenda pública</CardTitle></CardHeader><CardContent><Button asChild><a href="/agenda" target="_blank" rel="noreferrer">Abrir calendário <ExternalLink className="ml-2 h-4 w-4"/></a></Button></CardContent></Card></div></div></DashboardLayout>}
