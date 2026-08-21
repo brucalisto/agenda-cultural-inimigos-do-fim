@@ -86,7 +86,7 @@ export async function getInterpretedContentById(id: string) {
   return data as InterpretedContent;
 }
 
-export async function updateInterpretedContent(id: string, updates: Partial<InterpretedContent>) {
+export async function updateInterpretedContent(id: string, updates: Partial<Omit<InterpretedContent, 'whatsapp_messages'>>) {
   const { data, error } = await supabase
     .from("interpreted_contents")
     .update(updates)
