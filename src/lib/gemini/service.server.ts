@@ -15,7 +15,7 @@ export async function processWithGemini(
   const parts: Array<Record<string, unknown>> = [
     { text: `Conteúdo para análise:\n\n${content}` },
     ...mediaFiles.map((file) => ({
-      inline_data: { mime_type: file.mimeType, data: file.data },
+      inlineData: { mimeType: file.mimeType, data: file.data },
     })),
   ];
 
