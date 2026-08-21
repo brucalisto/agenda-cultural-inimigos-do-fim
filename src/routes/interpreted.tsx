@@ -159,7 +159,7 @@ function InterpretedPage() {
                 <h4 className="font-medium leading-none">Confiança Mínima</h4>
                 <Slider
                   value={[minConfidence]}
-                  onValueChange={(val) => setMinConfidence(val[0])}
+                  onValueChange={(val) => setMinConfidence(val[0] ?? 0)}
                   max={100}
                   step={5}
                 />
