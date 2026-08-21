@@ -98,7 +98,6 @@ export const saveRule = createServerFn({ method: "POST" })
       }
     }
 
-    
     if (result.error) throw result.error;
     return result.data;
   });
