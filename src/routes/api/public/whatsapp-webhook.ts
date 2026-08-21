@@ -3,12 +3,9 @@ import { supabaseAdmin } from '@/integrations/supabase/client.server'
 import { adaptEvolutionPayload } from '@/lib/adapters/evolution'
 
 export const Route = createFileRoute('/api/public/whatsapp-webhook')({
-  component: () => null,
-  loader: () => ({}),
-})
-
-export const APIRoute = {
-  POST: async ({ request }: { request: Request }) => {
+  server: {
+    handlers: {
+      POST: async ({ request }: { request: Request }) => {
     const startTime = Date.now();
     
     // 1. Basic security & size checks
@@ -135,8 +132,10 @@ export const APIRoute = {
       });
       return new Response('OK', { status: 200 }); 
     }
-  }
-}
+      },
+    },
+  },
+})
 
 async function updateLog(id: string | undefined, updates: any) {
   if (!id) return;
