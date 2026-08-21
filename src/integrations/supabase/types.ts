@@ -64,6 +64,95 @@ export type Database = {
           },
         ]
       }
+      interpreted_contents: {
+        Row: {
+          category: string | null
+          confidence_score: number | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          event_date: string | null
+          extracted_data: Json | null
+          full_description: string | null
+          id: string
+          keywords: string[] | null
+          location: string | null
+          message_id: string | null
+          missing_fields: string[] | null
+          model_used: string | null
+          price: string | null
+          prompt_version: string | null
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_url: string | null
+          summary: string | null
+          title: string | null
+          updated_at: string | null
+          warnings: string[] | null
+        }
+        Insert: {
+          category?: string | null
+          confidence_score?: number | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          extracted_data?: Json | null
+          full_description?: string | null
+          id?: string
+          keywords?: string[] | null
+          location?: string | null
+          message_id?: string | null
+          missing_fields?: string[] | null
+          model_used?: string | null
+          price?: string | null
+          prompt_version?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_url?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string | null
+          warnings?: string[] | null
+        }
+        Update: {
+          category?: string | null
+          confidence_score?: number | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          extracted_data?: Json | null
+          full_description?: string | null
+          id?: string
+          keywords?: string[] | null
+          location?: string | null
+          message_id?: string | null
+          missing_fields?: string[] | null
+          model_used?: string | null
+          price?: string | null
+          prompt_version?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_url?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string | null
+          warnings?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interpreted_contents_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_media: {
         Row: {
           checksum: string | null
@@ -137,6 +226,93 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      publication_destinations: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          endpoint_url: string | null
+          field_mapping: Json | null
+          id: string
+          nome: string
+          provider: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          endpoint_url?: string | null
+          field_mapping?: Json | null
+          id?: string
+          nome: string
+          provider?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          endpoint_url?: string | null
+          field_mapping?: Json | null
+          id?: string
+          nome?: string
+          provider?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      publication_records: {
+        Row: {
+          created_at: string | null
+          destination_id: string | null
+          error_message: string | null
+          external_record_id: string | null
+          id: string
+          interpreted_content_id: string | null
+          published_at: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          destination_id?: string | null
+          error_message?: string | null
+          external_record_id?: string | null
+          id?: string
+          interpreted_content_id?: string | null
+          published_at?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          destination_id?: string | null
+          error_message?: string | null
+          external_record_id?: string | null
+          id?: string
+          interpreted_content_id?: string | null
+          published_at?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_records_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "publication_destinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publication_records_interpreted_content_id_fkey"
+            columns: ["interpreted_content_id"]
+            isOneToOne: false
+            referencedRelation: "interpreted_contents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
