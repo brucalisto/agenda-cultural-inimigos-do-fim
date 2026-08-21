@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { BrainCircuit, Filter, Search, Eye, AlertTriangle } from "lucide-react";
+import { BrainCircuit, Filter, Search, Eye, AlertTriangle, Calendar as CalendarIcon, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { InterpretedDetails } from "@/components/interpreted/InterpretedDetails";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 
 export const Route = createFileRoute("/interpreted")({
   component: InterpretedPage,
@@ -42,6 +48,8 @@ function InterpretedPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [minConfidence, setMinConfidence] = useState(0);
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: contents, isLoading } = useQuery({
@@ -56,8 +64,17 @@ function InterpretedPage() {
     
     const matchesStatus = statusFilter === "all" || item.review_status === statusFilter;
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+    const matchesConfidence = (item.confidence_score || 0) * 100 >= minConfidence;
+    
+    let matchesDate = true;
+    if (dateRange.from) {
+      matchesDate = matchesDate && new Date(item.created_at) >= new Date(dateRange.from);
+    }
+    if (dateRange.to) {
+      matchesDate = matchesDate && new Date(item.created_at) <= new Date(dateRange.to);
+    }
 
-    return matchesSearch && matchesStatus && matchesCategory;
+    return matchesSearch && matchesStatus && matchesCategory && matchesConfidence && matchesDate;
   });
 
   const categories = Array.from(new Set(contents?.map((c) => c.category).filter(Boolean)));
@@ -72,6 +89,8 @@ function InterpretedPage() {
         return <Badge variant="secondary" className="bg-blue-100 text-blue-700">Em Revisão</Badge>;
       case "ignorado":
         return <Badge variant="destructive">Ignorado</Badge>;
+      case "publicado":
+        return <Badge className="bg-blue-600 hover:bg-blue-700">Publicado</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -91,8 +110,8 @@ function InterpretedPage() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-card p-4 rounded-lg border shadow-sm">
-          <div className="relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 bg-card p-4 rounded-lg border shadow-sm">
+          <div className="relative xl:col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por título ou texto..."
@@ -101,6 +120,7 @@ function InterpretedPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Status da revisão" />
@@ -111,8 +131,10 @@ function InterpretedPage() {
               <SelectItem value="aprovado">Aprovado</SelectItem>
               <SelectItem value="revisao">Em Revisão</SelectItem>
               <SelectItem value="ignorado">Ignorado</SelectItem>
+              <SelectItem value="publicado">Publicado</SelectItem>
             </SelectContent>
           </Select>
+
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Categoria" />
@@ -124,10 +146,47 @@ function InterpretedPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" className="flex gap-2">
-            <Filter className="h-4 w-4" />
-            Mais Filtros
-          </Button>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start gap-2">
+                <Target className="h-4 w-4" />
+                Confiança: {minConfidence}%
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-4">
+              <div className="space-y-4">
+                <h4 className="font-medium leading-none">Confiança Mínima</h4>
+                <Slider
+                  value={[minConfidence]}
+                  onValueChange={(val) => setMinConfidence(val[0])}
+                  max={100}
+                  step={5}
+                />
+                <p className="text-xs text-muted-foreground">Exibir apenas itens com confiança superior a {minConfidence}%.</p>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                Período
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4 flex flex-col gap-2">
+              <div className="grid gap-2">
+                <label className="text-xs font-medium">De:</label>
+                <Input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-xs font-medium">Até:</label>
+                <Input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} />
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: "", to: "" })}>Limpar</Button>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Content Table */}
