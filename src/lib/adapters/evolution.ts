@@ -20,7 +20,7 @@ export interface StandardizedMessage {
     mime_type: string;
     file_size?: number;
     source_url?: string;
-  };
+  } | null;
 }
 
 export function adaptEvolutionPayload(payload: any): StandardizedMessage | null {
