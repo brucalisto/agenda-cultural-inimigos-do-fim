@@ -41,7 +41,7 @@ export function adaptEvolutionPayload(payload: any): StandardizedMessage | null 
     let text_content = null;
     let caption = null;
     let message_type = 'unknown';
-    let media = undefined;
+    let media: StandardizedMessage['media'] = null;
 
     const m = message.message || message;
     
