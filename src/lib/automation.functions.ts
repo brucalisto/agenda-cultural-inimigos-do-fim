@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
+import { Database } from "@/integrations/supabase/types";
+
+type AutomationActionType = Database["public"]["Enums"]["automation_action_type"];
 
 export const getRules = createServerFn({ method: "GET" })
   .handler(async () => {
@@ -34,22 +37,33 @@ export const saveRule = createServerFn({ method: "POST" })
     action_config: z.any().optional(),
     requires_approval: z.boolean().optional()
   }).parse(d))
-
   .handler(async ({ data }) => {
     const { id, ...ruleData } = data;
+    
+    const payload = {
+      nome: ruleData.nome,
+      descricao: ruleData.descricao ?? null,
+      ativo: ruleData.ativo ?? true,
+      priority: ruleData.priority ?? 0,
+      conditions: ruleData.conditions ?? {},
+      action_type: ruleData.action_type as AutomationActionType,
+      action_config: ruleData.action_config ?? {},
+      requires_approval: ruleData.requires_approval ?? true,
+      updated_at: new Date().toISOString()
+    };
     
     let result;
     if (id) {
       result = await supabaseAdmin
         .from("automation_rules")
-        .update(ruleData)
+        .update(payload)
         .eq("id", id)
         .select()
         .single();
     } else {
       result = await supabaseAdmin
         .from("automation_rules")
-        .insert(ruleData)
+        .insert({ ...payload, created_at: new Date().toISOString() })
         .select()
         .single();
     }
@@ -97,12 +111,10 @@ export const simulateAutomation = createServerFn({ method: "POST" })
     if (rulesError) throw rulesError;
 
     // Simple matching logic (for simulation)
-    // In a real scenario, this would check conditions JSONB
     let matchedRule = null;
     for (const rule of rules) {
-      // Basic check: if conditions contains a keyword that matches text
       const conditions = rule.conditions as any;
-      if (conditions.keywords && Array.isArray(conditions.keywords)) {
+      if (conditions && conditions.keywords && Array.isArray(conditions.keywords)) {
         const text = (message.text_content || message.caption || "").toLowerCase();
         if (conditions.keywords.some((k: string) => text.includes(k.toLowerCase()))) {
           matchedRule = rule;
@@ -121,7 +133,7 @@ export const simulateAutomation = createServerFn({ method: "POST" })
       .insert({
         rule_id: matchedRule.id,
         message_id: message.id,
-        action_type: matchedRule.action_type as any,
+        action_type: matchedRule.action_type as AutomationActionType,
         execution_mode: "simular",
         status: "simulado",
         request_payload: {
@@ -132,7 +144,8 @@ export const simulateAutomation = createServerFn({ method: "POST" })
         response_payload: {
           simulated: true,
           message: `Ação ${matchedRule.action_type} seria executada no modo real.`
-        }
+        },
+        executed_at: new Date().toISOString()
       })
       .select()
       .single();
