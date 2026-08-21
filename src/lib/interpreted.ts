@@ -32,6 +32,16 @@ export type InterpretedContent = {
     whatsapp_groups?: {
       nome: string;
     } | null;
+    message_media?: Array<{
+      media_type: string;
+      original_filename: string;
+      storage_path: string | null;
+    }>;
+    extracted_links?: Array<{
+      original_url: string;
+      page_title: string | null;
+    }>;
+    raw_payload?: any;
   } | null;
 };
 
