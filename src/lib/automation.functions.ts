@@ -17,14 +17,24 @@ export const saveRule = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     id: z.string().optional(),
     nome: z.string(),
-    descricao: z.string().optional(),
-    ativo: z.boolean(),
-    priority: z.number(),
-    conditions: z.any(),
-    action_type: z.string(),
-    action_config: z.any(),
-    requires_approval: z.boolean()
+    descricao: z.string().optional().nullable(),
+    ativo: z.boolean().optional(),
+    priority: z.number().optional(),
+    conditions: z.any().optional(),
+    action_type: z.enum([
+      'apenas_registrar',
+      'sinalizar',
+      'ignorar',
+      'enviar_para_revisao',
+      'aprovar',
+      'publicar',
+      'responder',
+      'solicitar_exclusao'
+    ]),
+    action_config: z.any().optional(),
+    requires_approval: z.boolean().optional()
   }).parse(d))
+
   .handler(async ({ data }) => {
     const { id, ...ruleData } = data;
     
