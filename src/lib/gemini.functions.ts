@@ -1,13 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { processWithGemini } from "./gemini/service.server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { GEMINI_CONFIG } from "./gemini/config.server";
 
 export const reprocessMessage = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ messageId: z.string() }).parse(data))
   .handler(async ({ data }) => {
     const { messageId } = data;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // 1. Fetch message data
     const { data: message, error: fetchError } = await supabaseAdmin
@@ -41,13 +41,6 @@ export const reprocessMessage = createServerFn({ method: "POST" })
       const interpretation = await processWithGemini(contentToAnalyze);
 
       // 4. Save interpreted content
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("role", "administrador")
-        .limit(1)
-        .single();
-
       const { error: insertError } = await supabaseAdmin
         .from("interpreted_contents")
         .upsert({
@@ -58,7 +51,7 @@ export const reprocessMessage = createServerFn({ method: "POST" })
           full_description: interpretation.full_description,
           event_date: interpretation.event_date,
           location: interpretation.location,
-          price: interpretation.price?.toString(),
+          price: interpretation.price != null ? String(interpretation.price) : null,
           contact_name: interpretation.contact_name,
           contact_phone: interpretation.contact_phone,
           source_url: interpretation.source_url,
