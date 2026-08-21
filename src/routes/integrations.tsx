@@ -29,13 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { manageWhatsAppIntegration } from "@/lib/integrations.functions";
 
@@ -102,7 +96,7 @@ function IntegrationsPage() {
         setQrDataUrl(null);
         const groupResult = await callIntegration("groups");
         if (groupResult.kind === "groups") {
-          setGroups(((groupResult as unknown as { groups?: WhatsAppGroup[] }).groups) || []);
+          setGroups((groupResult as unknown as { groups?: WhatsAppGroup[] }).groups || []);
         }
       } else {
         setGroups([]);
@@ -116,7 +110,8 @@ function IntegrationsPage() {
 
       if (showToast) toast.success("Estado da integração atualizado.");
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Não foi possível consultar o Baileys.";
+      const message =
+        cause instanceof Error ? cause.message : "Não foi possível consultar o Baileys.";
       setError(message);
       if (showToast) toast.error(message);
     } finally {
@@ -192,7 +187,11 @@ function IntegrationsPage() {
                   variant={connected ? "default" : "outline"}
                   className={connected ? "bg-emerald-600 hover:bg-emerald-600" : ""}
                 >
-                  {connected ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <CircleOff className="mr-1 h-3 w-3" />}
+                  {connected ? (
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                  ) : (
+                    <CircleOff className="mr-1 h-3 w-3" />
+                  )}
                   {stateLabel(status?.state)}
                 </Badge>
               )}
@@ -201,11 +200,15 @@ function IntegrationsPage() {
             <CardContent className="space-y-6">
               <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Instância</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Instância
+                  </p>
                   <p className="mt-1 font-medium">Principal</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Conta</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Conta
+                  </p>
                   <p className="mt-1 break-all font-medium">
                     {status?.user?.name || status?.user?.id || "Nenhuma conta conectada"}
                   </p>
@@ -244,7 +247,8 @@ function IntegrationsPage() {
                   <Smartphone className="h-4 w-4" />
                   <AlertTitle>{stateLabel(status?.state)}</AlertTitle>
                   <AlertDescription>
-                    Aguarde alguns segundos e atualize. O QR Code aparecerá quando o Baileys estiver pronto.
+                    Aguarde alguns segundos e atualize. O QR Code aparecerá quando o Baileys estiver
+                    pronto.
                   </AlertDescription>
                 </Alert>
               )}
@@ -260,13 +264,17 @@ function IntegrationsPage() {
                   </div>
                   <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
                     {groups.length === 0 ? (
-                      <p className="p-4 text-sm text-muted-foreground">Nenhum grupo retornado pela conta.</p>
+                      <p className="p-4 text-sm text-muted-foreground">
+                        Nenhum grupo retornado pela conta.
+                      </p>
                     ) : (
                       groups.map((group) => (
                         <div key={group.id} className="flex items-center justify-between gap-4 p-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{group.subject}</p>
-                            <p className="truncate font-mono text-xs text-muted-foreground">{group.id}</p>
+                            <p className="truncate font-mono text-xs text-muted-foreground">
+                              {group.id}
+                            </p>
                           </div>
                           <span className="shrink-0 text-xs text-muted-foreground">
                             {group.participants} participantes
@@ -295,7 +303,8 @@ function IntegrationsPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Desconectar o WhatsApp?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          A leitura de novas mensagens será interrompida e será necessário ler outro QR Code para conectar novamente.
+                          A leitura de novas mensagens será interrompida e será necessário ler outro
+                          QR Code para conectar novamente.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
