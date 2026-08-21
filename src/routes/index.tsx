@@ -1,24 +1,185 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { 
+  MessageSquare, 
+  Brain, 
+  Clock, 
+  CheckCircle2, 
+  ShieldAlert, 
+  AlertTriangle,
+  Activity,
+  Zap,
+  Bot,
+  Webhook
+} from "lucide-react";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: Dashboard,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+const stats = [
+  { label: "Mensagens hoje", value: "1,284", icon: MessageSquare, color: "text-blue-500" },
+  { label: "Conteúdos processados", value: "856", icon: Brain, color: "text-purple-500" },
+  { label: "Pendentes de revisão", value: "42", icon: Clock, color: "text-amber-500" },
+  { label: "Publicados", value: "712", icon: CheckCircle2, color: "text-emerald-500" },
+  { label: "Ignorados", value: "102", icon: ShieldAlert, color: "text-slate-500" },
+  { label: "Erros", value: "3", icon: AlertTriangle, color: "text-red-500" },
+];
+
+const distributionData = [
+  { name: "Texto", value: 400, color: "oklch(0.646 0.222 41.116)" },
+  { name: "Imagem", value: 300, color: "oklch(0.6 0.118 184.704)" },
+  { name: "Áudio", value: 200, color: "oklch(0.398 0.07 227.392)" },
+  { name: "Vídeo", value: 100, color: "oklch(0.828 0.189 84.429)" },
+  { name: "Link", value: 150, color: "oklch(0.769 0.188 70.08)" },
+];
+
+const activityData = [
+  { time: "10:00", count: 45 },
+  { time: "11:00", count: 52 },
+  { time: "12:00", count: 38 },
+  { time: "13:00", count: 65 },
+  { time: "14:00", count: 48 },
+  { time: "15:00", count: 59 },
+];
+
+function Dashboard() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
+        <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
+        <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+          Dados de demonstração
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                <h3 className="mt-1 text-2xl font-bold">{stat.value}</h3>
+              </div>
+              <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}>
+                <stat.icon className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Activity Chart */}
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Atividade Recente</h3>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activityData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.929 0.013 255.508 / 0.5)" />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: "oklch(1 0 0)", 
+                    borderRadius: "8px", 
+                    border: "1px solid oklch(0.929 0.013 255.508)" 
+                  }} 
+                />
+                <Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Content Type Distribution */}
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Distribuição por Tipo</h3>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={distributionData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {distributionData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* API Status Section */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-amber-500" />
+              <h3 className="font-semibold">Evolution API</h3>
+            </div>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+            <p className="text-sm">Conectado e Operacional</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Bot className="h-5 w-5 text-purple-500" />
+              <h3 className="font-semibold">Gemini AI</h3>
+            </div>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+            <p className="text-sm">Online (v1.5 Pro)</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Webhook className="h-5 w-5 text-blue-500" />
+              <h3 className="font-semibold">Último Webhook</h3>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p>
+            <p className="text-sm font-mono text-muted-foreground">2026-08-21 17:40:02</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
