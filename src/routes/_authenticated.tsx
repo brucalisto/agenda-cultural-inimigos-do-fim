@@ -35,7 +35,7 @@ function AuthenticatedLayout() {
     { label: "Publicados", icon: Send, to: "/published" },
     { label: "Regras", icon: ListTree, to: "/rules" },
     { label: "Grupos", icon: Users, to: "/groups" },
-    { label: "Integrações", icon: IntegrationsIcon, to: "/integrations" },
+    { label: "Integrações", icon: Zap, to: "/integrations" },
     { label: "Logs", icon: ScrollText, to: "/logs" },
     { label: "Configurações", icon: Settings, to: "/settings" },
   ];
@@ -63,7 +63,7 @@ function AuthenticatedLayout() {
             {menuItems.map((item) => (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to as any}
                 activeProps={{ className: "bg-accent text-accent-foreground" }}
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/50"
               >
@@ -101,8 +101,4 @@ function AuthenticatedLayout() {
       </div>
     </div>
   );
-}
-
-function IntegrationsIcon(props: any) {
-  return <Zap {...props} />;
 }
