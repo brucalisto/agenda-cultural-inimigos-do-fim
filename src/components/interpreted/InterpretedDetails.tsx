@@ -22,10 +22,14 @@ import {
   Trash2,
   Send,
   Copy,
-  ExternalLink
+  ExternalLink,
+  History,
+  Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Collapsible, 
   CollapsibleContent, 
@@ -54,11 +58,39 @@ interface InterpretedDetailsProps {
 
 export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
   const [isTechnicalOpen, setIsTechnicalOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   
   const { data: content, isLoading, refetch } = useQuery({
     queryKey: ["interpreted-content", id],
     queryFn: () => getInterpretedContentById(id),
   });
+
+  const [editForm, setEditForm] = useState<Partial<InterpretedContent>>({});
+
+  const startEditing = () => {
+    if (content) {
+      setEditForm({
+        title: content.title,
+        category: content.category,
+        summary: content.summary,
+        location: content.location,
+        price: content.price,
+      });
+      setIsEditing(true);
+    }
+  };
+
+  const saveEdits = async () => {
+    try {
+      await updateInterpretedContent(id, editForm as any);
+      toast.success("Conteúdo atualizado com sucesso");
+      setIsEditing(false);
+      refetch();
+    } catch (error: any) {
+      toast.error("Erro ao salvar: " + error.message);
+    }
+  };
 
   const handleStatusChange = async (status: string) => {
     try {
@@ -118,12 +150,10 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               </div>
 
               {/* Media Section */}
-              {/* @ts-ignore - whatsapp_messages type needs manual extension in lib/interpreted.ts or generated types */}
               {msg?.message_media && msg.message_media.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold">Mídias anexadas:</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {/* @ts-ignore */}
                     {msg.message_media.map((media: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded text-xs">
                         {media.media_type.includes('image') ? <ImageIcon className="h-3 w-3" /> : 
@@ -138,12 +168,10 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               )}
 
               {/* Links Section */}
-              {/* @ts-ignore */}
               {msg?.extracted_links && msg.extracted_links.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold">Links encontrados:</p>
                   <div className="space-y-1">
-                    {/* @ts-ignore */}
                     {msg.extracted_links.map((link: any, i: number) => (
                       <a 
                         key={i} 
@@ -163,34 +191,78 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
             </div>
           </section>
 
-          <Collapsible open={isTechnicalOpen} onOpenChange={setIsTechnicalOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between font-semibold">
-                DADOS TÉCNICOS (ADM)
-                {isTechnicalOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 p-4 bg-slate-950 rounded-lg overflow-x-auto">
-              <pre className="text-[10px] text-green-400 font-mono">
-                {/* @ts-ignore */}
-                {JSON.stringify(msg?.raw_payload || {}, null, 2)}
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
+          <div className="space-y-2">
+            <Collapsible open={isTechnicalOpen} onOpenChange={setIsTechnicalOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between font-semibold">
+                  DADOS TÉCNICOS (ADM)
+                  {isTechnicalOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 p-4 bg-slate-950 rounded-lg overflow-x-auto">
+                <pre className="text-[10px] text-green-400 font-mono">
+                  {JSON.stringify(msg?.raw_payload || {}, null, 2)}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between font-semibold">
+                  <span className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    HISTÓRICO DE ALTERAÇÕES
+                  </span>
+                  {isHistoryOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-2">
+                <div className="p-3 bg-muted/50 rounded-lg border text-xs space-y-2">
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Criado por Gemini 1.5 Pro</span>
+                    <span>{format(new Date(content.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                  </div>
+                  {content.reviewed_at && (
+                    <div className="flex justify-between items-center text-muted-foreground pt-2 border-t">
+                      <span>Revisado por Admin</span>
+                      <span>{format(new Date(content.reviewed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                    </div>
+                  )}
+                  <p className="text-center italic text-muted-foreground pt-2">Fim do histórico demonstrativo</p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
         </div>
 
         {/* Right Column: AI Interpretation */}
         <div className="space-y-6">
           <section>
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              Informações Extraídas (IA)
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Brain className="h-4 w-4" />
+                Informações Extraídas (IA)
+              </h3>
+              {!isEditing && (
+                <Button variant="outline" size="sm" onClick={startEditing} className="gap-2">
+                  <Edit className="h-3 w-3" />
+                  Editar
+                </Button>
+              )}
+            </div>
             
             <div className="bg-card rounded-lg border shadow-sm divide-y">
               <div className="p-4 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-lg">{content.title || "Sem título"}</h4>
+                <div className="flex justify-between items-center gap-4">
+                  {isEditing ? (
+                    <Input 
+                      value={editForm.title || ""} 
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      placeholder="Título do conteúdo"
+                    />
+                  ) : (
+                    <h4 className="font-bold text-lg">{content.title || "Sem título"}</h4>
+                  )}
                   <Badge className={cn(
                     (content.confidence_score || 0) > 0.8 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                   )}>
@@ -201,7 +273,39 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground text-xs uppercase font-semibold">Categoria</p>
-                    <p className="font-medium">{content.category || "Não categorizado"}</p>
+                    {isEditing ? (
+                      <Input 
+                        value={editForm.category || ""} 
+                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.category || "Não categorizado"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">Localização</p>
+                    {isEditing ? (
+                      <Input 
+                        value={editForm.location || ""} 
+                        onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.location || "Não informada"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">Preço/Valor</p>
+                    {isEditing ? (
+                      <Input 
+                        value={editForm.price || ""} 
+                        onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.price || "N/A"}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs uppercase font-semibold">Data do Evento</p>
@@ -209,19 +313,19 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                       {content.event_date ? format(new Date(content.event_date), "dd/MM/yyyy", { locale: ptBR }) : "Não detectada"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Localização</p>
-                    <p className="font-medium">{content.location || "Não informada"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Preço/Valor</p>
-                    <p className="font-medium">{content.price || "N/A"}</p>
-                  </div>
                 </div>
 
                 <div>
                   <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">Resumo</p>
-                  <p className="text-sm leading-relaxed">{content.summary || "Sem resumo disponível."}</p>
+                  {isEditing ? (
+                    <Textarea 
+                      value={editForm.summary || ""} 
+                      onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                      className="mt-1 min-h-[100px]"
+                    />
+                  ) : (
+                    <p className="text-sm leading-relaxed">{content.summary || "Sem resumo disponível."}</p>
+                  )}
                 </div>
 
                 <div>
@@ -267,53 +371,67 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                  </div>
               </div>
             </div>
+
+            {isEditing && (
+              <div className="mt-4 flex gap-2">
+                <Button className="flex-1 gap-2" onClick={saveEdits}>
+                  <Save className="h-4 w-4" />
+                  Salvar Alterações
+                </Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
           </section>
         </div>
       </div>
 
       {/* Footer Actions */}
-      <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => handleStatusChange('reprocessar')}>
-          <RotateCcw className="h-4 w-4" />
-          Reprocessar
-        </Button>
-        <Button variant="outline" size="sm" className="gap-2" onClick={copyJson}>
-          <Copy className="h-4 w-4" />
-          Copiar JSON
-        </Button>
-        <div className="w-px h-8 bg-border mx-1" />
-        <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleStatusChange('ignorado')}>
-          <Trash2 className="h-4 w-4" />
-          Ignorar
-        </Button>
-        <Button variant="outline" size="sm" className="gap-2 text-blue-600 border-blue-200" onClick={() => handleStatusChange('revisao')}>
-          <Edit className="h-4 w-4" />
-          Enviar p/ Revisão
-        </Button>
-        
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700">
-              <CheckCircle className="h-4 w-4" />
-              Aprovar & Publicar
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmar Publicação</AlertDialogTitle>
-              <AlertDialogDescription>
-                Deseja publicar este conteúdo no destino configurado? Esta ação enviará os dados extraídos para a plataforma externa.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={() => handleStatusChange('aprovado')} className="bg-green-600 hover:bg-green-700">
-                Confirmar e Publicar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+      {!isEditing && (
+        <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => handleStatusChange('reprocessar')}>
+            <RotateCcw className="h-4 w-4" />
+            Reprocessar
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={copyJson}>
+            <Copy className="h-4 w-4" />
+            Copiar JSON
+          </Button>
+          <div className="w-px h-8 bg-border mx-1" />
+          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleStatusChange('ignorado')}>
+            <Trash2 className="h-4 w-4" />
+            Ignorar
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2 text-blue-600 border-blue-200" onClick={() => handleStatusChange('revisao')}>
+            <Edit className="h-4 w-4" />
+            Enviar p/ Revisão
+          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700">
+                <CheckCircle className="h-4 w-4" />
+                Aprovar & Publicar
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Publicação</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Deseja publicar este conteúdo no destino configurado? Esta ação enviará os dados extraídos para a plataforma externa.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleStatusChange('aprovado')} className="bg-green-600 hover:bg-green-700">
+                  Confirmar e Publicar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }
