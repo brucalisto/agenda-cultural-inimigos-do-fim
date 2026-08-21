@@ -332,6 +332,51 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_events: {
+        Row: {
+          error_message: string | null
+          event_type: string | null
+          external_event_id: string | null
+          headers_sanitized: Json | null
+          http_status: number | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          processing_duration_ms: number | null
+          processing_status: string | null
+          provider: string | null
+          received_at: string | null
+        }
+        Insert: {
+          error_message?: string | null
+          event_type?: string | null
+          external_event_id?: string | null
+          headers_sanitized?: Json | null
+          http_status?: number | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_duration_ms?: number | null
+          processing_status?: string | null
+          provider?: string | null
+          received_at?: string | null
+        }
+        Update: {
+          error_message?: string | null
+          event_type?: string | null
+          external_event_id?: string | null
+          headers_sanitized?: Json | null
+          http_status?: number | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_duration_ms?: number | null
+          processing_status?: string | null
+          provider?: string | null
+          received_at?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_groups: {
         Row: {
           ativo: boolean | null
