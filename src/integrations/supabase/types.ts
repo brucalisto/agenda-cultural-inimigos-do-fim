@@ -14,20 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
-      profiles: {
+      extracted_links: {
         Row: {
-          full_name: string | null
+          created_at: string | null
+          extracted_text: string | null
+          extraction_status: string | null
+          failure_reason: string | null
           id: string
+          message_id: string | null
+          normalized_url: string | null
+          original_url: string | null
+          page_description: string | null
+          page_title: string | null
           updated_at: string | null
         }
         Insert: {
-          full_name?: string | null
-          id: string
+          created_at?: string | null
+          extracted_text?: string | null
+          extraction_status?: string | null
+          failure_reason?: string | null
+          id?: string
+          message_id?: string | null
+          normalized_url?: string | null
+          original_url?: string | null
+          page_description?: string | null
+          page_title?: string | null
           updated_at?: string | null
         }
         Update: {
+          created_at?: string | null
+          extracted_text?: string | null
+          extraction_status?: string | null
+          failure_reason?: string | null
+          id?: string
+          message_id?: string | null
+          normalized_url?: string | null
+          original_url?: string | null
+          page_description?: string | null
+          page_title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extracted_links_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_media: {
+        Row: {
+          checksum: string | null
+          created_at: string | null
+          file_size: number | null
+          id: string
+          media_type: string | null
+          message_id: string | null
+          mime_type: string | null
+          original_filename: string | null
+          source_url: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          checksum?: string | null
+          created_at?: string | null
+          file_size?: number | null
+          id?: string
+          media_type?: string | null
+          message_id?: string | null
+          mime_type?: string | null
+          original_filename?: string | null
+          source_url?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          checksum?: string | null
+          created_at?: string | null
+          file_size?: number | null
+          id?: string
+          media_type?: string | null
+          message_id?: string | null
+          mime_type?: string | null
+          original_filename?: string | null
+          source_url?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_media_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          full_name: string | null
+          id: string
+          nome: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          nome?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
           full_name?: string | null
           id?: string
+          nome?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
           updated_at?: string | null
         }
         Relationships: []
@@ -50,6 +156,120 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_groups: {
+        Row: {
+          ativo: boolean | null
+          automation_mode: Database["public"]["Enums"]["automation_mode"] | null
+          autorizado: boolean | null
+          created_at: string | null
+          descricao: string | null
+          external_group_id: string
+          id: string
+          nome: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          automation_mode?:
+            | Database["public"]["Enums"]["automation_mode"]
+            | null
+          autorizado?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          external_group_id: string
+          id?: string
+          nome: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          automation_mode?:
+            | Database["public"]["Enums"]["automation_mode"]
+            | null
+          autorizado?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          external_group_id?: string
+          id?: string
+          nome?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          error_message: string | null
+          external_message_id: string
+          group_id: string | null
+          id: string
+          message_type: string | null
+          occurred_at: string | null
+          processing_status:
+            | Database["public"]["Enums"]["processing_status"]
+            | null
+          quoted_message_id: string | null
+          raw_payload: Json | null
+          received_at: string | null
+          retry_count: number | null
+          sender_external_id: string
+          sender_name: string | null
+          text_content: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          external_message_id: string
+          group_id?: string | null
+          id?: string
+          message_type?: string | null
+          occurred_at?: string | null
+          processing_status?:
+            | Database["public"]["Enums"]["processing_status"]
+            | null
+          quoted_message_id?: string | null
+          raw_payload?: Json | null
+          received_at?: string | null
+          retry_count?: number | null
+          sender_external_id: string
+          sender_name?: string | null
+          text_content?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          external_message_id?: string
+          group_id?: string | null
+          id?: string
+          message_type?: string | null
+          occurred_at?: string | null
+          processing_status?:
+            | Database["public"]["Enums"]["processing_status"]
+            | null
+          quoted_message_id?: string | null
+          raw_payload?: Json | null
+          received_at?: string | null
+          retry_count?: number | null
+          sender_external_id?: string
+          sender_name?: string | null
+          text_content?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -65,6 +285,17 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "revisor"
+      automation_mode: "monitorar" | "simular" | "executar"
+      processing_status:
+        | "recebido"
+        | "pendente"
+        | "processando"
+        | "interpretado"
+        | "necessita_revisao"
+        | "aprovado"
+        | "publicado"
+        | "ignorado"
+        | "erro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -193,6 +424,18 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "revisor"],
+      automation_mode: ["monitorar", "simular", "executar"],
+      processing_status: [
+        "recebido",
+        "pendente",
+        "processando",
+        "interpretado",
+        "necessita_revisao",
+        "aprovado",
+        "publicado",
+        "ignorado",
+        "erro",
+      ],
     },
   },
 } as const
