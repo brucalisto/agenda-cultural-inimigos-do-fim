@@ -106,10 +106,11 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
   };
 
   const handleGeminiReprocess = async () => {
-    if (!msg?.id) return;
+    const messageId = (content as any)?.message_id as string | undefined;
+    if (!messageId) return;
     setIsReprocessing(true);
     try {
-      await reprocessMessage({ messageId: msg.id });
+      await reprocessMessage({ data: { messageId } });
       toast.success("Reprocessado com sucesso pelo Gemini");
       refetch();
     } catch (error: any) {
@@ -118,6 +119,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       setIsReprocessing(false);
     }
   };
+
 
   const copyJson = () => {
     navigator.clipboard.writeText(JSON.stringify(content, null, 2));
