@@ -1,147 +1,22 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { supabaseAdmin } from '@/integrations/supabase/client.server'
-import { adaptEvolutionPayload } from '@/lib/adapters/evolution'
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { createFileRoute } from "@tanstack/react-router";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { parseBaileysWebhook } from "@/lib/adapters/baileys.server";
+import { processBaileysMessage } from "@/lib/processing.server";
 
-export const Route = createFileRoute('/api/public/whatsapp-webhook')({
-  server: {
-    handlers: {
-      POST: async ({ request }: { request: Request }) => {
-    const startTime = Date.now();
-    
-    // 1. Basic security & size checks
-    const signature = request.headers.get('x-webhook-secret');
-    const contentLength = parseInt(request.headers.get('content-length') || '0');
-    
-    // Max 5MB
-    if (contentLength > 5 * 1024 * 1024) {
-      return new Response('Payload too large', { status: 413 });
-    }
+function validSignature(body:string,signature:string|null,secret:string){if(!signature?.startsWith("sha256="))return false;const expected=Buffer.from(createHmac("sha256",secret).update(body).digest("hex"));const received=Buffer.from(signature.slice(7));return expected.length===received.length&&timingSafeEqual(expected,received);}
 
-    let payload: any;
-    try {
-      payload = await request.json();
-    } catch (e) {
-      return new Response('Invalid JSON', { status: 400 });
-    }
-
-    // 2. Sanitize headers for logging
-    const headers: Record<string, string> = {};
-    request.headers.forEach((value: string, key: string) => {
-      if (!['authorization', 'x-webhook-secret', 'cookie'].includes(key.toLowerCase())) {
-        headers[key] = value;
-      }
-    });
-
-    // 3. Register incoming event (initial log)
-    const { data: eventLog, error: logError } = await supabaseAdmin
-      .from('webhook_events')
-      .insert({
-        provider: 'evolution',
-        event_type: payload.event || 'unknown',
-        external_event_id: payload.instanceId || null,
-        headers_sanitized: headers,
-        payload: payload,
-        processing_status: 'received',
-        received_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (logError) {
-      console.error("Failed to log webhook event:", logError);
-    }
-
-    // 4. Validate Secret
-    const secret = process.env['WHATSAPP_WEBHOOK_SECRET'];
-    if (!secret) {
-      console.error("WHATSAPP_WEBHOOK_SECRET is not configured in environment variables.");
-      await updateLog(eventLog?.id, { 
-        processing_status: 'error', 
-        error_message: 'Server configuration error: missing secret',
-        http_status: 500 
-      });
-      return new Response('Internal Server Error', { status: 500 });
-    }
-
-    if (signature !== secret) {
-      await updateLog(eventLog?.id, { 
-        processing_status: 'error', 
-        error_message: 'Invalid signature',
-        http_status: 401 
-      });
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    // 5. Process Message
-    try {
-      if (['MESSAGES_UPSERT', 'MESSAGES_SET'].includes(payload.event)) {
-        const standardized = adaptEvolutionPayload(payload);
-        
-        if (standardized && standardized.external_group_id) {
-          const { data: group } = await supabaseAdmin
-            .from('whatsapp_groups')
-            .select('id, autorizado, ativo')
-            .eq('external_group_id', standardized.external_group_id)
-            .single();
-
-          if (group && group.ativo && group.autorizado) {
-            const { error: msgError } = await supabaseAdmin
-              .from('whatsapp_messages')
-              .upsert({
-                external_message_id: standardized.external_message_id,
-                group_id: group.id,
-                sender_external_id: standardized.sender_external_id,
-                sender_name: standardized.sender_name,
-                message_type: standardized.message_type,
-                text_content: standardized.text_content,
-                caption: standardized.caption,
-                quoted_message_id: standardized.quoted_message_id,
-                occurred_at: standardized.occurred_at.toISOString(),
-                received_at: new Date().toISOString(),
-                raw_payload: payload,
-                processing_status: 'recebido'
-              }, { onConflict: 'external_message_id' });
-
-            if (msgError) {
-              throw new Error(`Message registration error: ${msgError.message}`);
-            }
-          } else {
-            await updateLog(eventLog?.id, { 
-               processing_status: 'ignored',
-               error_message: group ? 'Group not authorized' : 'Group not registered'
-            });
-          }
-        }
-      }
-
-      await updateLog(eventLog?.id, {
-        processing_status: 'processed',
-        http_status: 200,
-        processing_duration_ms: Date.now() - startTime,
-        processed_at: new Date().toISOString()
-      });
-
-      return new Response('OK', { status: 200 });
-
-    } catch (error: any) {
-      console.error("Webhook processing error:", error);
-      await updateLog(eventLog?.id, { 
-        processing_status: 'error', 
-        error_message: error.message,
-        http_status: 200 
-      });
-      return new Response('OK', { status: 200 }); 
-    }
-      },
-    },
-  },
-})
-
-async function updateLog(id: string | undefined, updates: any) {
-  if (!id) return;
-  try {
-    await supabaseAdmin.from('webhook_events').update(updates).eq('id', id);
-  } catch (e) {
-    console.error("Failed to update webhook log:", e);
-  }
-}
+export const Route=createFileRoute("/api/public/whatsapp-webhook")({server:{handlers:{POST:async({request})=>{
+  const started=Date.now();const body=await request.text();if(body.length>2_000_000)return new Response("Payload too large",{status:413});
+  const secret=process.env["WHATSAPP_WEBHOOK_SECRET"];if(!secret)return new Response("Webhook secret missing",{status:500});
+  if(!validSignature(body,request.headers.get("x-baileys-signature"),secret))return new Response("Unauthorized",{status:401});
+  let payload;try{payload=parseBaileysWebhook(JSON.parse(body));}catch{return new Response("Invalid Baileys payload",{status:400});}
+  const db=supabaseAdmin as any;const {data:event}=await db.from("webhook_events").insert({provider:"baileys",event_type:"messages.upsert",external_event_id:payload.eventId,payload,processing_status:"received",received_at:new Date().toISOString()}).select().single();
+  try{
+    let {data:group}=await db.from("whatsapp_groups").select("*").eq("external_group_id",payload.groupId).maybeSingle();
+    if(!group){const inserted=await db.from("whatsapp_groups").insert({external_group_id:payload.groupId,nome:payload.groupName,ativo:false,autorizado:false}).select().single();group=inserted.data;}
+    else if(group.nome!==payload.groupName)await db.from("whatsapp_groups").update({nome:payload.groupName,updated_at:new Date().toISOString()}).eq("id",group.id);
+    if(!group?.ativo||!group?.autorizado){await db.from("webhook_events").update({processing_status:"ignored",error_message:"Grupo detectado, mas não autorizado",processed_at:new Date().toISOString(),http_status:200}).eq("id",event?.id);return Response.json({ok:true,ignored:true});}
+    const result=await processBaileysMessage(payload,group.id);await db.from("webhook_events").update({processing_status:"processed",processed_at:new Date().toISOString(),processing_duration_ms:Date.now()-started,http_status:200}).eq("id",event?.id);return Response.json({ok:true,...result});
+  }catch(cause){const message=cause instanceof Error?cause.message:"Falha";await db.from("webhook_events").update({processing_status:"error",error_message:message,processed_at:new Date().toISOString(),http_status:500}).eq("id",event?.id);return Response.json({ok:false,error:"Processing failed"},{status:500});}
+}}}});
