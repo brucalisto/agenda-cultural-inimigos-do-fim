@@ -77,6 +77,7 @@ function stateLabel(state?: string) {
 function IntegrationsPage() {
   const [status, setStatus] = useState<WhatsAppState | null>(null);
   const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
+  const [authorizedGroups, setAuthorizedGroups] = useState<Set<string>>(new Set());
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +98,8 @@ function IntegrationsPage() {
         const groupResult = await callIntegration("groups");
         if (groupResult.kind === "groups") {
           setGroups((groupResult as unknown as { groups?: WhatsAppGroup[] }).groups || []);
+          const { data } = await supabase.from("whatsapp_groups").select("external_group_id").eq("ativo", true).eq("autorizado", true);
+          setAuthorizedGroups(new Set((data || []).map((item) => item.external_group_id)));
         }
       } else {
         setGroups([]);
@@ -144,6 +147,14 @@ function IntegrationsPage() {
     } finally {
       setDisconnecting(false);
     }
+  }
+
+  async function toggleGroup(group: WhatsAppGroup) {
+    const enabled = authorizedGroups.has(group.id);
+    const { error } = await supabase.from("whatsapp_groups").upsert({ external_group_id: group.id, nome: group.subject, ativo: !enabled, autorizado: !enabled, automation_mode: "monitorar" }, { onConflict: "external_group_id" });
+    if (error) return toast.error(error.message);
+    setAuthorizedGroups((current) => { const next = new Set(current); enabled ? next.delete(group.id) : next.add(group.id); return next; });
+    toast.success(enabled ? "Leitura do grupo pausada." : "Grupo autorizado para interpretação.");
   }
 
   const connected = Boolean(status?.connected);
@@ -276,9 +287,7 @@ function IntegrationsPage() {
                               {group.id}
                             </p>
                           </div>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {group.participants} participantes
-                          </span>
+                          <div className="flex shrink-0 items-center gap-2"><span className="hidden text-xs text-muted-foreground sm:inline">{group.participants} participantes</span><Button size="sm" variant={authorizedGroups.has(group.id) ? "default" : "outline"} onClick={() => void toggleGroup(group)}>{authorizedGroups.has(group.id) ? "Monitorando" : "Monitorar"}</Button></div>
                         </div>
                       ))
                     )}

@@ -31,14 +31,14 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-const stats = [
-  { label: "Mensagens hoje", value: "1,284", icon: MessageSquare, color: "text-blue-500" },
-  { label: "Conteúdos processados", value: "856", icon: Brain, color: "text-purple-500" },
-  { label: "Pendentes de revisão", value: "42", icon: Clock, color: "text-amber-500" },
-  { label: "Publicados", value: "712", icon: CheckCircle2, color: "text-emerald-500" },
-  { label: "Ignorados", value: "102", icon: ShieldAlert, color: "text-slate-500" },
-  { label: "Erros", value: "3", icon: AlertTriangle, color: "text-red-500" },
-];
+const statDefinitions = [
+  { label: "Mensagens hoje", key: "today", icon: MessageSquare, color: "text-blue-500" },
+  { label: "Conteúdos processados", key: "processed", icon: Brain, color: "text-purple-500" },
+  { label: "Pendentes de revisão", key: "pending", icon: Clock, color: "text-amber-500" },
+  { label: "Publicados", key: "published", icon: CheckCircle2, color: "text-emerald-500" },
+  { label: "Ignorados", key: "ignored", icon: ShieldAlert, color: "text-slate-500" },
+  { label: "Erros", key: "errors", icon: AlertTriangle, color: "text-red-500" },
+] as const;
 
 const distributionData = [
   { name: "Texto", value: 400, color: "oklch(0.646 0.222 41.116)" },
@@ -60,6 +60,8 @@ const activityData = [
 function Dashboard() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [lastWebhook, setLastWebhook] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -67,6 +69,20 @@ function Dashboard() {
       setLoading(false);
       if (!session) {
         window.location.href = "/auth";
+      } else {
+        const start = new Date(); start.setHours(0,0,0,0);
+        Promise.all([
+          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).gte("received_at",start.toISOString()),
+          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).in("processing_status",["interpretado","necessita_revisao"]),
+          supabase.from("interpreted_contents").select("*",{count:"exact",head:true}).in("review_status",["pendente","necessita_revisao"]),
+          supabase.from("interpreted_contents").select("*",{count:"exact",head:true}).eq("review_status","publicado"),
+          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).eq("processing_status","ignorado"),
+          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).eq("processing_status","erro"),
+          supabase.from("system_events").select("created_at").eq("event_type","webhook_received").order("created_at",{ascending:false}).limit(1).maybeSingle(),
+        ]).then(([today,processed,pending,published,ignored,errors,last])=>{
+          setCounts({today:today.count??0,processed:processed.count??0,pending:pending.count??0,published:published.count??0,ignored:ignored.count??0,errors:errors.count??0});
+          setLastWebhook(last.data?.created_at??null);
+        });
       }
     });
 
@@ -91,19 +107,16 @@ function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
           <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
-          <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-            Dados de demonstração
-          </div>
         </div>
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {stats.map((stat) => (
+          {statDefinitions.map((stat) => (
             <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                  <h3 className="mt-1 text-2xl font-bold">{stat.value}</h3>
+                  <h3 className="mt-1 text-2xl font-bold">{counts[stat.key] ?? "—"}</h3>
                 </div>
                 <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}>
                   <stat.icon className="h-5 w-5" />
@@ -174,13 +187,13 @@ function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Zap className="h-5 w-5 text-amber-500" />
-                <h3 className="font-semibold">Evolution API</h3>
+                <h3 className="font-semibold">Baileys</h3>
               </div>
               <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
             </div>
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
-              <p className="text-sm">Conectado e Operacional</p>
+              <p className="text-sm">Monitorado pela integração</p>
             </div>
           </div>
 
@@ -194,7 +207,7 @@ function Dashboard() {
             </div>
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
-              <p className="text-sm">Online (v1.5 Pro)</p>
+              <p className="text-sm">Gemini 2.5 Flash</p>
             </div>
           </div>
 
@@ -207,7 +220,7 @@ function Dashboard() {
             </div>
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p>
-              <p className="text-sm font-mono text-muted-foreground">2026-08-21 17:40:02</p>
+              <p className="text-sm font-mono text-muted-foreground">{lastWebhook ? new Date(lastWebhook).toLocaleString("pt-BR") : "Nenhum recebido"}</p>
             </div>
           </div>
         </div>
