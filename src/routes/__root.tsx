@@ -15,9 +15,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ZapDash | Monitoramento WhatsApp" },
-      { name: "description", content: "Sistema de monitoramento e interpretação de grupos do WhatsApp" },
-      { property: "og:title", content: "ZapDash" },
+      { title: "Inimigos do Fim | Agenda Cultural" },
+      { name: "description", content: "Agenda cultural pública, dinâmica e colaborativa." },
+      { property: "og:title", content: "Inimigos do Fim" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
