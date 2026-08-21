@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Clock,
   RotateCcw,
+  Sparkles,
   CheckCircle,
   Edit,
   Trash2,
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { getInterpretedContentById, updateInterpretedContent, type InterpretedContent } from "@/lib/interpreted";
+import { reprocessMessage } from "@/lib/gemini.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +62,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
   const [isTechnicalOpen, setIsTechnicalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
   
   const { data: content, isLoading, refetch } = useQuery({
     queryKey: ["interpreted-content", id],
@@ -99,6 +102,20 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       refetch();
     } catch (error: any) {
       toast.error("Erro ao atualizar status: " + error.message);
+    }
+  };
+
+  const handleGeminiReprocess = async () => {
+    if (!msg?.id) return;
+    setIsReprocessing(true);
+    try {
+      await reprocessMessage({ messageId: msg.id });
+      toast.success("Reprocessado com sucesso pelo Gemini");
+      refetch();
+    } catch (error: any) {
+      toast.error("Erro no Gemini: " + error.message);
+    } finally {
+      setIsReprocessing(false);
     }
   };
 
@@ -390,6 +407,16 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       {/* Footer Actions */}
       {!isEditing && (
         <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2 text-purple-600 border-purple-200" 
+            onClick={handleGeminiReprocess}
+            disabled={isReprocessing}
+          >
+            <Sparkles className={cn("h-4 w-4", isReprocessing && "animate-spin")} />
+            {isReprocessing ? "Processando..." : "Reprocessar com Gemini"}
+          </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => handleStatusChange('reprocessar')}>
             <RotateCcw className="h-4 w-4" />
             Reprocessar
