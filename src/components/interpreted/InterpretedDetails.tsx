@@ -50,7 +50,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getInterpretedContentById, updateInterpretedContent, type InterpretedContent } from "@/lib/interpreted";
 import { reprocessMessage } from "@/lib/gemini.functions";
+import { simulateAutomation } from "@/lib/automation.functions";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+
 import { cn } from "@/lib/utils";
 
 interface InterpretedDetailsProps {
@@ -409,6 +413,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       {/* Footer Actions */}
       {!isEditing && (
         <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
+          <SimulateAutomationButton messageId={content.message_id} />
           <Button 
             variant="outline" 
             size="sm" 
@@ -423,6 +428,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
             <RotateCcw className="h-4 w-4" />
             Reprocessar
           </Button>
+
           <Button variant="outline" size="sm" className="gap-2" onClick={copyJson}>
             <Copy className="h-4 w-4" />
             Copiar JSON
