@@ -11,32 +11,38 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  MessageSquare, 
-  User, 
-  Calendar, 
-  Clock, 
+import {
+  MessageSquare,
+  User,
+  Calendar,
+  Clock,
   AlertCircle,
   CheckCircle2,
   Brain,
   Eye,
-  Loader2
+  Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { reprocessMessage } from "@/lib/gemini.functions";
 
 export const Route = createFileRoute("/inbox")({
   component: InboxPage,
 });
 
 type WhatsAppMessage = Tables<"whatsapp_messages">;
+type WhatsAppMessageWithGroup = WhatsAppMessage & {
+  whatsapp_groups: { nome: string } | null;
+};
 
 function InboxPage() {
-  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
+  const [messages, setMessages] = useState<WhatsAppMessageWithGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
 
   const fetchMessages = async () => {
     setLoading(true);
@@ -48,7 +54,7 @@ function InboxPage() {
     if (error) {
       toast.error("Erro ao carregar mensagens: " + error.message);
     } else {
-      setMessages(data || []);
+      setMessages((data || []) as WhatsAppMessageWithGroup[]);
     }
     setLoading(false);
   };
@@ -57,18 +63,54 @@ function InboxPage() {
     fetchMessages();
   }, []);
 
+  const handleReprocess = async (messageId: string) => {
+    setReprocessingIds((current) => new Set(current).add(messageId));
+    try {
+      await reprocessMessage({ data: { messageId } });
+      toast.success("Mensagem reprocessada pelo Gemini.");
+      await fetchMessages();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Não foi possível reprocessar.");
+      await fetchMessages();
+    } finally {
+      setReprocessingIds((current) => {
+        const next = new Set(current);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  };
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case "recebido": return <Badge variant="secondary">Recebido</Badge>;
-      case "pendente": return <Badge variant="outline">Pendente</Badge>;
-      case "processando": return <Badge variant="secondary" className="animate-pulse">Processando</Badge>;
-      case "interpretado": return <Badge className="bg-purple-500">Interpretado</Badge>;
-      case "necessita_revisao": return <Badge className="bg-amber-500">Revisão</Badge>;
-      case "aprovado": return <Badge className="bg-emerald-500">Aprovado</Badge>;
-      case "publicado": return <Badge className="bg-blue-500">Publicado</Badge>;
-      case "ignorado": return <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-200">Ignorado</Badge>;
-      case "erro": return <Badge variant="destructive">Erro</Badge>;
-      default: return <Badge variant="outline">{status}</Badge>;
+      case "recebido":
+        return <Badge variant="secondary">Recebido</Badge>;
+      case "pendente":
+        return <Badge variant="outline">Pendente</Badge>;
+      case "processando":
+        return (
+          <Badge variant="secondary" className="animate-pulse">
+            Processando
+          </Badge>
+        );
+      case "interpretado":
+        return <Badge className="bg-purple-500">Interpretado</Badge>;
+      case "necessita_revisao":
+        return <Badge className="bg-amber-500">Revisão</Badge>;
+      case "aprovado":
+        return <Badge className="bg-emerald-500">Aprovado</Badge>;
+      case "publicado":
+        return <Badge className="bg-blue-500">Publicado</Badge>;
+      case "ignorado":
+        return (
+          <Badge variant="outline" className="bg-slate-100 text-slate-800 border-slate-200">
+            Ignorado
+          </Badge>
+        );
+      case "erro":
+        return <Badge variant="destructive">Erro</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
@@ -120,7 +162,7 @@ function InboxPage() {
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <MessageSquare className="h-3 w-3" />
-                          {(msg as any).whatsapp_groups?.nome || "Grupo desconhecido"}
+                          {msg.whatsapp_groups?.nome || "Grupo desconhecido"}
                         </div>
                       </div>
                     </TableCell>
@@ -140,7 +182,9 @@ function InboxPage() {
                       <div className="flex flex-col text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {msg.received_at ? format(new Date(msg.received_at), "dd/MM/yyyy", { locale: ptBR }) : "-"}
+                          {msg.received_at
+                            ? format(new Date(msg.received_at), "dd/MM/yyyy", { locale: ptBR })
+                            : "-"}
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
@@ -148,13 +192,29 @@ function InboxPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {getStatusBadge(msg.processing_status)}
-                    </TableCell>
+                    <TableCell>{getStatusBadge(msg.processing_status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        {(msg.processing_status === "erro" ||
+                          msg.processing_status === "processando") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleReprocess(msg.id)}
+                            disabled={reprocessingIds.has(msg.id)}
+                          >
+                            {reprocessingIds.has(msg.id) ? (
+                              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="mr-1 h-4 w-4" />
+                            )}
+                            Reprocessar
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" aria-label="Ver mensagem">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -166,4 +226,3 @@ function InboxPage() {
     </DashboardLayout>
   );
 }
-

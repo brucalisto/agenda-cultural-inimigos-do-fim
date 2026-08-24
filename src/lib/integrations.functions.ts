@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { GEMINI_CONFIG } from "@/lib/gemini/config.server";
 
 const ActionSchema = z.object({
   action: z.enum(["status", "qr", "groups", "logout", "gemini-status"]),
@@ -46,7 +47,7 @@ export const manageWhatsAppIntegration = createServerFn({ method: "POST" })
       return {
         kind: "gemini-status" as const,
         configured: Boolean(process.env["GEMINI_API_KEY"]),
-        model: "gemini-2.5-flash",
+        model: GEMINI_CONFIG.MODEL_NAME,
       };
     }
 
