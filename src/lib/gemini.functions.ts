@@ -41,9 +41,8 @@ export const reprocessMessage = createServerFn({ method: "POST" })
       const interpretation = await processWithGemini(contentToAnalyze);
 
       // 4. Save interpreted content
-      const { error: insertError } = await supabaseAdmin
-        .from("interpreted_contents")
-        .upsert({
+      const { error: insertError } = await supabaseAdmin.from("interpreted_contents").upsert(
+        {
           message_id: messageId,
           title: interpretation.title,
           category: interpretation.category,
@@ -61,30 +60,35 @@ export const reprocessMessage = createServerFn({ method: "POST" })
           confidence_score: interpretation.confidence_score,
           model_used: GEMINI_CONFIG.MODEL_NAME,
           prompt_version: GEMINI_CONFIG.PROMPT_VERSION,
-          review_status: (interpretation.confidence_score < 0.7 || interpretation.missing_fields.length > 0) 
-            ? "necessita_revisao" 
-            : "pendente"
-        }, { onConflict: "message_id" });
+          review_status:
+            interpretation.confidence_score < 0.75 || interpretation.missing_fields.length > 0
+              ? "necessita_revisao"
+              : "pendente",
+        },
+        { onConflict: "message_id" },
+      );
 
       if (insertError) throw insertError;
 
       // 5. Update message status
       await supabaseAdmin
         .from("whatsapp_messages")
-        .update({ 
-          processing_status: interpretation.confidence_score < 0.7 ? "necessita_revisao" : "interpretado" 
+        .update({
+          processing_status:
+            interpretation.confidence_score < 0.75 ? "necessita_revisao" : "interpretado",
         })
         .eq("id", messageId);
 
       return { success: true, interpretation };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Gemini Processing Error:", error);
-      
+      const errorMessage = error instanceof Error ? error.message : "Falha no processamento";
+
       await supabaseAdmin
         .from("whatsapp_messages")
-        .update({ 
+        .update({
           processing_status: "erro",
-          error_message: error.message 
+          error_message: errorMessage,
         })
         .eq("id", messageId);
 
