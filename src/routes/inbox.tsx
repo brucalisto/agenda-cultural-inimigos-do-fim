@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { reprocessMessage } from "@/lib/gemini.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/inbox")({
   component: InboxPage,
@@ -43,6 +44,7 @@ function InboxPage() {
   const [messages, setMessages] = useState<WhatsAppMessageWithGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
+  const [selectedMessage, setSelectedMessage] = useState<WhatsAppMessageWithGroup | null>(null);
 
   const fetchMessages = async () => {
     setLoading(true);
@@ -211,7 +213,12 @@ function InboxPage() {
                             Reprocessar
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" aria-label="Ver mensagem">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Ver mensagem"
+                          onClick={() => setSelectedMessage(msg)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                       </div>
@@ -222,6 +229,63 @@ function InboxPage() {
             </TableBody>
           </Table>
         </div>
+        <Dialog
+          open={Boolean(selectedMessage)}
+          onOpenChange={(open) => !open && setSelectedMessage(null)}
+        >
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Mensagem recebida</DialogTitle>
+            </DialogHeader>
+            {selectedMessage && (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <span className="text-muted-foreground">Remetente</span>
+                    <p className="font-medium">
+                      {selectedMessage.sender_name || selectedMessage.sender_external_id}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Grupo</span>
+                    <p className="font-medium">
+                      {selectedMessage.whatsapp_groups?.nome || "Grupo desconhecido"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tipo</span>
+                    <p>{selectedMessage.message_type || "-"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Status</span>
+                    <div className="mt-1">{getStatusBadge(selectedMessage.processing_status)}</div>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Conteúdo original</span>
+                  <div className="mt-1 whitespace-pre-wrap rounded-md border bg-muted/30 p-4">
+                    {selectedMessage.text_content || selectedMessage.caption || "(Mídia sem texto)"}
+                  </div>
+                </div>
+                {selectedMessage.error_message && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive">
+                    {selectedMessage.error_message}
+                  </div>
+                )}
+                {(selectedMessage.processing_status === "erro" ||
+                  selectedMessage.processing_status === "processando") && (
+                  <Button
+                    onClick={() => void handleReprocess(selectedMessage.id)}
+                    disabled={reprocessingIds.has(selectedMessage.id)}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reprocessar
+                  </Button>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
