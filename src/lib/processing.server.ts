@@ -55,6 +55,11 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     await db.from("message_media").delete().eq("message_id", message.id);
 
     const contexts: string[] = [];
+    if (payload.linkPreview?.title || payload.linkPreview?.description) {
+      contexts.push(
+        `PRÉVIA DO LINK NO WHATSAPP\n${payload.linkPreview.title || ""}\n${payload.linkPreview.description || ""}`,
+      );
+    }
     for (const url of payload.links.slice(0, 3)) {
       try {
         const page = await extractPublicPage(url);
@@ -81,6 +86,9 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
 
     const mediaFiles: Array<{ mimeType: string; data: string }> = [];
     const extraWarnings: string[] = [];
+    if (payload.linkPreview?.jpegThumbnailBase64) {
+      mediaFiles.push({ mimeType: "image/jpeg", data: payload.linkPreview.jpegThumbnailBase64 });
+    }
     if (payload.media) {
       await db.from("message_media").insert({
         message_id: message.id,
