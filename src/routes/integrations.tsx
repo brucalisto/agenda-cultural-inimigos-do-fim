@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { manageWhatsAppIntegration } from "@/lib/integrations.functions";
+import { normalizeWhatsAppGroupId } from "@/lib/whatsapp-groups";
 
 export const Route = createFileRoute("/integrations")({
   component: IntegrationsPage,
@@ -98,8 +99,14 @@ function IntegrationsPage() {
         const groupResult = await callIntegration("groups");
         if (groupResult.kind === "groups") {
           setGroups((groupResult as unknown as { groups?: WhatsAppGroup[] }).groups || []);
-          const { data } = await supabase.from("whatsapp_groups").select("external_group_id").eq("ativo", true).eq("autorizado", true);
-          setAuthorizedGroups(new Set((data || []).map((item) => item.external_group_id)));
+          const { data } = await supabase
+            .from("whatsapp_groups")
+            .select("external_group_id")
+            .eq("ativo", true)
+            .eq("autorizado", true);
+          setAuthorizedGroups(
+            new Set((data || []).map((item) => normalizeWhatsAppGroupId(item.external_group_id))),
+          );
         }
       } else {
         setGroups([]);
@@ -150,10 +157,29 @@ function IntegrationsPage() {
   }
 
   async function toggleGroup(group: WhatsAppGroup) {
-    const enabled = authorizedGroups.has(group.id);
-    const { error } = await supabase.from("whatsapp_groups").upsert({ external_group_id: group.id, nome: group.subject, ativo: !enabled, autorizado: !enabled, automation_mode: "monitorar" }, { onConflict: "external_group_id" });
-    if (error) return toast.error(error.message);
-    setAuthorizedGroups((current) => { const next = new Set(current); enabled ? next.delete(group.id) : next.add(group.id); return next; });
+    const externalGroupId = normalizeWhatsAppGroupId(group.id);
+    const enabled = authorizedGroups.has(externalGroupId);
+    const { error } = await supabase.from("whatsapp_groups").upsert(
+      {
+        external_group_id: externalGroupId,
+        nome: group.subject,
+        ativo: !enabled,
+        autorizado: !enabled,
+        automation_mode: "monitorar",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "external_group_id" },
+    );
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setAuthorizedGroups((current) => {
+      const next = new Set(current);
+      if (enabled) next.delete(externalGroupId);
+      else next.add(externalGroupId);
+      return next;
+    });
     toast.success(enabled ? "Leitura do grupo pausada." : "Grupo autorizado para interpretação.");
   }
 
@@ -287,7 +313,24 @@ function IntegrationsPage() {
                               {group.id}
                             </p>
                           </div>
-                          <div className="flex shrink-0 items-center gap-2"><span className="hidden text-xs text-muted-foreground sm:inline">{group.participants} participantes</span><Button size="sm" variant={authorizedGroups.has(group.id) ? "default" : "outline"} onClick={() => void toggleGroup(group)}>{authorizedGroups.has(group.id) ? "Monitorando" : "Monitorar"}</Button></div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="hidden text-xs text-muted-foreground sm:inline">
+                              {group.participants} participantes
+                            </span>
+                            <Button
+                              size="sm"
+                              variant={
+                                authorizedGroups.has(normalizeWhatsAppGroupId(group.id))
+                                  ? "default"
+                                  : "outline"
+                              }
+                              onClick={() => void toggleGroup(group)}
+                            >
+                              {authorizedGroups.has(normalizeWhatsAppGroupId(group.id))
+                                ? "Monitorando"
+                                : "Monitorar"}
+                            </Button>
+                          </div>
                         </div>
                       ))
                     )}

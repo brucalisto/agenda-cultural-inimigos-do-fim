@@ -20,6 +20,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,30 +48,45 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Plus, Settings2, ShieldCheck, ShieldAlert, AlertCircle, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Pencil,
+  Plus,
+  Settings2,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Tables } from "@/integrations/supabase/types";
+import { normalizeWhatsAppGroupId } from "@/lib/whatsapp-groups";
 
 export const Route = createFileRoute("/groups")({
   component: GroupsPage,
 });
 
 type WhatsAppGroup = Tables<"whatsapp_groups">;
+type AutomationMode = "monitorar" | "simular" | "executar";
+
+const emptyGroupForm = {
+  nome: "",
+  external_group_id: "",
+  descricao: "",
+  ativo: true,
+  autorizado: false,
+  automation_mode: "monitorar" as AutomationMode,
+};
 
 function GroupsPage() {
   const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // Form state
-  const [newGroup, setNewGroup] = useState({
-    nome: "",
-    external_group_id: "",
-    descricao: "",
-    ativo: true,
-    autorizado: false,
-    automation_mode: "monitorar" as "monitorar" | "simular" | "executar",
-  });
+  const [editingGroup, setEditingGroup] = useState<WhatsAppGroup | null>(null);
+  const [groupToDelete, setGroupToDelete] = useState<WhatsAppGroup | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [newGroup, setNewGroup] = useState(emptyGroupForm);
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -78,41 +109,105 @@ function GroupsPage() {
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("whatsapp_groups").insert([newGroup]);
+    const externalGroupId = normalizeWhatsAppGroupId(newGroup.external_group_id);
+    setSaving(true);
+    const { data: existing } = await supabase
+      .from("whatsapp_groups")
+      .select("id")
+      .eq("external_group_id", externalGroupId)
+      .maybeSingle();
+
+    if (existing) {
+      toast.error("Este grupo já está cadastrado. Use o menu de ações para editá-lo.");
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("whatsapp_groups")
+      .insert([{ ...newGroup, external_group_id: externalGroupId }]);
 
     if (error) {
-      toast.error("Erro ao criar grupo: " + error.message);
+      toast.error(
+        error.code === "23505"
+          ? "Este grupo já está cadastrado."
+          : "Erro ao criar grupo: " + error.message,
+      );
     } else {
       toast.success("Grupo criado com sucesso!");
       setIsDialogOpen(false);
-      setNewGroup({
-        nome: "",
-        external_group_id: "",
-        descricao: "",
-        ativo: true,
-        autorizado: false,
-        automation_mode: "monitorar",
-      });
-      fetchGroups();
+      setNewGroup(emptyGroupForm);
+      await fetchGroups();
     }
+    setSaving(false);
+  };
+
+  const openEditDialog = (group: WhatsAppGroup) => setEditingGroup({ ...group });
+
+  const handleUpdateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGroup) return;
+
+    setSaving(true);
+    const { id, nome, descricao, ativo, autorizado, automation_mode } = editingGroup;
+    const externalGroupId = normalizeWhatsAppGroupId(editingGroup.external_group_id);
+    const { error } = await supabase
+      .from("whatsapp_groups")
+      .update({
+        nome: nome.trim(),
+        descricao: descricao?.trim() || null,
+        external_group_id: externalGroupId,
+        ativo,
+        autorizado,
+        automation_mode,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) {
+      toast.error(
+        error.code === "23505"
+          ? "Já existe um grupo com este ID."
+          : "Erro ao editar grupo: " + error.message,
+      );
+    } else {
+      toast.success("Grupo atualizado com sucesso!");
+      setEditingGroup(null);
+      await fetchGroups();
+    }
+    setSaving(false);
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!groupToDelete) return;
+    setDeleting(true);
+    const { error } = await supabase.from("whatsapp_groups").delete().eq("id", groupToDelete.id);
+
+    if (error) {
+      toast.error("Erro ao excluir grupo: " + error.message);
+    } else {
+      toast.success("Grupo excluído.");
+      setGroups((current) => current.filter((group) => group.id !== groupToDelete.id));
+      setGroupToDelete(null);
+    }
+    setDeleting(false);
   };
 
   const toggleGroupStatus = async (id: string, field: "ativo" | "autorizado", value: boolean) => {
-    const { error } = await supabase
-      .from("whatsapp_groups")
-      .update({ [field]: value } as any)
-      .eq("id", id);
-
+    const update = field === "ativo" ? { ativo: value } : { autorizado: value };
+    const { error } = await supabase.from("whatsapp_groups").update(update).eq("id", id);
 
     if (error) {
       toast.error("Erro ao atualizar grupo: " + error.message);
     } else {
-      setGroups(groups.map(g => g.id === id ? { ...g, [field]: value } : g));
+      setGroups((current) =>
+        current.map((group) => (group.id === id ? { ...group, [field]: value } : group)),
+      );
       toast.success("Grupo atualizado");
     }
   };
 
-  const updateAutomationMode = async (id: string, mode: "monitorar" | "simular" | "executar") => {
+  const updateAutomationMode = async (id: string, mode: AutomationMode) => {
     const { error } = await supabase
       .from("whatsapp_groups")
       .update({ automation_mode: mode })
@@ -121,7 +216,9 @@ function GroupsPage() {
     if (error) {
       toast.error("Erro ao atualizar modo: " + error.message);
     } else {
-      setGroups(groups.map(g => g.id === id ? { ...g, automation_mode: mode } : g));
+      setGroups((current) =>
+        current.map((group) => (group.id === id ? { ...group, automation_mode: mode } : group)),
+      );
       toast.success(`Modo alterado para ${mode}`);
     }
   };
@@ -132,9 +229,11 @@ function GroupsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Grupos</h1>
-            <p className="text-muted-foreground">Gerenciamento de grupos do WhatsApp monitorados.</p>
+            <p className="text-muted-foreground">
+              Gerenciamento de grupos do WhatsApp monitorados.
+            </p>
           </div>
-          
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -167,7 +266,9 @@ function GroupsPage() {
                       id="external_id"
                       required
                       value={newGroup.external_group_id}
-                      onChange={(e) => setNewGroup({ ...newGroup, external_group_id: e.target.value })}
+                      onChange={(e) =>
+                        setNewGroup({ ...newGroup, external_group_id: e.target.value })
+                      }
                       placeholder="1203630239485@g.us"
                     />
                   </div>
@@ -184,7 +285,9 @@ function GroupsPage() {
                     <Label>Modo de Automação</Label>
                     <Select
                       value={newGroup.automation_mode}
-                      onValueChange={(value: any) => setNewGroup({ ...newGroup, automation_mode: value })}
+                      onValueChange={(value: AutomationMode) =>
+                        setNewGroup({ ...newGroup, automation_mode: value })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o modo" />
@@ -208,7 +311,9 @@ function GroupsPage() {
                   <div className="flex items-center justify-between space-x-2 rounded-lg border p-3">
                     <Label htmlFor="ativo" className="flex flex-col gap-1">
                       <span>Ativo</span>
-                      <span className="text-xs font-normal text-muted-foreground">Habilitar monitoramento</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Habilitar monitoramento
+                      </span>
                     </Label>
                     <Switch
                       id="ativo"
@@ -219,17 +324,24 @@ function GroupsPage() {
                   <div className="flex items-center justify-between space-x-2 rounded-lg border p-3">
                     <Label htmlFor="autorizado" className="flex flex-col gap-1">
                       <span>Autorizado</span>
-                      <span className="text-xs font-normal text-muted-foreground">Permitir processamento</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Permitir processamento
+                      </span>
                     </Label>
                     <Switch
                       id="autorizado"
                       checked={newGroup.autorizado}
-                      onCheckedChange={(checked) => setNewGroup({ ...newGroup, autorizado: checked })}
+                      onCheckedChange={(checked) =>
+                        setNewGroup({ ...newGroup, autorizado: checked })
+                      }
                     />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit">Cadastrar Grupo</Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Cadastrar Grupo
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -283,13 +395,12 @@ function GroupsPage() {
                         ) : (
                           <ShieldAlert className="h-4 w-4 text-amber-500" />
                         )}
-
                       </div>
                     </TableCell>
                     <TableCell>
                       <Select
                         value={group.automation_mode || "monitorar"}
-                        onValueChange={(val: any) => updateAutomationMode(group.id, val)}
+                        onValueChange={(val: AutomationMode) => updateAutomationMode(group.id, val)}
                       >
                         <SelectTrigger className="h-8 w-[130px]">
                           <SelectValue />
@@ -308,9 +419,28 @@ function GroupsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon">
-                        <Settings2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Ações do grupo ${group.nome}`}
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => openEditDialog(group)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => setGroupToDelete(group)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -318,8 +448,111 @@ function GroupsPage() {
             </TableBody>
           </Table>
         </div>
+
+        <Dialog
+          open={Boolean(editingGroup)}
+          onOpenChange={(open) => !open && setEditingGroup(null)}
+        >
+          <DialogContent className="sm:max-w-[425px]">
+            {editingGroup && (
+              <form onSubmit={handleUpdateGroup}>
+                <DialogHeader>
+                  <DialogTitle>Editar grupo</DialogTitle>
+                  <DialogDescription>
+                    Atualize os dados e as permissões deste grupo.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-nome">Nome do grupo</Label>
+                    <Input
+                      id="edit-nome"
+                      required
+                      value={editingGroup.nome}
+                      onChange={(e) => setEditingGroup({ ...editingGroup, nome: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-external-id">ID externo (WhatsApp)</Label>
+                    <Input
+                      id="edit-external-id"
+                      required
+                      value={editingGroup.external_group_id}
+                      onChange={(e) =>
+                        setEditingGroup({ ...editingGroup, external_group_id: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-descricao">Descrição</Label>
+                    <Input
+                      id="edit-descricao"
+                      value={editingGroup.descricao || ""}
+                      onChange={(e) =>
+                        setEditingGroup({ ...editingGroup, descricao: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <Label htmlFor="edit-ativo">Ativo</Label>
+                    <Switch
+                      id="edit-ativo"
+                      checked={Boolean(editingGroup.ativo)}
+                      onCheckedChange={(ativo) => setEditingGroup({ ...editingGroup, ativo })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <Label htmlFor="edit-autorizado">Autorizado para processamento</Label>
+                    <Switch
+                      id="edit-autorizado"
+                      checked={Boolean(editingGroup.autorizado)}
+                      onCheckedChange={(autorizado) =>
+                        setEditingGroup({ ...editingGroup, autorizado })
+                      }
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={saving}>
+                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Salvar alterações
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog
+          open={Boolean(groupToDelete)}
+          onOpenChange={(open) => !open && setGroupToDelete(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir o grupo “{groupToDelete?.nome}”?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação remove o cadastro e todo o histórico de mensagens vinculado a ele. Se o
+                grupo continuar no WhatsApp, ele poderá ser detectado novamente como inativo em uma
+                nova mensagem.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleDeleteGroup();
+                }}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Excluir grupo
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
 }
-
