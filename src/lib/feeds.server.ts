@@ -62,7 +62,7 @@ function decodeLegacyNotionExport(): LegacyNotionRow[] {
   return parsed;
 }
 
-async function upsertTrustedFeedRow(
+async function upsertFeedRow(
   row: Record<string, unknown> & {
     title?: string | null;
     event_date?: string | null;
@@ -74,38 +74,52 @@ async function upsertTrustedFeedRow(
     extracted_data?: unknown;
   },
   externalKey: string,
+  autoPublish: boolean,
 ) {
-  const checked = await enrichWithDuplicateWarning(row);
-  const duplicate = checked.review_status === "necessita_revisao";
-  const now = new Date().toISOString();
-  const finalRow = duplicate
-    ? checked
-    : {
-        ...checked,
-        review_status: "publicado",
-        reviewed_at: now,
-      };
-
-  const extracted =
-    finalRow.extracted_data && typeof finalRow.extracted_data === "object" && !Array.isArray(finalRow.extracted_data)
-      ? (finalRow.extracted_data as Record<string, unknown>)
-      : {};
-
-  const rowWithKey = {
-    ...finalRow,
-    extracted_data: {
-      ...extracted,
-      feedExternalKey: externalKey,
-    },
-    updated_at: now,
-  };
-
+  // Descobre o registro desta mesma fonte antes da análise de duplicidade. Assim,
+  // uma ressincronização não compara o evento com ele próprio.
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("interpreted_contents")
     .select("id")
     .contains("extracted_data", { feedExternalKey: externalKey })
     .maybeSingle();
   if (existingError) throw existingError;
+
+  const checked = await enrichWithDuplicateWarning({
+    ...row,
+    ...(existing?.id ? { id: existing.id } : {}),
+  });
+  const duplicate = checked.review_status === "necessita_revisao";
+  const now = new Date().toISOString();
+
+  const finalRow = duplicate
+    ? checked
+    : autoPublish
+      ? {
+          ...checked,
+          review_status: "publicado",
+          reviewed_at: now,
+        }
+      : {
+          ...checked,
+          review_status: checked.review_status || "pendente",
+          reviewed_at: null,
+        };
+
+  const extracted =
+    finalRow.extracted_data && typeof finalRow.extracted_data === "object" && !Array.isArray(finalRow.extracted_data)
+      ? (finalRow.extracted_data as Record<string, unknown>)
+      : {};
+
+  const { id: _ignoredId, ...rowWithoutId } = finalRow as typeof finalRow & { id?: string };
+  const rowWithKey = {
+    ...rowWithoutId,
+    extracted_data: {
+      ...extracted,
+      feedExternalKey: externalKey,
+    },
+    updated_at: now,
+  };
 
   if (existing?.id) {
     const { error } = await supabaseAdmin
@@ -175,7 +189,7 @@ export async function ingestLegacyNotionExport() {
       },
     };
 
-    const saved = await upsertTrustedFeedRow(row, item.source_key);
+    const saved = await upsertFeedRow(row, item.source_key, true);
     results.push({ title: item.title, ...saved });
   }
 
@@ -224,7 +238,7 @@ export async function ingestFeedSource(source: FeedSource) {
         importedAt: now,
       },
       model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
-      prompt_version: "feed-1.0.0",
+      prompt_version: "feed-1.1.0",
       review_status: source.autoPublish && source.trusted ? "publicado" : "pendente",
       reviewed_at: source.autoPublish && source.trusted ? now : null,
       updated_at: now,
@@ -234,7 +248,11 @@ export async function ingestFeedSource(source: FeedSource) {
     const externalKey = [source.id, sourceUrl, baseRow.title || "", baseRow.event_date || ""]
       .join("|")
       .toLowerCase();
-    const saved = await upsertTrustedFeedRow(baseRow, externalKey);
+    const saved = await upsertFeedRow(
+      baseRow,
+      externalKey,
+      source.trusted && source.autoPublish,
+    );
 
     results.push({
       title: baseRow.title,
