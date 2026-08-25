@@ -1,8 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { BaileysWebhookSchema, type BaileysWebhook } from "@/lib/adapters/baileys.server";
-import { GEMINI_CONFIG } from "@/lib/gemini/config.server";
-import { areMessagesComplementary, processWithGemini } from "@/lib/gemini/service.server";
+import { areMessagesComplementary, processWithAI } from "@/lib/gemini/service.server";
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
 
 async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
@@ -220,7 +219,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       return { ignored: true };
     }
 
-    const interpreted = await processWithGemini(context || "Analise a mídia anexada.", mediaFiles);
+    const interpreted = await processWithAI(context || "Analise a mídia anexada.", mediaFiles);
     const rows = interpreted.items.map((item, eventSequence) => {
       const reviewStatus =
         item.confidence_score >= 0.75 && item.missing_fields.length === 0
@@ -249,8 +248,8 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
             media: source.media,
           })),
         },
-        model_used: GEMINI_CONFIG.MODEL_NAME,
-        prompt_version: GEMINI_CONFIG.PROMPT_VERSION,
+        model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
+        prompt_version: "1.5.0",
         review_status: reviewStatus,
         updated_at: new Date().toISOString(),
       };
