@@ -9,6 +9,7 @@ export type InterpretedContent = {
   summary: string | null;
   full_description: string | null;
   event_date: string | null;
+  event_sequence: number;
   location: string | null;
   city: string | null;
   price: string | null;
