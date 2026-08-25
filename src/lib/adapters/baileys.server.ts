@@ -34,3 +34,4 @@ export const BaileysWebhookSchema = z.object({
 });
 export type BaileysWebhook = z.infer<typeof BaileysWebhookSchema>;
 export const parseBaileysWebhook = (value: unknown) => BaileysWebhookSchema.parse(value);
+export const isNonEditorialContentType = (contentType: string) => contentType === "reactionMessage";
