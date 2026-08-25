@@ -5,6 +5,7 @@ import {
   ListTree,
   Users,
   Zap,
+  Rss,
   ScrollText,
   Settings,
   ExternalLink,
@@ -30,6 +31,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { label: "Visão geral", icon: LayoutDashboard, to: "/" },
     { label: "Revisão", icon: ClipboardCheck, to: "/review" },
     { label: "Publicados", icon: Send, to: "/published" },
+    { label: "Fontes / Feeds", icon: Rss, to: "/feeds" },
     { label: "Regras", icon: ListTree, to: "/rules" },
     { label: "Grupos", icon: Users, to: "/groups" },
     { label: "Integrações", icon: Zap, to: "/integrations" },
@@ -45,7 +47,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0",
@@ -86,7 +87,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex h-16 items-center justify-between border-b bg-card px-6 lg:px-8">
           <div className="flex items-center gap-4">
@@ -101,9 +101,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <span className="text-lg font-semibold lg:hidden">Inimigos do Fim</span>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Additional header items could go here */}
-          </div>
+          <div className="flex items-center gap-4" />
         </header>
 
         <main className="flex-1 p-6 lg:p-8 overflow-y-auto">{children}</main>
