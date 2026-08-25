@@ -106,6 +106,8 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
         title: content.title,
         category: content.category,
         summary: content.summary,
+        full_description: content.full_description,
+        event_date: content.event_date,
         location: content.location,
         city: content.city,
         price: content.price,
@@ -197,6 +199,48 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                       <Users className="h-3 w-3" />
                       {msg?.whatsapp_groups?.nome || "Grupo Privado"}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Data e horário do evento
+                    </p>
+                    {isEditing ? (
+                      <Input
+                        type="datetime-local"
+                        value={editForm.event_date ? editForm.event_date.slice(0, 16) : ""}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            event_date: e.target.value
+                              ? new Date(e.target.value).toISOString()
+                              : null,
+                          })
+                        }
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">
+                        {content.event_date
+                          ? format(new Date(content.event_date), "dd/MM/yyyy HH:mm", {
+                              locale: ptBR,
+                            })
+                          : "Não detectada"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Nome do contato
+                    </p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.contact_name || ""}
+                        onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.contact_name || "Não informado"}</p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
@@ -489,16 +533,6 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                       <p className="font-medium">{content.contact_instagram || "Não informado"}</p>
                     )}
                   </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">
-                      Data do Evento
-                    </p>
-                    <p className="font-medium">
-                      {content.event_date
-                        ? format(new Date(content.event_date), "dd/MM/yyyy", { locale: ptBR })
-                        : "Não detectada"}
-                    </p>
-                  </div>
                 </div>
 
                 <div>
@@ -514,6 +548,25 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                   ) : (
                     <p className="text-sm leading-relaxed">
                       {content.summary || "Sem resumo disponível."}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">
+                    Descrição completa
+                  </p>
+                  {isEditing ? (
+                    <Textarea
+                      value={editForm.full_description || ""}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, full_description: e.target.value })
+                      }
+                      className="mt-1 min-h-[140px]"
+                    />
+                  ) : (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {content.full_description || "Sem descrição adicional."}
                     </p>
                   )}
                 </div>
@@ -651,7 +704,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => handleStatusChange("aprovado")}
+                  onClick={() => handleStatusChange("publicado")}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   Confirmar e Publicar
