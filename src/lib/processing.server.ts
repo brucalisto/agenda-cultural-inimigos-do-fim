@@ -33,6 +33,21 @@ function describeForGrouping(payload: BaileysWebhook) {
     .join("\n");
 }
 
+function inferCity(city: string | null, location: string | null) {
+  if (city?.trim()) return city.trim();
+  if (!location?.trim() || /^(on-?line|virtual)$/i.test(location.trim())) return null;
+
+  const parts = location
+    .split(/\s*(?:,|—|–)\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const last = parts.at(-1)?.replace(/\s*-\s*[A-Z]{2}$/i, "").trim() || "";
+  if (!/[A-Za-zÀ-ÿ]/.test(last) || /\d/.test(last) || last.length > 60) return null;
+  return last;
+}
+
 export async function processBaileysMessage(payload: BaileysWebhook, groupId: string) {
   const db = supabaseAdmin;
   const timestamp = Number(payload.messageTimestamp);
@@ -195,6 +210,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         message_id: message.id,
         event_sequence: eventSequence,
         ...item,
+        city: inferCity(item.city, item.location),
         price: item.price == null ? null : String(item.price),
         warnings: [...item.warnings, ...extraWarnings],
         extracted_data: {

@@ -31,6 +31,7 @@ REGRAS CRÍTICAS:
 22. Contato não significa apenas telefone. Extraia em "contact_instagram" o @ do Instagram indicado para informações, inscrições ou dúvidas. Considere também o perfil autor da publicação quando o texto orientar a pessoa a procurar o link da bio ou entrar em contato pelo perfil.
 23. Telefone e Instagram são campos independentes: preencha os dois quando ambos existirem, apenas um quando somente um estiver disponível e deixe ambos null somente quando realmente não houver canal de contato.
 24. Nunca invente o dia de um evento informado apenas por mês e ano. Por exemplo, "início em outubro/2026, data a confirmar" deve ter event_date null e "exact_event_day" em missing_fields; não use o último dia de setembro nem o primeiro dia de outubro como aproximação.
+25. O campo "city" deve ser coerente com "location", "summary" e "keywords". Se a cidade aparecer em qualquer parte do conteúdo ou estiver no fim da localização, preencha-a. Exemplo: location "Kioske Maré Mansa, Martin de Sá, Caraguatatuba" exige city "Caraguatatuba".
 
 FORMATO DE SAÍDA:
 {
