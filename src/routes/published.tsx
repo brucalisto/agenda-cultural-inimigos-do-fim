@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Edit, ExternalLink, Trash2 } from "lucide-react";
+import { Edit, ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { legacyNotionImportStatus } from "@/lib/feed-sources.functions";
+import { importLegacyNotionAgenda } from "@/lib/feed.functions";
 
 type PublishedItem = {
   id: string;
@@ -45,6 +47,7 @@ type PublishedItem = {
   latitude: number | null;
   longitude: number | null;
 };
+
 const empty: PublishedItem = {
   id: "",
   title: "",
@@ -64,12 +67,15 @@ const empty: PublishedItem = {
   latitude: null,
   longitude: null,
 };
+
 export const Route = createFileRoute("/published")({ component: PublishedPage });
 
 function PublishedPage() {
   const [items, setItems] = useState<PublishedItem[]>([]);
   const [editing, setEditing] = useState<PublishedItem | null>(null);
   const [deleting, setDeleting] = useState<PublishedItem | null>(null);
+  const [initializingNotion, setInitializingNotion] = useState(false);
+
   const load = async () => {
     const { data, error } = await supabase
       .from("interpreted_contents")
@@ -81,9 +87,35 @@ function PublishedPage() {
     if (error) toast.error(error.message);
     else setItems((data || []) as PublishedItem[]);
   };
+
   useEffect(() => {
-    void load();
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (token) {
+          const status = await legacyNotionImportStatus({ data: { accessToken: token } });
+          if (status.total === 0) {
+            setInitializingNotion(true);
+            const result = await importLegacyNotionAgenda({ data: { accessToken: token } });
+            toast.success(
+              `Agenda do Notion importada: ${result.published} publicados e ${result.duplicates} enviados para revisão.`,
+            );
+          }
+        }
+      } catch (cause) {
+        toast.error(
+          cause instanceof Error
+            ? `Não foi possível concluir a carga inicial do Notion: ${cause.message}`
+            : "Não foi possível concluir a carga inicial do Notion.",
+        );
+      } finally {
+        setInitializingNotion(false);
+        await load();
+      }
+    })();
   }, []);
+
   const save = async () => {
     if (!editing) return;
     const { id, ...updates } = editing;
@@ -95,6 +127,7 @@ function PublishedPage() {
       await load();
     }
   };
+
   const remove = async () => {
     if (!deleting) return;
     const { error } = await supabase.from("interpreted_contents").delete().eq("id", deleting.id);
@@ -105,6 +138,7 @@ function PublishedPage() {
       await load();
     }
   };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -122,6 +156,24 @@ function PublishedPage() {
             </a>
           </Button>
         </div>
+
+        {initializingNotion && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="flex items-center gap-3 p-5 text-sm">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              Importando a base revisada do Notion para o banco de eventos. Os registros sem duplicidade serão publicados automaticamente.
+            </CardContent>
+          </Card>
+        )}
+
+        {!initializingNotion && items.length === 0 && (
+          <Card>
+            <CardContent className="p-5 text-sm text-muted-foreground">
+              Ainda não há eventos publicados no banco. A carga inicial do Notion é verificada automaticamente ao abrir esta página.
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-3">
           {items.map((item) => (
             <Card key={item.id}>
@@ -161,6 +213,7 @@ function PublishedPage() {
           ))}
         </div>
       </div>
+
       <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
@@ -219,7 +272,10 @@ function PublishedPage() {
                   checked={editing.is_featured}
                   onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })}
                 />
-                <span><strong>Destacar na Agenda</strong><small className="block text-muted-foreground">Exibe este evento na curadoria da página pública.</small></span>
+                <span>
+                  <strong>Destacar na Agenda</strong>
+                  <small className="block text-muted-foreground">Exibe este evento na curadoria da página pública.</small>
+                </span>
               </label>
               <Input
                 type="number"
@@ -228,8 +284,14 @@ function PublishedPage() {
                 placeholder="Prioridade do destaque"
               />
               <div />
-              <label className="text-sm">Início do destaque<Input type="datetime-local" value={editing.featured_starts_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_starts_at: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
-              <label className="text-sm">Fim do destaque<Input type="datetime-local" value={editing.featured_ends_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_ends_at: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
+              <label className="text-sm">
+                Início do destaque
+                <Input type="datetime-local" value={editing.featured_starts_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_starts_at: e.target.value ? new Date(e.target.value).toISOString() : null })} />
+              </label>
+              <label className="text-sm">
+                Fim do destaque
+                <Input type="datetime-local" value={editing.featured_ends_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_ends_at: e.target.value ? new Date(e.target.value).toISOString() : null })} />
+              </label>
               <Input type="number" step="any" value={editing.latitude ?? ""} onChange={(e) => setEditing({ ...editing, latitude: e.target.value ? Number(e.target.value) : null })} placeholder="Latitude (sem inventar coordenadas)" />
               <Input type="number" step="any" value={editing.longitude ?? ""} onChange={(e) => setEditing({ ...editing, longitude: e.target.value ? Number(e.target.value) : null })} placeholder="Longitude (sem inventar coordenadas)" />
               <Textarea
@@ -254,13 +316,13 @@ function PublishedPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <AlertDialog open={Boolean(deleting)} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remover evento publicado?</AlertDialogTitle>
             <AlertDialogDescription>
-              “{deleting?.title}” será apagado e deixará de aparecer imediatamente na agenda
-              pública. Esta ação não pode ser desfeita.
+              “{deleting?.title}” será apagado e deixará de aparecer imediatamente na agenda pública. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
