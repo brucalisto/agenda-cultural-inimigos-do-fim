@@ -11,6 +11,7 @@ export const InterpretedContentSchema = z.object({
   price: z.number().nullable(),
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),
+  contact_instagram: z.string().nullable(),
   source_url: z.string().nullable(),
   keywords: z.array(z.string()).default([]),
   missing_fields: z.array(z.string()).default([]),
