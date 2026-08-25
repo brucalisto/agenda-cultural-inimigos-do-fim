@@ -45,9 +45,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { reprocessMessages } from "@/lib/gemini.functions";
 import { getInterpretedContents } from "@/lib/interpreted";
 
-export const Route = createFileRoute("/interpreted")({ component: InterpretedPage });
+export const Route = createFileRoute("/interpreted")({ component: ReviewWorkspace });
 
-function InterpretedPage() {
+export function ReviewWorkspace() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -68,6 +68,7 @@ function InterpretedPage() {
       data.filter((item) => {
         const term = search.toLowerCase();
         return (
+          !["publicado", "aprovado"].includes(item.review_status) &&
           (category === "all" || item.category === category) &&
           (!term ||
             item.title?.toLowerCase().includes(term) ||
@@ -135,10 +136,10 @@ function InterpretedPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <BrainCircuit className="h-6 w-6" />
-            Conteúdos Interpretados
+            Revisão
           </h1>
           <p className="text-muted-foreground">
-            Analise, consolide e reprocesse as interpretações geradas pela IA.
+            Confira, edite, consolide e publique as interpretações geradas pela IA.
           </p>
         </div>
         <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[1fr_240px]">
