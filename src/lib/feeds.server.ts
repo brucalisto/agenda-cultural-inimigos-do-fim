@@ -1,4 +1,3 @@
-import { gunzipSync } from "node:zlib";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { LEGACY_NOTION_EXPORT_GZIP_BASE64 } from "@/data/legacy-notion-export.base64";
 import { extractPublicPage } from "@/lib/links.server";
@@ -54,9 +53,17 @@ function inferCity(city: string | null, location: string | null) {
   return last;
 }
 
-function decodeLegacyNotionExport(): LegacyNotionRow[] {
-  const compressed = Buffer.from(LEGACY_NOTION_EXPORT_GZIP_BASE64, "base64");
-  const json = gunzipSync(compressed).toString("utf8");
+async function decodeLegacyNotionExport(): Promise<LegacyNotionRow[]> {
+  // Usa somente Web APIs, compatíveis tanto com o runtime do Lovable/Cloudflare
+  // quanto com runtimes Node modernos. Evita depender de node:zlib em produção.
+  const binary = atob(LEGACY_NOTION_EXPORT_GZIP_BASE64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const json = await new Response(stream).text();
   const parsed = JSON.parse(json) as LegacyNotionRow[];
   if (!Array.isArray(parsed)) throw new Error("Exportação legada do Notion inválida.");
   return parsed;
@@ -141,7 +148,7 @@ async function upsertFeedRow(
 
 export async function ingestLegacyNotionExport() {
   const source = LEGACY_NOTION_SOURCE;
-  const rows = decodeLegacyNotionExport();
+  const rows = await decodeLegacyNotionExport();
   const importedAt = new Date().toISOString();
   const results: Array<{
     title: string | null;
