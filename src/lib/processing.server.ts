@@ -33,6 +33,20 @@ function describeForGrouping(payload: BaileysWebhook) {
     .join("\n");
 }
 
+function hasMedia(payload: BaileysWebhook) {
+  return Boolean(payload.media || payload.linkPreview?.jpegThumbnailBase64);
+}
+
+function hasUsefulText(payload: BaileysWebhook) {
+  return Boolean(payload.text?.trim() || payload.caption?.trim() || payload.links.length);
+}
+
+function isDeterministicComplement(previous: BaileysWebhook, current: BaileysWebhook) {
+  return (
+    (hasMedia(previous) && hasUsefulText(current)) || (hasMedia(current) && hasUsefulText(previous))
+  );
+}
+
 function inferCity(city: string | null, location: string | null) {
   if (city?.trim()) return city.trim();
   if (!location?.trim() || /^(on-?line|virtual)$/i.test(location.trim())) return null;
@@ -43,7 +57,11 @@ function inferCity(city: string | null, location: string | null) {
     .filter(Boolean);
   if (parts.length < 2) return null;
 
-  const last = parts.at(-1)?.replace(/\s*-\s*[A-Z]{2}$/i, "").trim() || "";
+  const last =
+    parts
+      .at(-1)
+      ?.replace(/\s*-\s*[A-Z]{2}$/i, "")
+      .trim() || "";
   if (!/[A-Za-zÀ-ÿ]/.test(last) || /\d/.test(last) || last.length > 60) return null;
   return last;
 }
@@ -80,7 +98,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
   if (error) throw error;
 
   try {
-    const cutoff = new Date(new Date(occurred).getTime() - 3 * 60_000).toISOString();
+    const cutoff = new Date(new Date(occurred).getTime() - 5 * 60_000).toISOString();
     const { data: previous } = await db
       .from("whatsapp_messages")
       .select("id, raw_payload")
@@ -100,10 +118,12 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     if (previous?.raw_payload) {
       const parsed = BaileysWebhookSchema.safeParse(previous.raw_payload);
       if (parsed.success) {
-        const complementary = await areMessagesComplementary(
-          describeForGrouping(parsed.data),
-          describeForGrouping(payload),
-        );
+        const complementary =
+          isDeterministicComplement(parsed.data, payload) ||
+          (await areMessagesComplementary(
+            describeForGrouping(parsed.data),
+            describeForGrouping(payload),
+          ));
         if (complementary) {
           payloads = [parsed.data, payload];
           bundledMessageId = previous.id;
@@ -221,6 +241,10 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           eventCount: interpreted.items.length,
           messages: payloads.map((source) => ({
             messageId: source.messageId,
+            contentType: source.contentType,
+            text: source.text ?? null,
+            caption: source.caption ?? null,
+            receivedAt: source.receivedAt,
             links: source.links,
             media: source.media,
           })),

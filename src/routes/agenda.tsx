@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
-  AtSign,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
   Grid2X2,
+  AtSign,
   MapPin,
   Phone,
   Search,
@@ -78,7 +78,7 @@ const eventCity = (event: EventItem) => {
     .filter(Boolean);
   return parts.at(-1) || "Não informada";
 };
-const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0] ?? "";
+const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0];
 const instagramUrl = (value: string) =>
   /^https?:\/\//i.test(value)
     ? value
@@ -614,8 +614,7 @@ function PublicAgenda() {
                         rel="noreferrer"
                         className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:border-fuchsia-300/50 hover:text-fuchsia-200"
                       >
-                        <AtSign className="h-4 w-4" />@
-                        {instagramHandle(selected.contact_instagram)}
+                        <AtSign className="h-4 w-4" />@{instagramHandle(selected.contact_instagram)}
                       </a>
                     ) : null}
                   </div>

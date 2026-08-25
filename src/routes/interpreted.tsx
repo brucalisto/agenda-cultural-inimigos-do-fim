@@ -1,17 +1,13 @@
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getInterpretedContents, type InterpretedContent } from "@/lib/interpreted";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { BrainCircuit, Eye, RotateCcw, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { InterpretedDetails } from "@/components/interpreted/InterpretedDetails";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,11 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { BrainCircuit, Filter, Search, Eye, AlertTriangle, Calendar as CalendarIcon, Target } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -32,230 +23,244 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { InterpretedDetails } from "@/components/interpreted/InterpretedDetails";
-import { 
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Slider } from "@/components/ui/slider";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { reprocessMessages } from "@/lib/gemini.functions";
+import { getInterpretedContents } from "@/lib/interpreted";
 
-export const Route = createFileRoute("/interpreted")({
-  component: InterpretedPage,
-});
+export const Route = createFileRoute("/interpreted")({ component: InterpretedPage });
 
 function InterpretedPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [minConfidence, setMinConfidence] = useState(0);
-  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const { data: contents, isLoading } = useQuery({
-    queryKey: ["interpreted-contents"],
-    queryFn: getInterpretedContents,
-  });
-
-  const filteredContents = contents?.filter((item) => {
-    const matchesSearch =
-      item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.whatsapp_messages?.text_content?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || item.review_status === statusFilter;
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-    const matchesConfidence = (item.confidence_score || 0) * 100 >= minConfidence;
-    
-    let matchesDate = true;
-    if (dateRange.from) {
-      matchesDate = matchesDate && new Date(item.created_at) >= new Date(dateRange.from);
-    }
-    if (dateRange.to) {
-      matchesDate = matchesDate && new Date(item.created_at) <= new Date(dateRange.to);
-    }
-
-    return matchesSearch && matchesStatus && matchesCategory && matchesConfidence && matchesDate;
-  });
-
-  const categories = Array.from(new Set(contents?.map((c) => c.category).filter(Boolean)));
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "aprovado":
-        return <Badge className="bg-green-500 hover:bg-green-600">Aprovado</Badge>;
-      case "pendente":
-        return <Badge variant="outline" className="text-yellow-600 border-yellow-600">Pendente</Badge>;
-      case "revisao":
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-700">Em Revisão</Badge>;
-      case "ignorado":
-        return <Badge variant="destructive">Ignorado</Badge>;
-      case "publicado":
-        return <Badge className="bg-blue-600 hover:bg-blue-700">Publicado</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<"selected" | "category" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const {
+    data = [],
+    isLoading,
+    refetch,
+  } = useQuery({ queryKey: ["interpreted-contents"], queryFn: getInterpretedContents });
+  const categories = useMemo(
+    () => [...new Set(data.map((item) => item.category).filter(Boolean))] as string[],
+    [data],
+  );
+  const filtered = useMemo(
+    () =>
+      data.filter((item) => {
+        const term = search.toLowerCase();
+        return (
+          (category === "all" || item.category === category) &&
+          (!term ||
+            item.title?.toLowerCase().includes(term) ||
+            item.whatsapp_messages?.text_content?.toLowerCase().includes(term))
+        );
+      }),
+    [category, data, search],
+  );
+  const allSelected = filtered.length > 0 && filtered.every((item) => selected.has(item.id));
+  const toggleAll = () =>
+    setSelected((current) => {
+      const next = new Set(current);
+      filtered.forEach((item) => (allSelected ? next.delete(item.id) : next.add(item.id)));
+      return next;
+    });
+  const reprocess = async () => {
+    const messageIds = [
+      ...new Set(
+        data
+          .filter((item) => selected.has(item.id))
+          .map((item) => item.message_id)
+          .filter(Boolean),
+      ),
+    ];
+    if (!messageIds.length) return;
+    setBusy(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.access_token) throw new Error("Sessão expirada. Entre novamente.");
+      const result = await reprocessMessages({
+        data: { messageIds, accessToken: sessionData.session.access_token },
+      });
+      if (result.failures.length) {
+        toast.warning(`${result.processed} processadas; ${result.failures.length} falharam.`);
+      } else {
+        toast.success(`${result.processed} mensagens reprocessadas com as regras atuais.`);
+      }
+      setSelected(new Set());
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao reprocessar.");
+    } finally {
+      setBusy(false);
     }
   };
-
+  const remove = async () => {
+    const ids = confirm === "category" ? filtered.map((item) => item.id) : [...selected];
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("interpreted_contents").delete().in("id", ids);
+      if (error) throw error;
+      toast.success(`${ids.length} conteúdo(s) excluído(s).`);
+      setSelected(new Set());
+      setConfirm(null);
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao excluir.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <BrainCircuit className="h-6 w-6 text-primary" />
-              Conteúdos Interpretados
-            </h1>
-            <p className="text-muted-foreground">Analise e valide as interpretações geradas pela IA.</p>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <BrainCircuit className="h-6 w-6" />
+            Conteúdos Interpretados
+          </h1>
+          <p className="text-muted-foreground">
+            Analise, consolide e reprocesse as interpretações geradas pela IA.
+          </p>
         </div>
-
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4 bg-card p-4 rounded-lg border shadow-sm">
-          <div className="relative xl:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[1fr_240px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por título ou texto..."
               className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por título ou mensagem..."
             />
           </div>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Status da revisão" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="aprovado">Aprovado</SelectItem>
-              <SelectItem value="revisao">Em Revisão</SelectItem>
-              <SelectItem value="ignorado">Ignorado</SelectItem>
-              <SelectItem value="publicado">Publicado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select value={category} onValueChange={setCategory}>
             <SelectTrigger>
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as Categorias</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat!}>{cat}</SelectItem>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              {categories.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start gap-2">
-                <Target className="h-4 w-4" />
-                Confiança: {minConfidence}%
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-4">
-              <div className="space-y-4">
-                <h4 className="font-medium leading-none">Confiança Mínima</h4>
-                <Slider
-                  value={[minConfidence]}
-                  onValueChange={(val) => setMinConfidence(val[0] ?? 0)}
-                  max={100}
-                  step={5}
-                />
-                <p className="text-xs text-muted-foreground">Exibir apenas itens com confiança superior a {minConfidence}%.</p>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                Período
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-4 flex flex-col gap-2">
-              <div className="grid gap-2">
-                <label className="text-xs font-medium">De:</label>
-                <Input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-xs font-medium">Até:</label>
-                <Input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: "", to: "" })}>Limpar</Button>
-            </PopoverContent>
-          </Popover>
         </div>
-
-        {/* Content Table */}
-        <div className="rounded-md border bg-card shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">{selected.size} selecionado(s)</span>
+          <Button variant="outline" size="sm" disabled={!selected.size || busy} onClick={reprocess}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reprocessar selecionados
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selected.size || busy}
+            onClick={() => setConfirm("selected")}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Excluir selecionados
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={category === "all" || !filtered.length || busy}
+            onClick={() => setConfirm("category")}
+          >
+            Excluir categoria filtrada
+          </Button>
+        </div>
+        <div className="overflow-hidden rounded-md border bg-card">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow>
-                <TableHead className="font-semibold">Título</TableHead>
-                <TableHead className="font-semibold">Categoria</TableHead>
-                <TableHead className="font-semibold">Origem</TableHead>
-                <TableHead className="font-semibold">Data</TableHead>
-                <TableHead className="font-semibold text-center">Confiança</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar conteúdos filtrados"
+                  />
+                </TableHead>
+                <TableHead>Título</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Origem</TableHead>
+                <TableHead>Data do evento</TableHead>
+                <TableHead>Confiança</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                    Carregando conteúdos...
+                  <TableCell colSpan={8} className="py-10 text-center">
+                    Carregando...
                   </TableCell>
                 </TableRow>
-              ) : filteredContents?.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                     Nenhum conteúdo encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredContents?.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-accent/5 transition-colors">
-                    <TableCell className="font-medium max-w-[200px] truncate">
-                      {item.title || "Sem título"}
+                filtered.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(item.id)}
+                        onCheckedChange={() =>
+                          setSelected((current) => {
+                            const next = new Set(current);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          })
+                        }
+                        aria-label={`Selecionar ${item.title || "conteúdo"}`}
+                      />
                     </TableCell>
+                    <TableCell className="font-medium">{item.title || "Sem título"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{item.category || "N/A"}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{item.whatsapp_messages?.sender_name}</span>
-                        <span className="text-xs text-muted-foreground">{item.whatsapp_messages?.whatsapp_groups?.nome}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className={cn(
-                          "text-sm font-bold",
-                          (item.confidence_score || 0) > 0.8 ? "text-green-600" : (item.confidence_score || 0) > 0.5 ? "text-yellow-600" : "text-red-600"
-                        )}>
-                          {Math.round((item.confidence_score || 0) * 100)}%
-                        </span>
+                    <TableCell>
+                      {item.whatsapp_messages?.sender_name || "Desconhecido"}
+                      <div className="text-xs text-muted-foreground">
+                        {item.whatsapp_messages?.whatsapp_groups?.nome}
                       </div>
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(item.review_status)}
-                      {item.missing_fields && item.missing_fields.length > 0 && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-orange-600 font-medium">
-                          <AlertTriangle className="h-3 w-3" />
-                          {item.missing_fields.length} campos ausentes
-                        </div>
-                      )}
+                      {item.event_date
+                        ? new Date(item.event_date).toLocaleDateString("pt-BR")
+                        : "Não informada"}
+                    </TableCell>
+                    <TableCell>{Math.round((item.confidence_score || 0) * 100)}%</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{item.review_status}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedId(item.id)}>
-                        <Eye className="h-4 w-4 mr-1" />
+                      <Button variant="ghost" size="sm" onClick={() => setDetailsId(item.id)}>
+                        <Eye className="mr-2 h-4 w-4" />
                         Ver
                       </Button>
                     </TableCell>
@@ -266,22 +271,42 @@ function InterpretedPage() {
           </Table>
         </div>
       </div>
-
-      <Sheet open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent className="w-full sm:max-w-4xl overflow-y-auto p-0 border-l">
-          <SheetHeader className="p-6 border-b sticky top-0 bg-background z-10">
-            <div className="flex justify-between items-start">
-              <div>
-                <SheetTitle className="text-2xl">Detalhes do Conteúdo</SheetTitle>
-                <SheetDescription>
-                  Revise as informações interpretadas pela IA e o contexto original.
-                </SheetDescription>
-              </div>
-            </div>
+      <Sheet open={Boolean(detailsId)} onOpenChange={(open) => !open && setDetailsId(null)}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
+          <SheetHeader className="sticky top-0 z-10 border-b bg-background p-6">
+            <SheetTitle>Detalhes do Conteúdo</SheetTitle>
+            <SheetDescription>
+              Veja a interpretação e todas as mensagens consolidadas.
+            </SheetDescription>
           </SheetHeader>
-          {selectedId && <InterpretedDetails id={selectedId} onClose={() => setSelectedId(null)} />}
+          {detailsId ? (
+            <InterpretedDetails id={detailsId} onClose={() => setDetailsId(null)} />
+          ) : null}
         </SheetContent>
       </Sheet>
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm === "category"
+                ? `Os ${filtered.length} conteúdos visíveis da categoria “${category}” serão excluídos.`
+                : `${selected.size} conteúdo(s) serão excluídos.`}{" "}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={remove}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
