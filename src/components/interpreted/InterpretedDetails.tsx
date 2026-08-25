@@ -59,10 +59,28 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface InterpretedDetailsProps {
   id: string;
   onClose: () => void;
+}
+
+type ConsolidatedMessage = {
+  messageId?: string;
+  contentType?: string;
+  text?: string | null;
+  caption?: string | null;
+  receivedAt?: string;
+  links?: string[];
+};
+function consolidatedMessages(value: Json): ConsolidatedMessage[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const messages = (value as { messages?: unknown }).messages;
+  if (!Array.isArray(messages)) return [];
+  return messages.filter((item): item is ConsolidatedMessage =>
+    Boolean(item && typeof item === "object"),
+  );
 }
 
 export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
@@ -154,6 +172,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
   if (!content) return <div className="p-10 text-center">Conteúdo não encontrado.</div>;
 
   const msg = content.whatsapp_messages;
+  const sourceMessages = consolidatedMessages(content.extracted_data);
 
   return (
     <div className="flex flex-col h-full">
@@ -245,6 +264,43 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               )}
             </div>
           </section>
+
+          {sourceMessages.length > 1 && (
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Mensagens consolidadas ({sourceMessages.length})
+              </h3>
+              {sourceMessages.map((source, index) => (
+                <div
+                  key={source.messageId || index}
+                  className="rounded-lg border bg-card p-3 text-sm"
+                >
+                  <div className="mb-2 flex justify-between text-xs text-muted-foreground">
+                    <span>{source.contentType || `Mensagem ${index + 1}`}</span>
+                    <span>
+                      {source.receivedAt
+                        ? format(new Date(source.receivedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                        : ""}
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap">
+                    {source.text || source.caption || "Mídia sem texto"}
+                  </p>
+                  {source.links?.map((link) => (
+                    <a
+                      key={link}
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 block truncate text-blue-600 underline"
+                    >
+                      {link}
+                    </a>
+                  ))}
+                </div>
+              ))}
+            </section>
+          )}
 
           <div className="space-y-2">
             <Collapsible open={isTechnicalOpen} onOpenChange={setIsTechnicalOpen}>
@@ -612,8 +668,8 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
 function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
   const simulate = useMutation({
     mutationFn: useServerFn(simulateAutomation),
-    onSuccess: (data: { status: string; rule?: { nome: string } }) => {
-      if (data.status === "matched" && data.rule) {
+    onSuccess: (data) => {
+      if (data.status === "matched") {
         toast.success(`Regra "${data.rule.nome}" acionada (SIMULAÇÃO)`);
       } else {
         toast.info("Nenhuma regra de automação correspondente.");
