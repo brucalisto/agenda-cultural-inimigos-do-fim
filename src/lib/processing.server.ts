@@ -186,44 +186,54 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     }
 
     const interpreted = await processWithGemini(context || "Analise a mídia anexada.", mediaFiles);
-    const reviewStatus =
-      interpreted.confidence_score >= 0.75 && interpreted.missing_fields.length === 0
-        ? "pendente"
-        : "necessita_revisao";
-    const { error: interpretError } = await db.from("interpreted_contents").upsert(
-      {
+    const rows = interpreted.items.map((item, eventSequence) => {
+      const reviewStatus =
+        item.confidence_score >= 0.75 && item.missing_fields.length === 0
+          ? "pendente"
+          : "necessita_revisao";
+      return {
         message_id: message.id,
-        ...interpreted,
-        price: interpreted.price == null ? null : String(interpreted.price),
-        warnings: [...interpreted.warnings, ...extraWarnings],
+        event_sequence: eventSequence,
+        ...item,
+        price: item.price == null ? null : String(item.price),
+        warnings: [...item.warnings, ...extraWarnings],
         extracted_data: {
           groupId: payload.groupId,
           groupName: payload.groupName,
           bundledMessageId,
-          messages: payloads.map((item) => ({
-            messageId: item.messageId,
-            links: item.links,
-            media: item.media,
+          eventSequence,
+          eventCount: interpreted.items.length,
+          messages: payloads.map((source) => ({
+            messageId: source.messageId,
+            links: source.links,
+            media: source.media,
           })),
         },
         model_used: GEMINI_CONFIG.MODEL_NAME,
         prompt_version: GEMINI_CONFIG.PROMPT_VERSION,
         review_status: reviewStatus,
         updated_at: new Date().toISOString(),
-      },
-      { onConflict: "message_id" },
-    );
+      };
+    });
+
+    await db.from("interpreted_contents").delete().eq("message_id", message.id);
+    const { error: interpretError } = await db.from("interpreted_contents").insert(rows);
     if (interpretError) throw interpretError;
+
+    const requiresReview = rows.some((row) => row.review_status === "necessita_revisao");
 
     await db
       .from("whatsapp_messages")
       .update({
-        processing_status:
-          reviewStatus === "necessita_revisao" ? "necessita_revisao" : "interpretado",
+        processing_status: requiresReview ? "necessita_revisao" : "interpretado",
         error_message: null,
       })
       .eq("id", message.id);
-    return { ignored: false, reviewStatus };
+    return {
+      ignored: false,
+      reviewStatus: requiresReview ? "necessita_revisao" : "pendente",
+      interpretedCount: rows.length,
+    };
   } catch (cause) {
     const errorMessage = cause instanceof Error ? cause.message : "Falha no processamento";
     await db
