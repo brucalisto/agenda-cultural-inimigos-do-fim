@@ -1,4 +1,6 @@
+import { gunzipSync } from "node:zlib";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { LEGACY_NOTION_EXPORT_GZIP_BASE64 } from "@/data/legacy-notion-export.base64";
 import { extractPublicPage } from "@/lib/links.server";
 import { processWithAI } from "@/lib/gemini/service.server";
 import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
@@ -11,24 +13,181 @@ export type FeedSource = {
   autoPublish: boolean;
 };
 
-export const DEFAULT_FEED_SOURCES: FeedSource[] = [
-  {
-    id: "legacy-notion-agenda",
-    name: "Agenda Cultural Inimigos do Fim — Notion",
-    url: "https://tide-candy-1f5.notion.site/Agenda-Cultural-Inimigos-do-Fim-3c3623dd0eb881e4a8c6d9bd1c0f160b",
-    trusted: true,
-    autoPublish: true,
-  },
-];
+type LegacyNotionRow = {
+  notionExportRow: number;
+  title: string | null;
+  category: string | null;
+  summary: string | null;
+  full_description: string | null;
+  event_date: string | null;
+  location: string | null;
+  city: string | null;
+  price: string | null;
+  source_url: string | null;
+  artists_responsible: string | null;
+  classification: string | null;
+  raw_datetime: string | null;
+  event_end: string | null;
+  source_key: string;
+};
+
+const LEGACY_NOTION_SOURCE: FeedSource = {
+  id: "legacy-notion-agenda",
+  name: "Agenda Cultural Inimigos do Fim — Notion",
+  url: "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link",
+  trusted: true,
+  autoPublish: true,
+};
+
+export const DEFAULT_FEED_SOURCES: FeedSource[] = [LEGACY_NOTION_SOURCE];
 
 function inferCity(city: string | null, location: string | null) {
   if (city?.trim()) return city.trim();
   if (!location?.trim() || /^(on-?line|virtual)$/i.test(location.trim())) return null;
-  const parts = location.split(/\s*(?:,|—|–)\s*/).map((part) => part.trim()).filter(Boolean);
+  const parts = location
+    .split(/\s*(?:,|—|–)\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
   if (parts.length < 2) return null;
   const last = parts.at(-1)?.replace(/\s*-\s*[A-Z]{2}$/i, "").trim() || "";
   if (!/[A-Za-zÀ-ÿ]/.test(last) || /\d/.test(last) || last.length > 60) return null;
   return last;
+}
+
+function decodeLegacyNotionExport(): LegacyNotionRow[] {
+  const compressed = Buffer.from(LEGACY_NOTION_EXPORT_GZIP_BASE64, "base64");
+  const json = gunzipSync(compressed).toString("utf8");
+  const parsed = JSON.parse(json) as LegacyNotionRow[];
+  if (!Array.isArray(parsed)) throw new Error("Exportação legada do Notion inválida.");
+  return parsed;
+}
+
+async function upsertTrustedFeedRow(
+  row: Record<string, unknown> & {
+    title?: string | null;
+    event_date?: string | null;
+    location?: string | null;
+    city?: string | null;
+    source_url?: string | null;
+    review_status?: string | null;
+    warnings?: string[] | null;
+    extracted_data?: unknown;
+  },
+  externalKey: string,
+) {
+  const checked = await enrichWithDuplicateWarning(row);
+  const duplicate = checked.review_status === "necessita_revisao";
+  const now = new Date().toISOString();
+  const finalRow = duplicate
+    ? checked
+    : {
+        ...checked,
+        review_status: "publicado",
+        reviewed_at: now,
+      };
+
+  const extracted =
+    finalRow.extracted_data && typeof finalRow.extracted_data === "object" && !Array.isArray(finalRow.extracted_data)
+      ? (finalRow.extracted_data as Record<string, unknown>)
+      : {};
+
+  const rowWithKey = {
+    ...finalRow,
+    extracted_data: {
+      ...extracted,
+      feedExternalKey: externalKey,
+    },
+    updated_at: now,
+  };
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("interpreted_contents")
+    .select("id")
+    .contains("extracted_data", { feedExternalKey: externalKey })
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  if (existing?.id) {
+    const { error } = await supabaseAdmin
+      .from("interpreted_contents")
+      .update(rowWithKey)
+      .eq("id", existing.id);
+    if (error) throw error;
+    return { id: existing.id, duplicate, status: rowWithKey.review_status || "pendente", updated: true };
+  }
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from("interpreted_contents")
+    .insert(rowWithKey)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { id: inserted.id, duplicate, status: rowWithKey.review_status || "pendente", updated: false };
+}
+
+export async function ingestLegacyNotionExport() {
+  const source = LEGACY_NOTION_SOURCE;
+  const rows = decodeLegacyNotionExport();
+  const importedAt = new Date().toISOString();
+  const results: Array<{
+    title: string | null;
+    id: string;
+    status: string;
+    duplicate: boolean;
+    updated: boolean;
+  }> = [];
+
+  for (const [eventSequence, item] of rows.entries()) {
+    const row = {
+      message_id: null,
+      event_sequence: eventSequence,
+      title: item.title,
+      category: item.category,
+      summary: item.summary,
+      full_description: item.full_description,
+      event_date: item.event_date,
+      location: item.location,
+      city: inferCity(item.city, item.location),
+      price: item.price,
+      source_url: item.source_url || source.url,
+      missing_fields: [],
+      warnings: [],
+      confidence_score: 1,
+      model_used: "notion-export:reviewed",
+      prompt_version: "legacy-notion-export-1.0.0",
+      review_status: "publicado",
+      reviewed_at: importedAt,
+      extracted_data: {
+        sourceType: "notion_export",
+        feedSourceId: source.id,
+        feedSourceName: source.name,
+        feedSourceUrl: source.url,
+        trustedSource: true,
+        autoPublish: true,
+        importedAt,
+        notionDatabaseId: "68ee129b62a5465197a1f0d7b47afcda",
+        notionViewId: "94c86de6ba024fac98c266b5c68bcbb8",
+        notionExportRow: item.notionExportRow,
+        artistsResponsible: item.artists_responsible,
+        classification: item.classification,
+        rawDateTime: item.raw_datetime,
+        eventEnd: item.event_end,
+      },
+    };
+
+    const saved = await upsertTrustedFeedRow(row, item.source_key);
+    results.push({ title: item.title, ...saved });
+  }
+
+  return {
+    source: source.name,
+    total: rows.length,
+    imported: results.filter((item) => !item.updated).length,
+    updated: results.filter((item) => item.updated).length,
+    published: results.filter((item) => item.status === "publicado").length,
+    duplicates: results.filter((item) => item.duplicate).length,
+    results,
+  };
 }
 
 export async function ingestFeedSource(source: FeedSource) {
@@ -40,7 +199,9 @@ export async function ingestFeedSource(source: FeedSource) {
     page.description && `DESCRIÇÃO: ${page.description}`,
     page.text,
     "A página pode conter vários eventos. Extraia cada evento separadamente e não invente informações ausentes.",
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const interpreted = await processWithAI(context, []);
   const now = new Date().toISOString();
@@ -69,51 +230,16 @@ export async function ingestFeedSource(source: FeedSource) {
       updated_at: now,
     };
 
-    const checked = await enrichWithDuplicateWarning(baseRow);
-    const duplicate = checked.review_status === "necessita_revisao";
-
-    // Fonte confiável pode publicar automaticamente, mas nunca ultrapassa uma sinalização de duplicidade.
-    const finalRow = duplicate
-      ? checked
-      : {
-          ...checked,
-          review_status: source.autoPublish && source.trusted ? "publicado" : checked.review_status,
-          reviewed_at: source.autoPublish && source.trusted ? now : null,
-        };
-
-    const sourceUrl = finalRow.source_url || source.url;
-    const externalKeyParts = [source.id, sourceUrl, finalRow.title || "", finalRow.event_date || ""];
-    const externalKey = externalKeyParts.join("|").toLowerCase();
-
-    const { data: existing } = await supabaseAdmin
-      .from("interpreted_contents")
-      .select("id")
-      .contains("extracted_data", { feedExternalKey: externalKey })
-      .maybeSingle();
-
-    const rowWithKey = {
-      ...finalRow,
-      extracted_data: {
-        ...(finalRow.extracted_data as Record<string, unknown>),
-        feedExternalKey: externalKey,
-      },
-    };
-
-    if (existing?.id) {
-      const { error } = await supabaseAdmin
-        .from("interpreted_contents")
-        .update(rowWithKey)
-        .eq("id", existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabaseAdmin.from("interpreted_contents").insert(rowWithKey);
-      if (error) throw error;
-    }
+    const sourceUrl = baseRow.source_url || source.url;
+    const externalKey = [source.id, sourceUrl, baseRow.title || "", baseRow.event_date || ""]
+      .join("|")
+      .toLowerCase();
+    const saved = await upsertTrustedFeedRow(baseRow, externalKey);
 
     results.push({
-      title: finalRow.title,
-      status: finalRow.review_status || "pendente",
-      duplicate,
+      title: baseRow.title,
+      status: saved.status,
+      duplicate: saved.duplicate,
     });
   }
 
