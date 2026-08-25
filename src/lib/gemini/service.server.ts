@@ -13,7 +13,9 @@ export async function processWithGemini(
   }
 
   const parts: Array<Record<string, unknown>> = [
-    { text: `Conteúdo para análise:\n\n${content}` },
+    {
+      text: `Data atual e ano vigente para interpretar datas sem ano: ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeZone: "America/Sao_Paulo" }).format(new Date())}.\n\nConteúdo para análise:\n\n${content}`,
+    },
     ...mediaFiles.map((file) => ({
       inlineData: { mimeType: file.mimeType, data: file.data },
     })),
