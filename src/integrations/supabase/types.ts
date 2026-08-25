@@ -197,6 +197,7 @@ export type Database = {
           confidence_score: number | null;
           contact_name: string | null;
           contact_phone: string | null;
+          contact_instagram: string | null;
           created_at: string | null;
           event_date: string | null;
           event_sequence: number;
@@ -225,6 +226,7 @@ export type Database = {
           confidence_score?: number | null;
           contact_name?: string | null;
           contact_phone?: string | null;
+          contact_instagram?: string | null;
           created_at?: string | null;
           event_date?: string | null;
           event_sequence?: number;
@@ -253,6 +255,7 @@ export type Database = {
           confidence_score?: number | null;
           contact_name?: string | null;
           contact_phone?: string | null;
+          contact_instagram?: string | null;
           created_at?: string | null;
           event_date?: string | null;
           event_sequence?: number;
