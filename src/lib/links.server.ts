@@ -9,7 +9,8 @@ function isBlockedHost(host: string) {
   )
     return true;
   const match = host.match(/^172\.(\d+)\./);
-  return Boolean(match && +match[1] >= 16 && +match[1] <= 31);
+  const octet = match?.[1];
+  return Boolean(octet && +octet >= 16 && +octet <= 31);
 }
 const decodeEntities = (text: string) =>
   text

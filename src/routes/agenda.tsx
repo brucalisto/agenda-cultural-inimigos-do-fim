@@ -78,7 +78,7 @@ const eventCity = (event: EventItem) => {
     .filter(Boolean);
   return parts.at(-1) || "Não informada";
 };
-const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0];
+const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0] ?? "";
 const instagramUrl = (value: string) =>
   /^https?:\/\//i.test(value)
     ? value
