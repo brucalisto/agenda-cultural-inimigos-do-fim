@@ -25,14 +25,26 @@ export async function requireAdminAccess(accessToken: string) {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
   if (error || !data.user) throw new Error("Sessão inválida ou expirada.");
 
-  const { data: role, error: roleError } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", data.user.id)
-    .eq("role", "admin")
-    .maybeSingle();
+  const [{ data: roleRow, error: roleError }, { data: profile, error: profileError }] = await Promise.all([
+    supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.user.id)
+      .eq("role", "admin")
+      .maybeSingle(),
+    supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle(),
+  ]);
 
-  if (roleError || !role) throw new Error("Acesso restrito a administradores.");
+  if (roleError && profileError) {
+    throw new Error("Não foi possível validar a permissão administrativa.");
+  }
+
+  const isAdmin = Boolean(roleRow) || profile?.role === "admin";
+  if (!isAdmin) throw new Error("Acesso restrito a administradores.");
   return data.user;
 }
 
