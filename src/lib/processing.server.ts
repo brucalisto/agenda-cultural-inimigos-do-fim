@@ -3,6 +3,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { BaileysWebhookSchema, type BaileysWebhook } from "@/lib/adapters/baileys.server";
 import { areMessagesComplementary, processWithAI } from "@/lib/gemini/service.server";
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
+import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
 
 async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
   const base = process.env["BAILEYS_API_URL"]?.replace(/\/$/, "");
@@ -239,7 +240,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     }
 
     const interpreted = await processWithAI(context || "Analise a mídia anexada.", mediaFiles);
-    const rows = interpreted.items.map((item, eventSequence) => {
+    const baseRows = interpreted.items.map((item, eventSequence) => {
       const reviewStatus =
         item.confidence_score >= 0.75 && item.missing_fields.length === 0
           ? "pendente"
@@ -269,14 +270,15 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           })),
         },
         model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
-        prompt_version: "1.5.0",
+        prompt_version: "1.6.0",
         review_status: reviewStatus,
         updated_at: new Date().toISOString(),
       };
     });
 
-    // Se uma mensagem posterior absorveu esta enquanto a IA ainda trabalhava,
-    // não recrie a interpretação antiga ao terminar fora de ordem.
+    const rows = [];
+    for (const row of baseRows) rows.push(await enrichWithDuplicateWarning(row));
+
     const { data: latestMessageState } = await db
       .from("whatsapp_messages")
       .select("bundled_into_message_id")
