@@ -1,7 +1,27 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ingestFeedSource, type FeedSource } from "@/lib/feeds.server";
 
-type FeedSourceRecord = {
+type FeedMetadata = {
+  sourceType?: string;
+  trusted?: boolean;
+  autoPublish?: boolean;
+  lastSyncedAt?: string | null;
+  lastSyncStatus?: string | null;
+  lastSyncResult?: unknown;
+};
+
+type PublicationDestinationRow = {
+  id: string;
+  nome: string;
+  endpoint_url: string | null;
+  provider: string | null;
+  enabled: boolean | null;
+  field_mapping: unknown;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type FeedSourceRecord = {
   id: string;
   name: string;
   url: string;
@@ -16,10 +36,31 @@ type FeedSourceRecord = {
   updated_at: string;
 };
 
-const db = supabaseAdmin as unknown as {
-  from: (table: string) => any;
-  auth: typeof supabaseAdmin.auth;
-};
+const NOTION_URL = "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link";
+const FEED_PROVIDER = "feed_source";
+
+function metadata(value: unknown): FeedMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as FeedMetadata;
+}
+
+function normalizeSource(row: PublicationDestinationRow): FeedSourceRecord {
+  const meta = metadata(row.field_mapping);
+  return {
+    id: row.id,
+    name: row.nome,
+    url: row.endpoint_url || "",
+    source_type: meta.sourceType || "web",
+    active: row.enabled !== false,
+    trusted: meta.trusted === true,
+    auto_publish: meta.autoPublish === true,
+    last_synced_at: meta.lastSyncedAt || null,
+    last_sync_status: meta.lastSyncStatus || null,
+    last_sync_result: meta.lastSyncResult ?? null,
+    created_at: row.created_at || "",
+    updated_at: row.updated_at || "",
+  };
+}
 
 export async function requireAdminAccess(accessToken: string) {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
@@ -48,14 +89,50 @@ export async function requireAdminAccess(accessToken: string) {
   return data.user;
 }
 
+async function ensureNotionSource() {
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
+    .eq("provider", FEED_PROVIDER)
+    .eq("endpoint_url", NOTION_URL)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) return existing as PublicationDestinationRow;
+
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .insert({
+      nome: "Agenda Cultural Inimigos do Fim — Notion",
+      endpoint_url: NOTION_URL,
+      provider: FEED_PROVIDER,
+      enabled: true,
+      field_mapping: {
+        sourceType: "notion",
+        trusted: true,
+        autoPublish: true,
+        lastSyncedAt: null,
+        lastSyncStatus: null,
+        lastSyncResult: null,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
+    .single();
+  if (error) throw error;
+  return data as PublicationDestinationRow;
+}
+
 export async function listFeedSourcesForAdmin(accessToken: string) {
   await requireAdminAccess(accessToken);
-  const { data, error } = await db
-    .from("feed_sources")
-    .select("id,name,url,source_type,active,trusted,auto_publish,last_synced_at,last_sync_status,last_sync_result,created_at,updated_at")
+  await ensureNotionSource();
+
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
+    .eq("provider", FEED_PROVIDER)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data || []) as FeedSourceRecord[];
+  return ((data || []) as PublicationDestinationRow[]).map(normalizeSource);
 }
 
 export async function saveFeedSourceForAdmin(
@@ -71,80 +148,148 @@ export async function saveFeedSourceForAdmin(
 ) {
   await requireAdminAccess(accessToken);
   const url = new URL(input.url.trim()).toString();
-  const payload = {
-    name: input.name.trim(),
-    url,
-    source_type: url.includes("notion.site") || url.includes("notion.com") ? "notion" : "web",
-    active: input.active,
-    trusted: input.trusted,
-    auto_publish: input.autoPublish,
-    updated_at: new Date().toISOString(),
-  };
+  const sourceType = url.includes("notion.site") || url.includes("notion.com") ? "notion" : "web";
+  const now = new Date().toISOString();
 
-  if (!payload.name) throw new Error("Informe um nome para a fonte.");
+  if (!input.name.trim()) throw new Error("Informe um nome para a fonte.");
 
-  const query = input.id
-    ? db.from("feed_sources").update(payload).eq("id", input.id)
-    : db.from("feed_sources").insert(payload);
-  const { data, error } = await query.select("id").single();
+  if (input.id) {
+    const { data: current, error: currentError } = await supabaseAdmin
+      .from("publication_destinations")
+      .select("field_mapping")
+      .eq("id", input.id)
+      .eq("provider", FEED_PROVIDER)
+      .single();
+    if (currentError) throw currentError;
+    const currentMeta = metadata(current.field_mapping);
+
+    const { data, error } = await supabaseAdmin
+      .from("publication_destinations")
+      .update({
+        nome: input.name.trim(),
+        endpoint_url: url,
+        enabled: input.active,
+        field_mapping: {
+          ...currentMeta,
+          sourceType,
+          trusted: input.trusted,
+          autoPublish: input.trusted && input.autoPublish,
+        },
+        updated_at: now,
+      })
+      .eq("id", input.id)
+      .eq("provider", FEED_PROVIDER)
+      .select("id")
+      .single();
+    if (error) throw error;
+    return { id: data.id };
+  }
+
+  const { data: duplicate, error: duplicateError } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id")
+    .eq("provider", FEED_PROVIDER)
+    .eq("endpoint_url", url)
+    .maybeSingle();
+  if (duplicateError) throw duplicateError;
+  if (duplicate?.id) throw new Error("Essa URL já está cadastrada como fonte.");
+
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .insert({
+      nome: input.name.trim(),
+      endpoint_url: url,
+      provider: FEED_PROVIDER,
+      enabled: input.active,
+      field_mapping: {
+        sourceType,
+        trusted: input.trusted,
+        autoPublish: input.trusted && input.autoPublish,
+        lastSyncedAt: null,
+        lastSyncStatus: null,
+        lastSyncResult: null,
+      },
+      updated_at: now,
+    })
+    .select("id")
+    .single();
   if (error) throw error;
   return { id: data.id };
 }
 
 export async function removeFeedSourceForAdmin(accessToken: string, id: string) {
   await requireAdminAccess(accessToken);
-  const { data: source, error: sourceError } = await db
-    .from("feed_sources")
-    .select("source_type")
+  const { data: source, error: sourceError } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("endpoint_url,field_mapping")
     .eq("id", id)
+    .eq("provider", FEED_PROVIDER)
     .single();
   if (sourceError) throw sourceError;
-  if (source?.source_type === "notion") {
+
+  const meta = metadata(source.field_mapping);
+  if (meta.sourceType === "notion" && source.endpoint_url === NOTION_URL) {
     throw new Error("A fonte principal do Notion não pode ser removida. Você pode pausá-la.");
   }
-  const { error } = await db.from("feed_sources").delete().eq("id", id);
+
+  const { error } = await supabaseAdmin
+    .from("publication_destinations")
+    .delete()
+    .eq("id", id)
+    .eq("provider", FEED_PROVIDER);
   if (error) throw error;
   return { ok: true };
 }
 
 export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
   await requireAdminAccess(accessToken);
-  const { data, error } = await db
-    .from("feed_sources")
-    .select("id,name,url,source_type,active,trusted,auto_publish")
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
     .eq("id", id)
+    .eq("provider", FEED_PROVIDER)
     .single();
   if (error) throw error;
-  if (!data.active) throw new Error("Esta fonte está pausada.");
+
+  const sourceRecord = normalizeSource(data as PublicationDestinationRow);
+  if (!sourceRecord.active) throw new Error("Esta fonte está pausada.");
+  if (!sourceRecord.url) throw new Error("A fonte não possui URL configurada.");
 
   const source: FeedSource = {
-    id: data.id,
-    name: data.name,
-    url: data.url,
-    trusted: data.trusted,
-    autoPublish: data.auto_publish,
+    id: sourceRecord.id,
+    name: sourceRecord.name,
+    url: sourceRecord.url,
+    trusted: sourceRecord.trusted,
+    autoPublish: sourceRecord.auto_publish,
   };
 
+  const currentMeta = metadata(data.field_mapping);
   try {
     const result = await ingestFeedSource(source);
-    await db
-      .from("feed_sources")
+    await supabaseAdmin
+      .from("publication_destinations")
       .update({
-        last_synced_at: new Date().toISOString(),
-        last_sync_status: "sucesso",
-        last_sync_result: result,
+        field_mapping: {
+          ...currentMeta,
+          lastSyncedAt: new Date().toISOString(),
+          lastSyncStatus: "sucesso",
+          lastSyncResult: result,
+        },
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
     return result;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Falha ao sincronizar fonte.";
-    await db
-      .from("feed_sources")
+    await supabaseAdmin
+      .from("publication_destinations")
       .update({
-        last_synced_at: new Date().toISOString(),
-        last_sync_status: "erro",
-        last_sync_result: { error: message },
+        field_mapping: {
+          ...currentMeta,
+          lastSyncedAt: new Date().toISOString(),
+          lastSyncStatus: "erro",
+          lastSyncResult: { error: message },
+        },
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
