@@ -199,11 +199,14 @@ export type Database = {
       interpreted_contents: {
         Row: {
           category: string | null
+          city: string | null
           confidence_score: number | null
+          contact_instagram: string | null
           contact_name: string | null
           contact_phone: string | null
           created_at: string | null
           event_date: string | null
+          event_sequence: number
           extracted_data: Json | null
           full_description: string | null
           id: string
@@ -225,11 +228,14 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          city?: string | null
           confidence_score?: number | null
+          contact_instagram?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
           event_date?: string | null
+          event_sequence?: number
           extracted_data?: Json | null
           full_description?: string | null
           id?: string
@@ -251,11 +257,14 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          city?: string | null
           confidence_score?: number | null
+          contact_instagram?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
           event_date?: string | null
+          event_sequence?: number
           extracted_data?: Json | null
           full_description?: string | null
           id?: string
@@ -551,6 +560,7 @@ export type Database = {
       }
       whatsapp_messages: {
         Row: {
+          bundled_into_message_id: string | null
           caption: string | null
           created_at: string | null
           error_message: string | null
@@ -572,6 +582,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          bundled_into_message_id?: string | null
           caption?: string | null
           created_at?: string | null
           error_message?: string | null
@@ -593,6 +604,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          bundled_into_message_id?: string | null
           caption?: string | null
           created_at?: string | null
           error_message?: string | null
@@ -614,6 +626,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_bundled_into_message_id_fkey"
+            columns: ["bundled_into_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_messages_group_id_fkey"
             columns: ["group_id"]
