@@ -1,30 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { 
-  MessageSquare, 
-  Brain, 
-  Clock, 
-  CheckCircle2, 
-  ShieldAlert, 
+import {
+  MessageSquare,
+  Brain,
+  Clock,
+  CheckCircle2,
+  ShieldAlert,
   AlertTriangle,
   Activity,
   Zap,
   Bot,
-  Webhook
+  Webhook,
 } from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
 } from "recharts";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -58,7 +59,7 @@ const activityData = [
 ];
 
 function Dashboard() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [lastWebhook, setLastWebhook] = useState<string | null>(null);
@@ -70,18 +71,54 @@ function Dashboard() {
       if (!session) {
         window.location.href = "/auth";
       } else {
-        const start = new Date(); start.setHours(0,0,0,0);
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
         Promise.all([
-          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).gte("received_at",start.toISOString()),
-          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).in("processing_status",["interpretado","necessita_revisao"]),
-          supabase.from("interpreted_contents").select("*",{count:"exact",head:true}).in("review_status",["pendente","necessita_revisao"]),
-          supabase.from("interpreted_contents").select("*",{count:"exact",head:true}).eq("review_status","publicado"),
-          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).eq("processing_status","ignorado"),
-          supabase.from("whatsapp_messages").select("*",{count:"exact",head:true}).eq("processing_status","erro"),
-          supabase.from("system_events").select("created_at").eq("event_type","webhook_received").order("created_at",{ascending:false}).limit(1).maybeSingle(),
-        ]).then(([today,processed,pending,published,ignored,errors,last])=>{
-          setCounts({today:today.count??0,processed:processed.count??0,pending:pending.count??0,published:published.count??0,ignored:ignored.count??0,errors:errors.count??0});
-          setLastWebhook(last.data?.created_at??null);
+          supabase
+            .from("whatsapp_messages")
+            .select("*", { count: "exact", head: true })
+            .neq("message_type", "reactionMessage")
+            .gte("received_at", start.toISOString()),
+          supabase
+            .from("whatsapp_messages")
+            .select("*", { count: "exact", head: true })
+            .neq("message_type", "reactionMessage")
+            .in("processing_status", ["interpretado", "necessita_revisao"]),
+          supabase
+            .from("interpreted_contents")
+            .select("*", { count: "exact", head: true })
+            .in("review_status", ["pendente", "necessita_revisao"]),
+          supabase
+            .from("interpreted_contents")
+            .select("*", { count: "exact", head: true })
+            .eq("review_status", "publicado"),
+          supabase
+            .from("whatsapp_messages")
+            .select("*", { count: "exact", head: true })
+            .neq("message_type", "reactionMessage")
+            .eq("processing_status", "ignorado"),
+          supabase
+            .from("whatsapp_messages")
+            .select("*", { count: "exact", head: true })
+            .neq("message_type", "reactionMessage")
+            .eq("processing_status", "erro"),
+          supabase
+            .from("system_events")
+            .select("created_at")
+            .eq("event_type", "webhook_received")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]).then(([today, processed, pending, published, ignored, errors, last]) => {
+          setCounts({
+            today: today.count ?? 0,
+            processed: processed.count ?? 0,
+            pending: pending.count ?? 0,
+            published: published.count ?? 0,
+            ignored: ignored.count ?? 0,
+            errors: errors.count ?? 0,
+          });
+          setLastWebhook(last.data?.created_at ?? null);
         });
       }
     });
@@ -106,13 +143,18 @@ function Dashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
-          <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
+          <p className="text-muted-foreground">
+            Monitoramento em tempo real dos seus grupos do WhatsApp.
+          </p>
         </div>
 
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {statDefinitions.map((stat) => (
-            <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
+            <div
+              key={stat.label}
+              className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
@@ -136,15 +178,19 @@ function Dashboard() {
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.929 0.013 255.508 / 0.5)" />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="oklch(0.929 0.013 255.508 / 0.5)"
+                  />
                   <XAxis dataKey="time" axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "oklch(1 0 0)", 
-                      borderRadius: "8px", 
-                      border: "1px solid oklch(0.929 0.013 255.508)" 
-                    }} 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "oklch(1 0 0)",
+                      borderRadius: "8px",
+                      border: "1px solid oklch(0.929 0.013 255.508)",
+                    }}
                   />
                   <Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -192,7 +238,9 @@ function Dashboard() {
               <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
             </div>
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                Estado
+              </p>
               <p className="text-sm">Monitorado pela integração</p>
             </div>
           </div>
@@ -206,7 +254,9 @@ function Dashboard() {
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                Estado
+              </p>
               <p className="text-sm">Gemini 2.5 Flash</p>
             </div>
           </div>
@@ -219,8 +269,12 @@ function Dashboard() {
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p>
-              <p className="text-sm font-mono text-muted-foreground">{lastWebhook ? new Date(lastWebhook).toLocaleString("pt-BR") : "Nenhum recebido"}</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                Recebido em
+              </p>
+              <p className="text-sm font-mono text-muted-foreground">
+                {lastWebhook ? new Date(lastWebhook).toLocaleString("pt-BR") : "Nenhum recebido"}
+              </p>
             </div>
           </div>
         </div>

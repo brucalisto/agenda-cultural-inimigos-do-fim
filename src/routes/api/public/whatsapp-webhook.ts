@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { parseBaileysWebhook } from "@/lib/adapters/baileys.server";
+import { isNonEditorialContentType, parseBaileysWebhook } from "@/lib/adapters/baileys.server";
 import { processBaileysMessage } from "@/lib/processing.server";
 import { normalizeWhatsAppGroupId } from "@/lib/whatsapp-groups";
 
@@ -44,6 +44,19 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           .single();
         if (eventError || !event) throw eventError || new Error("Falha ao registrar webhook");
         try {
+          if (isNonEditorialContentType(payload.contentType)) {
+            await db
+              .from("webhook_events")
+              .update({
+                processing_status: "ignored",
+                error_message: "Reação de mensagem filtrada do fluxo editorial",
+                processed_at: new Date().toISOString(),
+                processing_duration_ms: Date.now() - started,
+                http_status: 200,
+              })
+              .eq("id", event.id);
+            return Response.json({ ok: true, ignored: true, reason: "non_editorial_interaction" });
+          }
           const externalGroupId = normalizeWhatsAppGroupId(payload.groupId);
           let { data: group } = await db
             .from("whatsapp_groups")

@@ -1,11 +1,36 @@
 import { GEMINI_CONFIG } from "./config.server";
 import { SYSTEM_PROMPTS } from "./prompts.server";
-import { InterpretedContentSchema, type InterpretedContentResponse } from "./schema";
+import { InterpretedContentsSchema, type InterpretedContentsResponse } from "./schema";
+
+function getDateContext() {
+  const timeZone = "America/Sao_Paulo";
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const localDate = new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
+  const sunday = new Date(localDate);
+  sunday.setUTCDate(localDate.getUTCDate() - localDate.getUTCDay());
+  const saturday = new Date(sunday);
+  saturday.setUTCDate(sunday.getUTCDate() + 6);
+  const format = (date: Date) =>
+    new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "full",
+      timeZone: "UTC",
+    }).format(date);
+
+  return `Data atual em São Paulo: ${format(localDate)}. Ano vigente: ${value("year")}. Semana vigente, considerando domingo como primeiro dia e sábado como último: ${format(sunday)} até ${format(saturday)}.`;
+}
 
 export async function processWithGemini(
   content: string,
   mediaFiles: Array<{ mimeType: string; data: string }> = [],
-): Promise<InterpretedContentResponse> {
+): Promise<InterpretedContentsResponse> {
   const apiKey = process.env["GEMINI_API_KEY"];
 
   if (!apiKey) {
@@ -13,7 +38,9 @@ export async function processWithGemini(
   }
 
   const parts: Array<Record<string, unknown>> = [
-    { text: `Conteúdo para análise:\n\n${content}` },
+    {
+      text: `${getDateContext()}\n\nConteúdo para análise:\n\n${content}`,
+    },
     ...mediaFiles.map((file) => ({
       inlineData: { mimeType: file.mimeType, data: file.data },
     })),
@@ -49,7 +76,7 @@ export async function processWithGemini(
     throw new Error("Resposta vazia do Gemini.");
   }
 
-  return InterpretedContentSchema.parse(JSON.parse(text));
+  return InterpretedContentsSchema.parse(JSON.parse(text));
 }
 
 export async function areMessagesComplementary(previous: string, current: string) {

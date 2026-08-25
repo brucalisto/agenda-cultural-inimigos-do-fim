@@ -11,6 +11,7 @@ export const InterpretedContentSchema = z.object({
   price: z.number().nullable(),
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),
+  contact_instagram: z.string().nullable(),
   source_url: z.string().nullable(),
   keywords: z.array(z.string()).default([]),
   missing_fields: z.array(z.string()).default([]),
@@ -19,3 +20,9 @@ export const InterpretedContentSchema = z.object({
 });
 
 export type InterpretedContentResponse = z.infer<typeof InterpretedContentSchema>;
+
+export const InterpretedContentsSchema = z.object({
+  items: z.array(InterpretedContentSchema).min(1),
+});
+
+export type InterpretedContentsResponse = z.infer<typeof InterpretedContentsSchema>;

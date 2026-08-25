@@ -51,6 +51,7 @@ function InboxPage() {
     const { data, error } = await supabase
       .from("whatsapp_messages")
       .select("*, whatsapp_groups(nome)")
+      .neq("message_type", "reactionMessage")
       .order("received_at", { ascending: false });
 
     if (error) {

@@ -93,6 +93,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
         price: content.price,
         contact_name: content.contact_name,
         contact_phone: content.contact_phone,
+        contact_instagram: content.contact_instagram,
       });
       setIsEditing(true);
     }
@@ -413,6 +414,23 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                       />
                     ) : (
                       <p className="font-medium">{content.contact_phone || "Não informado"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Instagram de contato
+                    </p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.contact_instagram || ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, contact_instagram: e.target.value })
+                        }
+                        className="mt-1"
+                        placeholder="@usuario"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.contact_instagram || "Não informado"}</p>
                     )}
                   </div>
                   <div>

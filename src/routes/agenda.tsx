@@ -7,7 +7,9 @@ import {
   ChevronRight,
   Clock,
   Grid2X2,
+  Instagram,
   MapPin,
+  Phone,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -38,6 +40,7 @@ type EventItem = {
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  contact_instagram: string | null;
   source_url: string | null;
   keywords: string[] | null;
 };
@@ -75,6 +78,11 @@ const eventCity = (event: EventItem) => {
     .filter(Boolean);
   return parts.at(-1) || "Não informada";
 };
+const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0];
+const instagramUrl = (value: string) =>
+  /^https?:\/\//i.test(value)
+    ? value
+    : `https://www.instagram.com/${encodeURIComponent(instagramHandle(value))}`;
 
 function EventCard({
   event,
@@ -229,6 +237,8 @@ function PublicAgenda() {
   const [price, setPrice] = useState<PriceFilter>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [appliedFrom, setAppliedFrom] = useState("");
+  const [appliedTo, setAppliedTo] = useState("");
   const [view, setView] = useState<ViewMode>("cards");
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -239,8 +249,12 @@ function PublicAgenda() {
     setCity(params.get("cidade") || "all");
     setCategory(params.get("categoria") || "all");
     setPrice((params.get("preco") as PriceFilter) || "all");
-    setFrom(params.get("de") || "");
-    setTo(params.get("ate") || "");
+    const initialFrom = params.get("de") || "";
+    const initialTo = params.get("ate") || "";
+    setFrom(initialFrom);
+    setTo(initialTo);
+    setAppliedFrom(initialFrom);
+    setAppliedTo(initialTo);
     setView((params.get("visao") as ViewMode) || "cards");
     fetch("/api/public/events")
       .then((response) => response.json())
@@ -254,15 +268,15 @@ function PublicAgenda() {
     if (city !== "all") params.set("cidade", city);
     if (category !== "all") params.set("categoria", category);
     if (price !== "all") params.set("preco", price);
-    if (from) params.set("de", from);
-    if (to) params.set("ate", to);
+    if (appliedFrom) params.set("de", appliedFrom);
+    if (appliedTo) params.set("ate", appliedTo);
     if (view !== "cards") params.set("visao", view);
     window.history.replaceState(
       null,
       "",
       `${window.location.pathname}${params.size ? `?${params}` : ""}`,
     );
-  }, [query, city, category, price, from, to, view]);
+  }, [query, city, category, price, appliedFrom, appliedTo, view]);
   const cities = useMemo(
     () =>
       [...new Set(events.map(eventCity).filter((value) => value !== "Não informada"))].sort(
@@ -289,11 +303,11 @@ function PublicAgenda() {
           (city === "all" || eventCity(event) === city) &&
           (category === "all" || event.category === category) &&
           (price === "all" || priceKind(event.price) === price) &&
-          (!from || key >= from) &&
-          (!to || key <= to)
+          (!appliedFrom || key >= appliedFrom) &&
+          (!appliedTo || key <= appliedTo)
         );
       }),
-    [events, query, city, category, price, from, to],
+    [events, query, city, category, price, appliedFrom, appliedTo],
   );
   const grouped = useMemo(
     () =>
@@ -307,7 +321,7 @@ function PublicAgenda() {
     [filtered],
   );
   const hasFilters = Boolean(
-    query || city !== "all" || category !== "all" || price !== "all" || from || to,
+    query || city !== "all" || category !== "all" || price !== "all" || appliedFrom || appliedTo,
   );
   const clearFilters = () => {
     setQuery("");
@@ -316,11 +330,15 @@ function PublicAgenda() {
     setPrice("all");
     setFrom("");
     setTo("");
+    setAppliedFrom("");
+    setAppliedTo("");
   };
   const setPeriod = (period: "today" | "week" | "month" | "all") => {
     if (period === "all") {
       setFrom("");
       setTo("");
+      setAppliedFrom("");
+      setAppliedTo("");
       return;
     }
     const start = new Date();
@@ -329,6 +347,12 @@ function PublicAgenda() {
     if (period === "month") end.setMonth(start.getMonth() + 1);
     setFrom(dateKey(start));
     setTo(dateKey(end));
+    setAppliedFrom(dateKey(start));
+    setAppliedTo(dateKey(end));
+  };
+  const applyPeriod = () => {
+    setAppliedFrom(from);
+    setAppliedTo(to);
   };
   return (
     <main className="min-h-screen bg-[#0c0c0b] text-stone-100">
@@ -456,6 +480,14 @@ function PublicAgenda() {
               aria-label="Data final"
               className="h-9 w-auto border-white/10 bg-white/[.04] text-white"
             />
+            <Button
+              type="button"
+              size="sm"
+              onClick={applyPeriod}
+              className="h-9 bg-amber-400 font-bold text-black hover:bg-amber-300"
+            >
+              Filtrar período
+            </Button>
             {hasFilters ? (
               <button
                 onClick={clearFilters}
@@ -525,6 +557,8 @@ function PublicAgenda() {
             onDay={(key) => {
               setFrom(key);
               setTo(key);
+              setAppliedFrom(key);
+              setAppliedTo(key);
               setView("cards");
             }}
           />
@@ -558,12 +592,34 @@ function PublicAgenda() {
               <p className="whitespace-pre-wrap leading-7 text-stone-300">
                 {selected.full_description || selected.summary}
               </p>
-              {selected.contact_phone ? (
-                <p className="flex gap-2">
-                  <Ticket className="h-5 w-5 text-amber-400" />
-                  Contato: {selected.contact_name ? `${selected.contact_name} — ` : ""}
-                  {selected.contact_phone}
-                </p>
+              {selected.contact_phone || selected.contact_instagram ? (
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[.03] p-4">
+                  <p className="flex items-center gap-2 font-bold text-amber-300">
+                    <Ticket className="h-5 w-5" /> Contato
+                    {selected.contact_name ? ` — ${selected.contact_name}` : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {selected.contact_phone ? (
+                      <a
+                        href={`tel:${selected.contact_phone.replace(/[^\d+]/g, "")}`}
+                        className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:border-amber-300/50 hover:text-amber-200"
+                      >
+                        <Phone className="h-4 w-4" /> {selected.contact_phone}
+                      </a>
+                    ) : null}
+                    {selected.contact_instagram ? (
+                      <a
+                        href={instagramUrl(selected.contact_instagram)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:border-fuchsia-300/50 hover:text-fuchsia-200"
+                      >
+                        <Instagram className="h-4 w-4" />@
+                        {instagramHandle(selected.contact_instagram)}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
               ) : null}
               {selected.source_url ? (
                 <Button asChild className="bg-amber-400 font-bold text-black hover:bg-amber-300">
