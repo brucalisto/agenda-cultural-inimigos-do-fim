@@ -612,8 +612,8 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
 function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
   const simulate = useMutation({
     mutationFn: useServerFn(simulateAutomation),
-    onSuccess: (data) => {
-      if (data.status === "matched") {
+    onSuccess: (data: { status: string; rule?: { nome: string } }) => {
+      if (data.status === "matched" && data.rule) {
         toast.success(`Regra "${data.rule.nome}" acionada (SIMULAÇÃO)`);
       } else {
         toast.info("Nenhuma regra de automação correspondente.");

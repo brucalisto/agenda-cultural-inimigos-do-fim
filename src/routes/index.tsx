@@ -103,10 +103,9 @@ function Dashboard() {
             .neq("message_type", "reactionMessage")
             .eq("processing_status", "erro"),
           supabase
-            .from("system_events")
-            .select("created_at")
-            .eq("event_type", "webhook_received")
-            .order("created_at", { ascending: false })
+            .from("webhook_events")
+            .select("received_at")
+            .order("received_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
         ]).then(([today, processed, pending, published, ignored, errors, last]) => {
@@ -118,7 +117,7 @@ function Dashboard() {
             ignored: ignored.count ?? 0,
             errors: errors.count ?? 0,
           });
-          setLastWebhook(last.data?.created_at ?? null);
+          setLastWebhook(last.data?.received_at ?? null);
         });
       }
     });

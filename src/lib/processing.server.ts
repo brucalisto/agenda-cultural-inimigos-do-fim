@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
-import { parseBaileysWebhook, type BaileysWebhook } from "@/lib/adapters/baileys.server";
+import { BaileysWebhookSchema, type BaileysWebhook } from "@/lib/adapters/baileys.server";
 import { GEMINI_CONFIG } from "@/lib/gemini/config.server";
 import { areMessagesComplementary, processWithGemini } from "@/lib/gemini/service.server";
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
@@ -83,7 +83,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     let payloads = [payload];
     let bundledMessageId: string | null = null;
     if (previous?.raw_payload) {
-      const parsed = parseBaileysWebhook.safeParse(previous.raw_payload);
+      const parsed = BaileysWebhookSchema.safeParse(previous.raw_payload);
       if (parsed.success) {
         const complementary = await areMessagesComplementary(
           describeForGrouping(parsed.data),
