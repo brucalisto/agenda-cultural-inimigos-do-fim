@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 export type InterpretedContent = {
   id: string;
@@ -9,12 +10,13 @@ export type InterpretedContent = {
   full_description: string | null;
   event_date: string | null;
   location: string | null;
+  city: string | null;
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   source_url: string | null;
   keywords: string[] | null;
-  extracted_data: any;
+  extracted_data: Json;
   missing_fields: string[] | null;
   warnings: string[] | null;
   confidence_score: number | null;
@@ -41,14 +43,15 @@ export type InterpretedContent = {
       original_url: string;
       page_title: string | null;
     }>;
-    raw_payload?: any;
+    raw_payload?: Json;
   } | null;
 };
 
 export async function getInterpretedContents() {
   const { data, error } = await supabase
     .from("interpreted_contents")
-    .select(`
+    .select(
+      `
       *,
       whatsapp_messages (
         text_content,
@@ -58,7 +61,8 @@ export async function getInterpretedContents() {
           nome
         )
       )
-    `)
+    `,
+    )
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -68,7 +72,8 @@ export async function getInterpretedContents() {
 export async function getInterpretedContentById(id: string) {
   const { data, error } = await supabase
     .from("interpreted_contents")
-    .select(`
+    .select(
+      `
       *,
       whatsapp_messages (
         text_content,
@@ -88,7 +93,8 @@ export async function getInterpretedContentById(id: string) {
           page_title
         )
       )
-    `)
+    `,
+    )
     .eq("id", id)
     .single();
 
@@ -96,7 +102,10 @@ export async function getInterpretedContentById(id: string) {
   return data as InterpretedContent;
 }
 
-export async function updateInterpretedContent(id: string, updates: Partial<Omit<InterpretedContent, 'whatsapp_messages'>>) {
+export async function updateInterpretedContent(
+  id: string,
+  updates: Partial<Omit<InterpretedContent, "whatsapp_messages">>,
+) {
   const { data, error } = await supabase
     .from("interpreted_contents")
     .update(updates)
