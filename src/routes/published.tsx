@@ -38,6 +38,12 @@ type PublishedItem = {
   full_description: string | null;
   contact_phone: string | null;
   contact_instagram: string | null;
+  is_featured: boolean;
+  featured_priority: number;
+  featured_starts_at: string | null;
+  featured_ends_at: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
 const empty: PublishedItem = {
   id: "",
@@ -51,6 +57,12 @@ const empty: PublishedItem = {
   full_description: "",
   contact_phone: "",
   contact_instagram: "",
+  is_featured: false,
+  featured_priority: 0,
+  featured_starts_at: null,
+  featured_ends_at: null,
+  latitude: null,
+  longitude: null,
 };
 export const Route = createFileRoute("/published")({ component: PublishedPage });
 
@@ -62,7 +74,7 @@ function PublishedPage() {
     const { data, error } = await supabase
       .from("interpreted_contents")
       .select(
-        "id,title,category,event_date,location,city,price,summary,full_description,contact_phone,contact_instagram",
+        "id,title,category,event_date,location,city,price,summary,full_description,contact_phone,contact_instagram,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude",
       )
       .in("review_status", ["publicado", "aprovado"])
       .order("event_date", { ascending: true });
@@ -201,6 +213,25 @@ function PublishedPage() {
                 onChange={(e) => setEditing({ ...editing, contact_instagram: e.target.value })}
                 placeholder="Instagram"
               />
+              <label className="flex items-center gap-3 rounded-lg border p-3 md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={editing.is_featured}
+                  onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })}
+                />
+                <span><strong>Destacar na Agenda</strong><small className="block text-muted-foreground">Exibe este evento na curadoria da página pública.</small></span>
+              </label>
+              <Input
+                type="number"
+                value={editing.featured_priority}
+                onChange={(e) => setEditing({ ...editing, featured_priority: Number(e.target.value) })}
+                placeholder="Prioridade do destaque"
+              />
+              <div />
+              <label className="text-sm">Início do destaque<Input type="datetime-local" value={editing.featured_starts_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_starts_at: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
+              <label className="text-sm">Fim do destaque<Input type="datetime-local" value={editing.featured_ends_at?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, featured_ends_at: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
+              <Input type="number" step="any" value={editing.latitude ?? ""} onChange={(e) => setEditing({ ...editing, latitude: e.target.value ? Number(e.target.value) : null })} placeholder="Latitude (sem inventar coordenadas)" />
+              <Input type="number" step="any" value={editing.longitude ?? ""} onChange={(e) => setEditing({ ...editing, longitude: e.target.value ? Number(e.target.value) : null })} placeholder="Longitude (sem inventar coordenadas)" />
               <Textarea
                 className="md:col-span-2"
                 value={editing.summary || ""}
