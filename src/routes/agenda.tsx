@@ -492,7 +492,7 @@ function PublicAgenda() {
   };
   return (
     <main className="min-h-screen bg-[#fffdf8] text-[#292620]">
-      <section className="bg-[#171310]"><img src="/agenda-banner.webp" alt="Inimigos do Fim — Cultura acontecendo agora" className="mx-auto aspect-[12/5] w-full max-w-[1920px] object-cover object-center" /></section>
+      <section className="bg-[#171310]"><img src="/agenda-banner.webp" alt="Inimigos do Fim — Cultura acontecendo agora" className="mx-auto h-auto w-full max-w-[2048px]" /></section>
       <FeaturedEvents events={featured} onSelect={setSelected} />
       <section className="border-b border-[#e2d6c5] bg-white px-5 py-10">
         <div className="mx-auto max-w-7xl space-y-4">
