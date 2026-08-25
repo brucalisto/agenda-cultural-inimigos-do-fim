@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BrainCircuit, Eye, RotateCcw, Search, Trash2 } from "lucide-react";
+import { BrainCircuit, Eye, RotateCcw, Search, Trash2, CopyCheck } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { InterpretedDetails } from "@/components/interpreted/InterpretedDetails";
@@ -46,6 +46,15 @@ import { reprocessMessages } from "@/lib/gemini.functions";
 import { getInterpretedContents } from "@/lib/interpreted";
 
 export const Route = createFileRoute("/interpreted")({ component: ReviewWorkspace });
+
+function duplicateInfo(extractedData: unknown) {
+  if (!extractedData || typeof extractedData !== "object" || Array.isArray(extractedData)) return null;
+  const value = (extractedData as { possibleDuplicate?: unknown }).possibleDuplicate;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const duplicate = value as { id?: string; title?: string | null; score?: number; reasons?: string[] };
+  if (!duplicate.id) return null;
+  return duplicate;
+}
 
 export function ReviewWorkspace() {
   const [search, setSearch] = useState("");
@@ -224,49 +233,70 @@ export function ReviewWorkspace() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(item.id)}
-                        onCheckedChange={() =>
-                          setSelected((current) => {
-                            const next = new Set(current);
-                            if (next.has(item.id)) next.delete(item.id);
-                            else next.add(item.id);
-                            return next;
-                          })
-                        }
-                        aria-label={`Selecionar ${item.title || "conteúdo"}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{item.title || "Sem título"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{item.category || "N/A"}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {item.whatsapp_messages?.sender_name || "Desconhecido"}
-                      <div className="text-xs text-muted-foreground">
-                        {item.whatsapp_messages?.whatsapp_groups?.nome}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {item.event_date
-                        ? new Date(item.event_date).toLocaleDateString("pt-BR")
-                        : "Não informada"}
-                    </TableCell>
-                    <TableCell>{Math.round((item.confidence_score || 0) * 100)}%</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{item.review_status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setDetailsId(item.id)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filtered.map((item) => {
+                  const duplicate = duplicateInfo(item.extracted_data);
+                  return (
+                    <TableRow key={item.id} className={duplicate ? "bg-amber-50/50 dark:bg-amber-950/10" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(item.id)}
+                          onCheckedChange={() =>
+                            setSelected((current) => {
+                              const next = new Set(current);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            })
+                          }
+                          aria-label={`Selecionar ${item.title || "conteúdo"}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{item.title || "Sem título"}</span>
+                          {duplicate ? (
+                            <button
+                              type="button"
+                              className="flex w-fit items-center gap-1 text-left text-xs font-normal text-amber-700 hover:underline dark:text-amber-400"
+                              onClick={() => setDetailsId(duplicate.id || null)}
+                              title={duplicate.reasons?.join(", ")}
+                            >
+                              <CopyCheck className="h-3 w-3" />
+                              Possível duplicidade {duplicate.score ? `(${Math.round(duplicate.score * 100)}%)` : ""}: {duplicate.title || "ver evento existente"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{item.category || "N/A"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {item.whatsapp_messages?.sender_name || (item.source_url ? "Feed externo" : "Desconhecido")}
+                        <div className="text-xs text-muted-foreground">
+                          {item.whatsapp_messages?.whatsapp_groups?.nome || (item.source_url ? "Fonte importada" : "")}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {item.event_date
+                          ? new Date(item.event_date).toLocaleDateString("pt-BR")
+                          : "Não informada"}
+                      </TableCell>
+                      <TableCell>{Math.round((item.confidence_score || 0) * 100)}%</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="secondary">{item.review_status}</Badge>
+                          {duplicate ? <Badge variant="outline">duplicidade</Badge> : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => setDetailsId(item.id)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
