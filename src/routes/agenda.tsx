@@ -351,6 +351,7 @@ function PublicAgenda() {
   const [to, setTo] = useState("");
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
+  const [includePast, setIncludePast] = useState(false);
   const [view, setView] = useState<ViewMode>("cards");
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -367,6 +368,7 @@ function PublicAgenda() {
     setTo(initialTo);
     setAppliedFrom(initialFrom);
     setAppliedTo(initialTo);
+    setIncludePast(Boolean(initialFrom || initialTo) || params.get("datas") === "todas");
     setView((params.get("visao") as ViewMode) || "cards");
     const loadEvents = () =>
       fetch("/api/public/events")
@@ -386,13 +388,14 @@ function PublicAgenda() {
     if (price !== "all") params.set("preco", price);
     if (appliedFrom) params.set("de", appliedFrom);
     if (appliedTo) params.set("ate", appliedTo);
+    if (includePast && !appliedFrom && !appliedTo) params.set("datas", "todas");
     if (view !== "cards") params.set("visao", view);
     window.history.replaceState(
       null,
       "",
       `${window.location.pathname}${params.size ? `?${params}` : ""}`,
     );
-  }, [query, city, category, price, appliedFrom, appliedTo, view]);
+  }, [query, city, category, price, appliedFrom, appliedTo, includePast, view]);
   const cities = useMemo(
     () =>
       [...new Set(events.map(eventCity).filter((value) => value !== "Não informada"))].sort(
@@ -407,24 +410,24 @@ function PublicAgenda() {
       ),
     [events],
   );
-  const filtered = useMemo(
-    () =>
-      events.filter((event) => {
-        const haystack = normalize(
-          `${event.title} ${event.category} ${event.location} ${event.city} ${event.summary}`,
-        );
-        const key = dateKey(new Date(event.event_date));
-        return (
-          haystack.includes(normalize(query)) &&
-          (city === "all" || eventCity(event) === city) &&
-          (category === "all" || event.category === category) &&
-          (price === "all" || priceKind(event.price) === price) &&
-          (!appliedFrom || key >= appliedFrom) &&
-          (!appliedTo || key <= appliedTo)
-        );
-      }),
-    [events, query, city, category, price, appliedFrom, appliedTo],
-  );
+  const filtered = useMemo(() => {
+    const defaultFrom = !includePast && !appliedFrom && !appliedTo ? todayKey() : "";
+    const effectiveFrom = appliedFrom || defaultFrom;
+    return events.filter((event) => {
+      const haystack = normalize(
+        `${event.title} ${event.category} ${event.location} ${event.city} ${event.summary}`,
+      );
+      const key = dateKey(new Date(event.event_date));
+      return (
+        haystack.includes(normalize(query)) &&
+        (city === "all" || eventCity(event) === city) &&
+        (category === "all" || event.category === category) &&
+        (price === "all" || priceKind(event.price) === price) &&
+        (!effectiveFrom || key >= effectiveFrom) &&
+        (!appliedTo || key <= appliedTo)
+      );
+    });
+  }, [events, query, city, category, price, appliedFrom, appliedTo, includePast]);
   const grouped = useMemo(
     () =>
       Object.entries(
@@ -438,7 +441,7 @@ function PublicAgenda() {
   );
   const featured = useMemo(() => {
     const now = new Date().toISOString();
-    return events
+    return filtered
       .filter(
         (event) =>
           event.is_featured &&
@@ -446,9 +449,9 @@ function PublicAgenda() {
           (!event.featured_ends_at || event.featured_ends_at >= now),
       )
       .sort((a, b) => b.featured_priority - a.featured_priority);
-  }, [events]);
+  }, [filtered]);
   const hasFilters = Boolean(
-    query || city !== "all" || category !== "all" || price !== "all" || appliedFrom || appliedTo,
+    query || city !== "all" || category !== "all" || price !== "all" || appliedFrom || appliedTo || includePast,
   );
   const clearFilters = () => {
     setQuery("");
@@ -459,6 +462,7 @@ function PublicAgenda() {
     setTo("");
     setAppliedFrom("");
     setAppliedTo("");
+    setIncludePast(false);
   };
   const setPeriod = (period: "today" | "tomorrow" | "weekend" | "week" | "month" | "all") => {
     if (period === "all") {
@@ -466,6 +470,7 @@ function PublicAgenda() {
       setTo("");
       setAppliedFrom("");
       setAppliedTo("");
+      setIncludePast(true);
       return;
     }
     const start = new Date();
@@ -485,10 +490,12 @@ function PublicAgenda() {
     setTo(dateKey(end));
     setAppliedFrom(dateKey(start));
     setAppliedTo(dateKey(end));
+    setIncludePast(true);
   };
   const applyPeriod = () => {
     setAppliedFrom(from);
     setAppliedTo(to);
+    setIncludePast(Boolean(from || to));
   };
   return (
     <main className="min-h-screen bg-[#fffdf8] text-[#292620]">
@@ -678,6 +685,7 @@ function PublicAgenda() {
               setTo(key);
               setAppliedFrom(key);
               setAppliedTo(key);
+              setIncludePast(true);
               setView("cards");
             }}
           />
