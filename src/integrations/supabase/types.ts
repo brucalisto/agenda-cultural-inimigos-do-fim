@@ -199,6 +199,7 @@ export type Database = {
           contact_phone: string | null;
           created_at: string | null;
           event_date: string | null;
+          event_sequence: number;
           extracted_data: Json | null;
           full_description: string | null;
           id: string;
@@ -226,6 +227,7 @@ export type Database = {
           contact_phone?: string | null;
           created_at?: string | null;
           event_date?: string | null;
+          event_sequence?: number;
           extracted_data?: Json | null;
           full_description?: string | null;
           id?: string;
@@ -253,6 +255,7 @@ export type Database = {
           contact_phone?: string | null;
           created_at?: string | null;
           event_date?: string | null;
+          event_sequence?: number;
           extracted_data?: Json | null;
           full_description?: string | null;
           id?: string;
@@ -276,7 +279,7 @@ export type Database = {
           {
             foreignKeyName: "interpreted_contents_message_id_fkey";
             columns: ["message_id"];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: "whatsapp_messages";
             referencedColumns: ["id"];
           },
