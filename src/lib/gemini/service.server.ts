@@ -86,7 +86,7 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
         { role: "user", content: userContent },
       ],
       temperature: GEMINI_CONFIG.TEMPERATURE,
-      max_completion_tokens: GEMINI_CONFIG.MAX_OUTPUT_TOKENS,
+      max_completion_tokens: GROQ_CONFIG.MAX_OUTPUT_TOKENS,
       response_format: { type: "json_object" },
     }),
   });
