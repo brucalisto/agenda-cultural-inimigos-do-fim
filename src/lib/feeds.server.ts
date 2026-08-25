@@ -38,6 +38,8 @@ const LEGACY_NOTION_SOURCE: FeedSource = {
   autoPublish: true,
 };
 
+const LEGACY_IMPORT_BATCH_SIZE = 10;
+
 export const DEFAULT_FEED_SOURCES: FeedSource[] = [LEGACY_NOTION_SOURCE];
 
 function inferCity(city: string | null, location: string | null) {
@@ -146,6 +148,46 @@ async function upsertFeedRow(
   return { id: inserted.id, duplicate, status: rowWithKey.review_status || "pendente", updated: false };
 }
 
+function legacyRowPayload(item: LegacyNotionRow, eventSequence: number, importedAt: string) {
+  const source = LEGACY_NOTION_SOURCE;
+  return {
+    message_id: null,
+    event_sequence: eventSequence,
+    title: item.title,
+    category: item.category,
+    summary: item.summary,
+    full_description: item.full_description,
+    event_date: item.event_date,
+    location: item.location,
+    city: inferCity(item.city, item.location),
+    price: item.price,
+    source_url: item.source_url || source.url,
+    missing_fields: [],
+    warnings: [],
+    confidence_score: 1,
+    model_used: "notion-export:reviewed",
+    prompt_version: "legacy-notion-export-1.0.0",
+    review_status: "publicado",
+    reviewed_at: importedAt,
+    extracted_data: {
+      sourceType: "notion_export",
+      feedSourceId: source.id,
+      feedSourceName: source.name,
+      feedSourceUrl: source.url,
+      trustedSource: true,
+      autoPublish: true,
+      importedAt,
+      notionDatabaseId: "68ee129b62a5465197a1f0d7b47afcda",
+      notionViewId: "94c86de6ba024fac98c266b5c68bcbb8",
+      notionExportRow: item.notionExportRow,
+      artistsResponsible: item.artists_responsible,
+      classification: item.classification,
+      rawDateTime: item.raw_datetime,
+      eventEnd: item.event_end,
+    },
+  };
+}
+
 export async function ingestLegacyNotionExport() {
   const source = LEGACY_NOTION_SOURCE;
   const rows = await decodeLegacyNotionExport();
@@ -158,46 +200,19 @@ export async function ingestLegacyNotionExport() {
     updated: boolean;
   }> = [];
 
-  for (const [eventSequence, item] of rows.entries()) {
-    const row = {
-      message_id: null,
-      event_sequence: eventSequence,
-      title: item.title,
-      category: item.category,
-      summary: item.summary,
-      full_description: item.full_description,
-      event_date: item.event_date,
-      location: item.location,
-      city: inferCity(item.city, item.location),
-      price: item.price,
-      source_url: item.source_url || source.url,
-      missing_fields: [],
-      warnings: [],
-      confidence_score: 1,
-      model_used: "notion-export:reviewed",
-      prompt_version: "legacy-notion-export-1.0.0",
-      review_status: "publicado",
-      reviewed_at: importedAt,
-      extracted_data: {
-        sourceType: "notion_export",
-        feedSourceId: source.id,
-        feedSourceName: source.name,
-        feedSourceUrl: source.url,
-        trustedSource: true,
-        autoPublish: true,
-        importedAt,
-        notionDatabaseId: "68ee129b62a5465197a1f0d7b47afcda",
-        notionViewId: "94c86de6ba024fac98c266b5c68bcbb8",
-        notionExportRow: item.notionExportRow,
-        artistsResponsible: item.artists_responsible,
-        classification: item.classification,
-        rawDateTime: item.raw_datetime,
-        eventEnd: item.event_end,
-      },
-    };
-
-    const saved = await upsertFeedRow(row, item.source_key, true);
-    results.push({ title: item.title, ...saved });
+  // Processa em lotes limitados: mantém a proteção de duplicidade, mas evita
+  // centenas de chamadas sequenciais numa única requisição do painel.
+  for (let start = 0; start < rows.length; start += LEGACY_IMPORT_BATCH_SIZE) {
+    const batch = rows.slice(start, start + LEGACY_IMPORT_BATCH_SIZE);
+    const savedBatch = await Promise.all(
+      batch.map(async (item, offset) => {
+        const eventSequence = start + offset;
+        const row = legacyRowPayload(item, eventSequence, importedAt);
+        const saved = await upsertFeedRow(row, item.source_key, true);
+        return { title: item.title, ...saved };
+      }),
+    );
+    results.push(...savedBatch);
   }
 
   return {
