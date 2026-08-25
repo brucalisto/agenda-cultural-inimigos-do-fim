@@ -5,7 +5,7 @@
 
 export const GEMINI_CONFIG = {
   MODEL_NAME: "gemini-3.6-flash",
-  PROMPT_VERSION: "1.2.0",
-  MAX_OUTPUT_TOKENS: 2048,
+  PROMPT_VERSION: "1.3.0",
+  MAX_OUTPUT_TOKENS: 8192,
   TEMPERATURE: 0.1, // Low temperature for consistent structured output
 };
