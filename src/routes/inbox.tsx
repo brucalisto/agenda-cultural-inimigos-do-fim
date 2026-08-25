@@ -68,7 +68,10 @@ function InboxPage() {
   const handleReprocess = async (messageId: string) => {
     setReprocessingIds((current) => new Set(current).add(messageId));
     try {
-      await reprocessMessage({ data: { messageId } });
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+      if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+      await reprocessMessage({ data: { messageId, accessToken } });
       toast.success("Mensagem reprocessada pelo Gemini.");
       await fetchMessages();
     } catch (cause) {

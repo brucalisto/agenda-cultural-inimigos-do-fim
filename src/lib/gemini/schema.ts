@@ -7,6 +7,7 @@ export const InterpretedContentSchema = z.object({
   full_description: z.string().nullable(),
   event_date: z.string().nullable(), // ISO String validation handled if needed
   location: z.string().nullable(),
+  city: z.string().nullable(),
   price: z.number().nullable(),
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),

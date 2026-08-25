@@ -1,9 +1,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
-import type { BaileysWebhook } from "@/lib/adapters/baileys.server";
+import { parseBaileysWebhook, type BaileysWebhook } from "@/lib/adapters/baileys.server";
 import { GEMINI_CONFIG } from "@/lib/gemini/config.server";
-import { processWithGemini } from "@/lib/gemini/service.server";
-import { extractPublicPage } from "@/lib/links.server";
+import { areMessagesComplementary, processWithGemini } from "@/lib/gemini/service.server";
+import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
 
 async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
   const base = process.env["BAILEYS_API_URL"]?.replace(/\/$/, "");
@@ -17,6 +17,20 @@ async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
     mimeType: media.mimeType,
     data: Buffer.from(await response.arrayBuffer()).toString("base64"),
   };
+}
+
+function describeForGrouping(payload: BaileysWebhook) {
+  return [
+    `Tipo: ${payload.contentType}`,
+    payload.text && `Texto: ${payload.text}`,
+    payload.caption && `Legenda: ${payload.caption}`,
+    payload.links.length && `Links: ${payload.links.join(", ")}`,
+    payload.media && `Mídia: ${payload.media.mimeType}`,
+    payload.linkPreview?.title && `Prévia: ${payload.linkPreview.title}`,
+    payload.linkPreview?.description && `Descrição da prévia: ${payload.linkPreview.description}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function processBaileysMessage(payload: BaileysWebhook, groupId: string) {
@@ -51,61 +65,118 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
   if (error) throw error;
 
   try {
+    const cutoff = new Date(new Date(occurred).getTime() - 3 * 60_000).toISOString();
+    const { data: previous } = await db
+      .from("whatsapp_messages")
+      .select("id, raw_payload")
+      .eq("group_id", groupId)
+      .eq("sender_external_id", payload.senderId)
+      .neq("id", message.id)
+      .is("bundled_into_message_id", null)
+      .in("processing_status", ["processando", "interpretado", "necessita_revisao", "pendente"])
+      .gte("occurred_at", cutoff)
+      .lte("occurred_at", occurred)
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let payloads = [payload];
+    let bundledMessageId: string | null = null;
+    if (previous?.raw_payload) {
+      const parsed = parseBaileysWebhook.safeParse(previous.raw_payload);
+      if (parsed.success) {
+        const complementary = await areMessagesComplementary(
+          describeForGrouping(parsed.data),
+          describeForGrouping(payload),
+        );
+        if (complementary) {
+          payloads = [parsed.data, payload];
+          bundledMessageId = previous.id;
+          await db.from("interpreted_contents").delete().eq("message_id", previous.id);
+          await db
+            .from("whatsapp_messages")
+            .update({
+              processing_status: "ignorado",
+              bundled_into_message_id: message.id,
+              error_message: "Agrupada a uma mensagem complementar enviada em seguida",
+            })
+            .eq("id", previous.id);
+        }
+      }
+    }
+
     await db.from("extracted_links").delete().eq("message_id", message.id);
     await db.from("message_media").delete().eq("message_id", message.id);
 
     const contexts: string[] = [];
-    if (payload.linkPreview?.title || payload.linkPreview?.description) {
-      contexts.push(
-        `PRÉVIA DO LINK NO WHATSAPP\n${payload.linkPreview.title || ""}\n${payload.linkPreview.description || ""}`,
-      );
-    }
-    for (const url of payload.links.slice(0, 3)) {
-      try {
-        const page = await extractPublicPage(url);
-        contexts.push(`LINK ${url}\n${page.title || ""}\n${page.description || ""}\n${page.text}`);
-        await db.from("extracted_links").insert({
-          message_id: message.id,
-          original_url: url,
-          normalized_url: url,
-          page_title: page.title,
-          page_description: page.description,
-          extracted_text: page.text,
-          extraction_status: "extraido",
-        });
-      } catch (cause) {
-        await db.from("extracted_links").insert({
-          message_id: message.id,
-          original_url: url,
-          normalized_url: url,
-          extraction_status: "erro",
-          failure_reason: cause instanceof Error ? cause.message : "Falha",
-        });
-      }
-    }
-
     const mediaFiles: Array<{ mimeType: string; data: string }> = [];
     const extraWarnings: string[] = [];
-    if (payload.linkPreview?.jpegThumbnailBase64) {
-      mediaFiles.push({ mimeType: "image/jpeg", data: payload.linkPreview.jpegThumbnailBase64 });
-    }
-    if (payload.media) {
-      await db.from("message_media").insert({
-        message_id: message.id,
-        media_type: payload.contentType,
-        original_filename: payload.media.fileName,
-        mime_type: payload.media.mimeType,
-        file_size: payload.media.size,
-        storage_path: payload.media.relativePath,
-      });
-      try {
-        mediaFiles.push(await loadMedia(payload.media));
-      } catch (cause) {
-        extraWarnings.push(cause instanceof Error ? cause.message : "Mídia indisponível");
+    const loadedRemoteImages = new Set<string>();
+    for (const [index, item] of payloads.entries()) {
+      contexts.push(
+        `MENSAGEM ${index + 1}\n${[item.text, item.caption].filter(Boolean).join("\n")}`,
+      );
+      if (item.linkPreview?.title || item.linkPreview?.description) {
+        contexts.push(
+          `PRÉVIA DO LINK NO WHATSAPP\n${item.linkPreview.title || ""}\n${item.linkPreview.description || ""}`,
+        );
+      }
+      for (const url of item.links.slice(0, 3)) {
+        try {
+          const page = await extractPublicPage(url);
+          contexts.push(
+            `LINK ${url}\n${page.title || ""}\n${page.description || ""}\n${page.text}`,
+          );
+          if (page.imageUrl && !loadedRemoteImages.has(page.imageUrl)) {
+            try {
+              mediaFiles.push(await loadPublicImage(page.imageUrl));
+              loadedRemoteImages.add(page.imageUrl);
+            } catch (cause) {
+              extraWarnings.push(
+                cause instanceof Error ? cause.message : "Imagem do link indisponível",
+              );
+            }
+          }
+          await db.from("extracted_links").insert({
+            message_id: message.id,
+            original_url: url,
+            normalized_url: url,
+            page_title: page.title,
+            page_description: page.description,
+            extracted_text: page.text,
+            extraction_status: "extraido",
+          });
+        } catch (cause) {
+          await db.from("extracted_links").insert({
+            message_id: message.id,
+            original_url: url,
+            normalized_url: url,
+            extraction_status: "erro",
+            failure_reason: cause instanceof Error ? cause.message : "Falha",
+          });
+        }
+      }
+      if (item.linkPreview?.jpegThumbnailBase64) {
+        mediaFiles.push({ mimeType: "image/jpeg", data: item.linkPreview.jpegThumbnailBase64 });
+      }
+      if (item.media) {
+        await db.from("message_media").insert({
+          message_id: message.id,
+          media_type: item.contentType,
+          original_filename: item.media.fileName,
+          mime_type: item.media.mimeType,
+          file_size: item.media.size,
+          storage_path: item.media.relativePath,
+        });
+        try {
+          mediaFiles.push(await loadMedia(item.media));
+        } catch (cause) {
+          extraWarnings.push(cause instanceof Error ? cause.message : "Mídia indisponível");
+        }
       }
     }
 
-    const context = [payload.text, payload.caption, ...contexts].filter(Boolean).join("\n\n");
+    const context = contexts.filter(Boolean).join("\n\n");
     if (!context && !mediaFiles.length) {
       await db
         .from("whatsapp_messages")
@@ -128,8 +199,12 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         extracted_data: {
           groupId: payload.groupId,
           groupName: payload.groupName,
-          links: payload.links,
-          media: payload.media,
+          bundledMessageId,
+          messages: payloads.map((item) => ({
+            messageId: item.messageId,
+            links: item.links,
+            media: item.media,
+          })),
         },
         model_used: GEMINI_CONFIG.MODEL_NAME,
         prompt_version: GEMINI_CONFIG.PROMPT_VERSION,

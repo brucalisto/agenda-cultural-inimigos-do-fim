@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { 
-  MessageSquare, 
-  User, 
-  Users, 
-  Calendar, 
-  Link as LinkIcon, 
-  FileText, 
-  Image as ImageIcon, 
-  Video, 
-  Mic, 
-  ChevronDown, 
+import {
+  MessageSquare,
+  User,
+  Users,
+  Calendar,
+  Link as LinkIcon,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Mic,
+  ChevronDown,
   ChevronUp,
   Brain,
   AlertCircle,
@@ -26,19 +26,15 @@ import {
   ExternalLink,
   History,
   Save,
-  Zap
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Collapsible, 
-  CollapsibleContent, 
-  CollapsibleTrigger 
-} from "@/components/ui/collapsible";
-import { 
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -50,7 +46,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useQuery } from "@tanstack/react-query";
-import { getInterpretedContentById, updateInterpretedContent, type InterpretedContent } from "@/lib/interpreted";
+import {
+  getInterpretedContentById,
+  updateInterpretedContent,
+  type InterpretedContent,
+} from "@/lib/interpreted";
 import { reprocessMessage } from "@/lib/gemini.functions";
 import { simulateAutomation } from "@/lib/automation.functions";
 import { useMutation } from "@tanstack/react-query";
@@ -58,6 +58,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface InterpretedDetailsProps {
   id: string;
@@ -69,8 +70,12 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
-  
-  const { data: content, isLoading, refetch } = useQuery({
+
+  const {
+    data: content,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["interpreted-content", id],
     queryFn: () => getInterpretedContentById(id),
   });
@@ -84,7 +89,10 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
         category: content.category,
         summary: content.summary,
         location: content.location,
+        city: content.city,
         price: content.price,
+        contact_name: content.contact_name,
+        contact_phone: content.contact_phone,
       });
       setIsEditing(true);
     }
@@ -92,12 +100,14 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
 
   const saveEdits = async () => {
     try {
-      await updateInterpretedContent(id, editForm as any);
+      await updateInterpretedContent(id, editForm);
       toast.success("Conteúdo atualizado com sucesso");
       setIsEditing(false);
       refetch();
-    } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
+    } catch (error: unknown) {
+      toast.error(
+        "Erro ao salvar: " + (error instanceof Error ? error.message : "Falha desconhecida"),
+      );
     }
   };
 
@@ -106,26 +116,33 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       await updateInterpretedContent(id, { review_status: status });
       toast.success(`Status atualizado para ${status}`);
       refetch();
-    } catch (error: any) {
-      toast.error("Erro ao atualizar status: " + error.message);
+    } catch (error: unknown) {
+      toast.error(
+        "Erro ao atualizar status: " +
+          (error instanceof Error ? error.message : "Falha desconhecida"),
+      );
     }
   };
 
   const handleGeminiReprocess = async () => {
-    const messageId = (content as any)?.message_id as string | undefined;
+    const messageId = content?.message_id;
     if (!messageId) return;
     setIsReprocessing(true);
     try {
-      await reprocessMessage({ data: { messageId } });
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+      if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+      await reprocessMessage({ data: { messageId, accessToken } });
       toast.success("Reprocessado com sucesso pelo Gemini");
       refetch();
-    } catch (error: any) {
-      toast.error("Erro no Gemini: " + error.message);
+    } catch (error: unknown) {
+      toast.error(
+        "Erro no Gemini: " + (error instanceof Error ? error.message : "Falha desconhecida"),
+      );
     } finally {
       setIsReprocessing(false);
     }
   };
-
 
   const copyJson = () => {
     navigator.clipboard.writeText(JSON.stringify(content, null, 2));
@@ -147,7 +164,7 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               <MessageSquare className="h-4 w-4" />
               Mensagem Original
             </h3>
-            
+
             <div className="bg-muted/30 rounded-lg p-4 border space-y-4">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
@@ -165,7 +182,9 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end">
                     <Calendar className="h-3 w-3" />
-                    {msg?.occurred_at ? format(new Date(msg.occurred_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "N/A"}
+                    {msg?.occurred_at
+                      ? format(new Date(msg.occurred_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                      : "N/A"}
                   </p>
                 </div>
               </div>
@@ -179,12 +198,20 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                 <div className="space-y-2">
                   <p className="text-xs font-semibold">Mídias anexadas:</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {msg.message_media.map((media: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 p-2 bg-background border rounded text-xs">
-                        {media.media_type.includes('image') ? <ImageIcon className="h-3 w-3" /> : 
-                         media.media_type.includes('video') ? <Video className="h-3 w-3" /> : 
-                         media.media_type.includes('audio') ? <Mic className="h-3 w-3" /> : 
-                         <FileText className="h-3 w-3" />}
+                    {msg.message_media.map((media, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 p-2 bg-background border rounded text-xs"
+                      >
+                        {media.media_type.includes("image") ? (
+                          <ImageIcon className="h-3 w-3" />
+                        ) : media.media_type.includes("video") ? (
+                          <Video className="h-3 w-3" />
+                        ) : media.media_type.includes("audio") ? (
+                          <Mic className="h-3 w-3" />
+                        ) : (
+                          <FileText className="h-3 w-3" />
+                        )}
                         <span className="truncate">{media.original_filename}</span>
                       </div>
                     ))}
@@ -197,16 +224,18 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                 <div className="space-y-2">
                   <p className="text-xs font-semibold">Links encontrados:</p>
                   <div className="space-y-1">
-                    {msg.extracted_links.map((link: any, i: number) => (
-                      <a 
-                        key={i} 
-                        href={link.original_url} 
-                        target="_blank" 
+                    {msg.extracted_links.map((link, i) => (
+                      <a
+                        key={i}
+                        href={link.original_url}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 p-2 bg-blue-50/50 hover:bg-blue-50 border border-blue-100 rounded text-xs text-blue-700"
                       >
                         <LinkIcon className="h-3 w-3" />
-                        <span className="truncate flex-1">{link.page_title || link.original_url}</span>
+                        <span className="truncate flex-1">
+                          {link.page_title || link.original_url}
+                        </span>
                         <ExternalLink className="h-3 w-3 opacity-50" />
                       </a>
                     ))}
@@ -221,7 +250,11 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="sm" className="w-full justify-between font-semibold">
                   DADOS TÉCNICOS (ADM)
-                  {isTechnicalOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {isTechnicalOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 p-4 bg-slate-950 rounded-lg overflow-x-auto">
@@ -238,22 +271,34 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                     <History className="h-4 w-4" />
                     HISTÓRICO DE ALTERAÇÕES
                   </span>
-                  {isHistoryOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {isHistoryOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2 space-y-2">
                 <div className="p-3 bg-muted/50 rounded-lg border text-xs space-y-2">
                   <div className="flex justify-between items-center text-muted-foreground">
                     <span>Criado por Gemini 1.5 Pro</span>
-                    <span>{format(new Date(content.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                    <span>
+                      {format(new Date(content.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </span>
                   </div>
                   {content.reviewed_at && (
                     <div className="flex justify-between items-center text-muted-foreground pt-2 border-t">
                       <span>Revisado por Admin</span>
-                      <span>{format(new Date(content.reviewed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                      <span>
+                        {format(new Date(content.reviewed_at), "dd/MM/yyyy HH:mm", {
+                          locale: ptBR,
+                        })}
+                      </span>
                     </div>
                   )}
-                  <p className="text-center italic text-muted-foreground pt-2">Fim do histórico demonstrativo</p>
+                  <p className="text-center italic text-muted-foreground pt-2">
+                    Fim do histórico demonstrativo
+                  </p>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -275,32 +320,38 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                 </Button>
               )}
             </div>
-            
+
             <div className="bg-card rounded-lg border shadow-sm divide-y">
               <div className="p-4 space-y-4">
                 <div className="flex justify-between items-center gap-4">
                   {isEditing ? (
-                    <Input 
-                      value={editForm.title || ""} 
+                    <Input
+                      value={editForm.title || ""}
                       onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                       placeholder="Título do conteúdo"
                     />
                   ) : (
                     <h4 className="font-bold text-lg">{content.title || "Sem título"}</h4>
                   )}
-                  <Badge className={cn(
-                    (content.confidence_score || 0) > 0.8 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                  )}>
+                  <Badge
+                    className={cn(
+                      (content.confidence_score || 0) > 0.8
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800",
+                    )}
+                  >
                     {Math.round((content.confidence_score || 0) * 100)}% Confiança
                   </Badge>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Categoria</p>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Categoria
+                    </p>
                     {isEditing ? (
-                      <Input 
-                        value={editForm.category || ""} 
+                      <Input
+                        value={editForm.category || ""}
                         onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
                         className="mt-1"
                       />
@@ -309,10 +360,12 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                     )}
                   </div>
                   <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Localização</p>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Localização
+                    </p>
                     {isEditing ? (
-                      <Input 
-                        value={editForm.location || ""} 
+                      <Input
+                        value={editForm.location || ""}
                         onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
                         className="mt-1"
                       />
@@ -321,10 +374,12 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                     )}
                   </div>
                   <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Preço/Valor</p>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Preço/Valor
+                    </p>
                     {isEditing ? (
-                      <Input 
-                        value={editForm.price || ""} 
+                      <Input
+                        value={editForm.price || ""}
                         onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
                         className="mt-1"
                       />
@@ -333,31 +388,71 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                     )}
                   </div>
                   <div>
-                    <p className="text-muted-foreground text-xs uppercase font-semibold">Data do Evento</p>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">Cidade</p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.city || ""}
+                        onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.city || "Não informada"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Telefone de contato
+                    </p>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.contact_phone || ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, contact_phone: e.target.value })
+                        }
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="font-medium">{content.contact_phone || "Não informado"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs uppercase font-semibold">
+                      Data do Evento
+                    </p>
                     <p className="font-medium">
-                      {content.event_date ? format(new Date(content.event_date), "dd/MM/yyyy", { locale: ptBR }) : "Não detectada"}
+                      {content.event_date
+                        ? format(new Date(content.event_date), "dd/MM/yyyy", { locale: ptBR })
+                        : "Não detectada"}
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">Resumo</p>
+                  <p className="text-muted-foreground text-xs uppercase font-semibold mb-1">
+                    Resumo
+                  </p>
                   {isEditing ? (
-                    <Textarea 
-                      value={editForm.summary || ""} 
+                    <Textarea
+                      value={editForm.summary || ""}
                       onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
                       className="mt-1 min-h-[100px]"
                     />
                   ) : (
-                    <p className="text-sm leading-relaxed">{content.summary || "Sem resumo disponível."}</p>
+                    <p className="text-sm leading-relaxed">
+                      {content.summary || "Sem resumo disponível."}
+                    </p>
                   )}
                 </div>
 
                 <div>
-                  <p className="text-muted-foreground text-xs uppercase font-semibold mb-2">Palavras-chave</p>
+                  <p className="text-muted-foreground text-xs uppercase font-semibold mb-2">
+                    Palavras-chave
+                  </p>
                   <div className="flex flex-wrap gap-1">
                     {content.keywords?.map((kw, i) => (
-                      <Badge key={i} variant="outline" className="text-[10px]">{kw}</Badge>
+                      <Badge key={i} variant="outline" className="text-[10px]">
+                        {kw}
+                      </Badge>
                     )) || <span className="text-xs italic">Nenhuma</span>}
                   </div>
                 </div>
@@ -381,7 +476,9 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                       <div>
                         <p className="font-bold">Avisos da IA:</p>
                         <ul className="list-disc list-inside">
-                          {content.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                          {content.warnings.map((w, i) => (
+                            <li key={i}>{w}</li>
+                          ))}
                         </ul>
                       </div>
                     </div>
@@ -390,10 +487,12 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               )}
 
               <div className="p-4">
-                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                   <Clock className="h-3 w-3" />
-                   <span>Processado com: <strong>{content.model_used}</strong></span>
-                 </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    Processado com: <strong>{content.model_used}</strong>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -416,17 +515,22 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
       {!isEditing && (
         <div className="border-t p-4 bg-muted/20 flex flex-wrap gap-2 justify-end sticky bottom-0">
           <SimulateAutomationButton messageId={content.message_id} />
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2 text-purple-600 border-purple-200" 
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-purple-600 border-purple-200"
             onClick={handleGeminiReprocess}
             disabled={isReprocessing}
           >
             <Sparkles className={cn("h-4 w-4", isReprocessing && "animate-spin")} />
             {isReprocessing ? "Processando..." : "Reprocessar com Gemini"}
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => handleStatusChange('reprocessar')}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => handleStatusChange("reprocessar")}
+          >
             <RotateCcw className="h-4 w-4" />
             Reprocessar
           </Button>
@@ -436,15 +540,25 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
             Copiar JSON
           </Button>
           <div className="w-px h-8 bg-border mx-1" />
-          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleStatusChange('ignorado')}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-destructive hover:text-destructive"
+            onClick={() => handleStatusChange("ignorado")}
+          >
             <Trash2 className="h-4 w-4" />
             Ignorar
           </Button>
-          <Button variant="outline" size="sm" className="gap-2 text-blue-600 border-blue-200" onClick={() => handleStatusChange('revisao')}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-blue-600 border-blue-200"
+            onClick={() => handleStatusChange("revisao")}
+          >
             <Edit className="h-4 w-4" />
             Enviar p/ Revisão
           </Button>
-          
+
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700">
@@ -456,12 +570,16 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar Publicação</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Deseja publicar este conteúdo no destino configurado? Esta ação enviará os dados extraídos para a plataforma externa.
+                  Deseja publicar este conteúdo no destino configurado? Esta ação enviará os dados
+                  extraídos para a plataforma externa.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={() => handleStatusChange('aprovado')} className="bg-green-600 hover:bg-green-700">
+                <AlertDialogAction
+                  onClick={() => handleStatusChange("aprovado")}
+                  className="bg-green-600 hover:bg-green-700"
+                >
                   Confirmar e Publicar
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -476,24 +594,24 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
 function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
   const simulate = useMutation({
     mutationFn: useServerFn(simulateAutomation),
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       if (data.status === "matched") {
         toast.success(`Regra "${data.rule.nome}" acionada (SIMULAÇÃO)`);
       } else {
         toast.info("Nenhuma regra de automação correspondente.");
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Erro na simulação: " + err.message);
-    }
+    },
   });
 
   if (!messageId) return null;
 
   return (
-    <Button 
-      variant="outline" 
-      size="sm" 
+    <Button
+      variant="outline"
+      size="sm"
       className="gap-2"
       onClick={() => simulate.mutate({ data: { messageId } })}
       disabled={simulate.isPending}
@@ -503,4 +621,3 @@ function SimulateAutomationButton({ messageId }: { messageId: string | null }) {
     </Button>
   );
 }
-
