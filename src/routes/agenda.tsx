@@ -614,7 +614,7 @@ function PublicAgenda() {
                         rel="noreferrer"
                         className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:border-fuchsia-300/50 hover:text-fuchsia-200"
                       >
-                        <Instagram className="h-4 w-4" />@
+                        <AtSign className="h-4 w-4" />@
                         {instagramHandle(selected.contact_instagram)}
                       </a>
                     ) : null}
