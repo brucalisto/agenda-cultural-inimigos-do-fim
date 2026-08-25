@@ -8,6 +8,7 @@ type Candidate = {
   city: string | null;
   source_url: string | null;
   review_status: string | null;
+  extracted_data: unknown;
 };
 
 type EventLike = {
@@ -17,6 +18,7 @@ type EventLike = {
   location?: string | null;
   city?: string | null;
   source_url?: string | null;
+  extracted_data?: unknown;
 };
 
 function normalize(value?: string | null) {
@@ -39,6 +41,12 @@ function tokenSimilarity(a?: string | null, b?: string | null) {
 function sameDay(a?: string | null, b?: string | null) {
   if (!a || !b) return false;
   return a.slice(0, 10) === b.slice(0, 10);
+}
+
+function feedSourceId(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = (value as Record<string, unknown>).feedSourceId;
+  return typeof candidate === "string" && candidate ? candidate : null;
 }
 
 function score(event: EventLike, candidate: Candidate) {
@@ -66,7 +74,7 @@ export async function findPossibleDuplicate(event: EventLike) {
 
   let query = supabaseAdmin
     .from("interpreted_contents")
-    .select("id,title,event_date,location,city,source_url,review_status")
+    .select("id,title,event_date,location,city,source_url,review_status,extracted_data")
     .in("review_status", ["pendente", "necessita_revisao", "aprovado", "publicado"])
     .limit(150);
 
@@ -83,7 +91,15 @@ export async function findPossibleDuplicate(event: EventLike) {
   const { data, error } = await query;
   if (error) throw error;
 
+  const currentFeedSourceId = feedSourceId(event.extracted_data);
   const ranked = ((data || []) as Candidate[])
+    // Eventos irmãos da mesma fonte não devem virar falsos positivos (por exemplo,
+    // vários dias da mesma programação no Notion). A chave externa da fonte cuida
+    // da idempotência; a deduplicação aqui é usada principalmente entre origens.
+    .filter((candidate) => {
+      const candidateFeedSourceId = feedSourceId(candidate.extracted_data);
+      return !currentFeedSourceId || candidateFeedSourceId !== currentFeedSourceId;
+    })
     .map((candidate) => ({ candidate, ...score(event, candidate) }))
     .filter((item) => item.total >= 0.62)
     .sort((a, b) => b.total - a.total);
