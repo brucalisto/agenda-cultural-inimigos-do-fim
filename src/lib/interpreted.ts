@@ -15,6 +15,7 @@ export type InterpretedContent = {
   price: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  contact_instagram: string | null;
   source_url: string | null;
   keywords: string[] | null;
   extracted_data: Json;
