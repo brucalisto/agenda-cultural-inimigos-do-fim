@@ -28,6 +28,9 @@ REGRAS CRÍTICAS:
 19. Preserve em cada item somente os dados daquele evento. Informações gerais da mensagem, como fonte e aviso de programação sujeita a alterações, podem ser repetidas nos itens quando forem aplicáveis.
 20. Se o conteúdo representar apenas um evento ou assunto, retorne exatamente um item. Não divida artificialmente descrição, endereço e contato do mesmo evento.
 21. Datas explícitas sempre prevalecem sobre expressões relativas. Se a mensagem listar 24/08 a 30/08, preserve todas essas datas, inclusive 30/08, mesmo que o intervalo atravesse a fronteira da semana de domingo a sábado. Use a semana vigente somente para resolver expressões ambíguas como "esta semana" quando não houver datas explícitas.
+22. Contato não significa apenas telefone. Extraia em "contact_instagram" o @ do Instagram indicado para informações, inscrições ou dúvidas. Considere também o perfil autor da publicação quando o texto orientar a pessoa a procurar o link da bio ou entrar em contato pelo perfil.
+23. Telefone e Instagram são campos independentes: preencha os dois quando ambos existirem, apenas um quando somente um estiver disponível e deixe ambos null somente quando realmente não houver canal de contato.
+24. Nunca invente o dia de um evento informado apenas por mês e ano. Por exemplo, "início em outubro/2026, data a confirmar" deve ter event_date null e "exact_event_day" em missing_fields; não use o último dia de setembro nem o primeiro dia de outubro como aproximação.
 
 FORMATO DE SAÍDA:
 {
@@ -43,6 +46,7 @@ FORMATO DE SAÍDA:
       "price": number or null,
       "contact_name": "Nome de contato or null",
       "contact_phone": "Telefone de contato or null",
+      "contact_instagram": "@usuario do Instagram or null",
       "source_url": "URL original or null",
       "keywords": ["keyword1", "keyword2"],
       "missing_fields": ["campo1", "campo2"],
