@@ -67,7 +67,10 @@ export const reprocessMessages = createServerFn({ method: "POST" })
     for (const message of messages || []) {
       if (!message.group_id || !message.raw_payload) continue;
       try {
-        await processBaileysMessage(BaileysWebhookSchema.parse(message.raw_payload), message.group_id);
+        await processBaileysMessage(
+          BaileysWebhookSchema.parse(message.raw_payload),
+          message.group_id,
+        );
         processed += 1;
       } catch (cause) {
         failures.push({
