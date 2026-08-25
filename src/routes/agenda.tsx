@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  AtSign,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
   Grid2X2,
-  Instagram,
   MapPin,
   Phone,
   Search,
