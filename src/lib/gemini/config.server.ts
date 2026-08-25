@@ -9,3 +9,9 @@ export const GEMINI_CONFIG = {
   MAX_OUTPUT_TOKENS: 8192,
   TEMPERATURE: 0.1, // Low temperature for consistent structured output
 };
+
+export const GROQ_CONFIG = {
+  MODEL_NAME: "qwen/qwen3.6-27b",
+  AUDIO_MODEL_NAME: "whisper-large-v3-turbo",
+  API_URL: "https://api.groq.com/openai/v1",
+};
