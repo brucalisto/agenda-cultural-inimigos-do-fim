@@ -27,6 +27,7 @@ REGRAS CRÍTICAS:
 18. Interprete "esta semana" usando o intervalo de domingo a sábado informado no contexto. Datas sem ano pertencem ao ano vigente.
 19. Preserve em cada item somente os dados daquele evento. Informações gerais da mensagem, como fonte e aviso de programação sujeita a alterações, podem ser repetidas nos itens quando forem aplicáveis.
 20. Se o conteúdo representar apenas um evento ou assunto, retorne exatamente um item. Não divida artificialmente descrição, endereço e contato do mesmo evento.
+21. Datas explícitas sempre prevalecem sobre expressões relativas. Se a mensagem listar 24/08 a 30/08, preserve todas essas datas, inclusive 30/08, mesmo que o intervalo atravesse a fronteira da semana de domingo a sábado. Use a semana vigente somente para resolver expressões ambíguas como "esta semana" quando não houver datas explícitas.
 
 FORMATO DE SAÍDA:
 {
