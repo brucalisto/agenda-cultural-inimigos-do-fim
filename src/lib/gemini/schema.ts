@@ -19,3 +19,9 @@ export const InterpretedContentSchema = z.object({
 });
 
 export type InterpretedContentResponse = z.infer<typeof InterpretedContentSchema>;
+
+export const InterpretedContentsSchema = z.object({
+  items: z.array(InterpretedContentSchema).min(1),
+});
+
+export type InterpretedContentsResponse = z.infer<typeof InterpretedContentsSchema>;
