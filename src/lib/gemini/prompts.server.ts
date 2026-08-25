@@ -20,6 +20,7 @@ REGRAS CRÍTICAS:
 11. Telefones brasileiros podem aparecer com ou sem pontuação, DDD, espaço ou hífen. Normalize mantendo DDD e número. Só marque contact_phone ausente depois de examinar toda a imagem.
 12. Quando houver várias mensagens/mídias no conteúdo, trate-as como um único conjunto complementar e consolide todas as informações, sem repetir trechos.
 13. Em "city", informe somente a cidade. Em "location", mantenha o nome do local e endereço completo quando disponíveis.
+14. Quando a data informar apenas dia e mês, sem ano, use obrigatoriamente o ano vigente indicado no contexto da análise. Não avance para o ano seguinte apenas porque a data já passou.
 
 FORMATO DE SAÍDA:
 {
