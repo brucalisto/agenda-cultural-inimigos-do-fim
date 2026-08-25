@@ -492,9 +492,6 @@ function PublicAgenda() {
   };
   return (
     <main className="min-h-screen bg-[#fffdf8] text-[#292620]">
-      <header className="border-b border-[#dfd2c0] bg-[#fffdf8] px-5 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between"><a href="/agenda" className="font-serif text-xl font-black">Inimigos do Fim</a><span className="hidden text-sm text-[#756b5d] sm:block">Agenda cultural do território</span></div>
-      </header>
       <section className="bg-[#171310]"><img src="/agenda-banner.webp" alt="Inimigos do Fim — Cultura acontecendo agora" className="mx-auto aspect-[12/5] w-full max-w-[1920px] object-cover object-center" /></section>
       <FeaturedEvents events={featured} onSelect={setSelected} />
       <section className="border-b border-[#e2d6c5] bg-white px-5 py-10">

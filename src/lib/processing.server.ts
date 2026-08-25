@@ -98,9 +98,9 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
 
   try {
     const cutoff = new Date(new Date(occurred).getTime() - 5 * 60_000).toISOString();
-    const { data: previous } = await db
+    const { data: previousMessages } = await db
       .from("whatsapp_messages")
-      .select("id, raw_payload")
+      .select("id, raw_payload, occurred_at")
       .eq("group_id", groupId)
       .eq("sender_external_id", payload.senderId)
       .neq("id", message.id)
@@ -109,34 +109,53 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       .gte("occurred_at", cutoff)
       .lte("occurred_at", occurred)
       .order("occurred_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(8);
 
     let payloads = [payload];
-    let bundledMessageId: string | null = null;
-    if (previous?.raw_payload) {
+    const bundledMessageIds: string[] = [];
+    let groupingReference = payload;
+    const previousIds = (previousMessages || []).map((candidate) => candidate.id);
+    const { data: publishedContents } = previousIds.length
+      ? await db
+          .from("interpreted_contents")
+          .select("message_id")
+          .in("message_id", previousIds)
+          .eq("review_status", "publicado")
+      : { data: [] as Array<{ message_id: string }> };
+    const publishedMessageIds = new Set(
+      (publishedContents || []).map((content) => content.message_id),
+    );
+
+    for (const previous of previousMessages || []) {
+      if (!previous.raw_payload) continue;
+      if (publishedMessageIds.has(previous.id)) continue;
       const parsed = BaileysWebhookSchema.safeParse(previous.raw_payload);
-      if (parsed.success) {
-        const complementary =
-          isDeterministicComplement(parsed.data, payload) ||
-          (await areMessagesComplementary(
-            describeForGrouping(parsed.data),
-            describeForGrouping(payload),
-          ));
-        if (complementary) {
-          payloads = [parsed.data, payload];
-          bundledMessageId = previous.id;
-          await db.from("interpreted_contents").delete().eq("message_id", previous.id);
-          await db
-            .from("whatsapp_messages")
-            .update({
-              processing_status: "ignorado",
-              bundled_into_message_id: message.id,
-              error_message: "Agrupada a uma mensagem complementar enviada em seguida",
-            })
-            .eq("id", previous.id);
-        }
-      }
+      if (!parsed.success) continue;
+      const complementary =
+        isDeterministicComplement(parsed.data, groupingReference) ||
+        (await areMessagesComplementary(
+          describeForGrouping(parsed.data),
+          describeForGrouping(groupingReference),
+        ));
+      if (!complementary) break;
+      payloads.unshift(parsed.data);
+      bundledMessageIds.unshift(previous.id);
+      groupingReference = parsed.data;
+    }
+
+    if (bundledMessageIds.length) {
+      await db
+        .from("interpreted_contents")
+        .delete()
+        .in("message_id", bundledMessageIds);
+      await db
+        .from("whatsapp_messages")
+        .update({
+          processing_status: "ignorado",
+          bundled_into_message_id: message.id,
+          error_message: "Consolidada com mensagens complementares da mesma sequência",
+        })
+        .in("id", bundledMessageIds);
     }
 
     await db.from("extracted_links").delete().eq("message_id", message.id);
@@ -235,7 +254,8 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         extracted_data: {
           groupId: payload.groupId,
           groupName: payload.groupName,
-          bundledMessageId,
+          bundledMessageId: bundledMessageIds.at(-1) || null,
+          bundledMessageIds,
           eventSequence,
           eventCount: interpreted.items.length,
           messages: payloads.map((source) => ({
@@ -254,6 +274,18 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         updated_at: new Date().toISOString(),
       };
     });
+
+    // Se uma mensagem posterior absorveu esta enquanto a IA ainda trabalhava,
+    // não recrie a interpretação antiga ao terminar fora de ordem.
+    const { data: latestMessageState } = await db
+      .from("whatsapp_messages")
+      .select("bundled_into_message_id")
+      .eq("id", message.id)
+      .single();
+    if (latestMessageState?.bundled_into_message_id) {
+      await db.from("interpreted_contents").delete().eq("message_id", message.id);
+      return { ignored: true, consolidatedInto: latestMessageState.bundled_into_message_id };
+    }
 
     await db.from("interpreted_contents").delete().eq("message_id", message.id);
     const { error: interpretError } = await db.from("interpreted_contents").insert(rows);
