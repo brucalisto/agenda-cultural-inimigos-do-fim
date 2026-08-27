@@ -51,6 +51,7 @@ type EventItem = {
   contact_phone: string | null;
   contact_instagram: string | null;
   source_url: string | null;
+  image_url: string | null;
   keywords: string[] | null;
   is_featured: boolean;
   featured_priority: number;
@@ -62,9 +63,15 @@ type EventItem = {
 type PriceFilter = "all" | "free" | "paid" | "unknown";
 type ViewMode = "cards" | "calendar";
 type MapApi = {
-  map: (element: HTMLElement) => { setView: (point: [number, number], zoom: number) => unknown; fitBounds: (bounds: unknown, options: object) => void; remove: () => void };
+  map: (element: HTMLElement) => {
+    setView: (point: [number, number], zoom: number) => unknown;
+    fitBounds: (bounds: unknown, options: object) => void;
+    remove: () => void;
+  };
   tileLayer: (url: string, options: object) => { addTo: (map: unknown) => unknown };
-  marker: (point: [number, number]) => { addTo: (map: unknown) => { bindPopup: (html: string) => unknown } };
+  marker: (point: [number, number]) => {
+    addTo: (map: unknown) => { bindPopup: (html: string) => unknown };
+  };
   featureGroup: (layers: unknown[]) => { getBounds: () => unknown };
 };
 
@@ -117,11 +124,22 @@ function EventCard({
   return (
     <button
       onClick={() => onSelect(event)}
-      className="group relative overflow-hidden rounded-[1.75rem] border border-[#e1d4c2] bg-white text-left shadow-[0_16px_45px_rgba(74,52,31,.09)] transition duration-300 hover:-translate-y-1 hover:border-[#c78a35] hover:shadow-[0_24px_55px_rgba(133,76,32,.14)]"
+      className="group relative h-full overflow-hidden rounded-[1.35rem] border border-[#e1d4c2] bg-white text-left shadow-[0_12px_35px_rgba(74,52,31,.08)] transition duration-300 hover:-translate-y-1 hover:border-[#c78a35] hover:shadow-[0_20px_45px_rgba(133,76,32,.13)]"
     >
-      <div className="grid h-36 place-items-center bg-[linear-gradient(135deg,#f3e6ce,#fffaf0)] text-[#a43a28]"><Ticket className="h-14 w-14 opacity-20" /></div>
-      <div className="p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="grid aspect-[4/3] place-items-center overflow-hidden bg-[linear-gradient(135deg,#f3e6ce,#fffaf0)] text-[#a43a28]">
+        {event.image_url ? (
+          <img
+            src={event.image_url}
+            alt=""
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <Ticket className="h-12 w-12 opacity-20" />
+        )}
+      </div>
+      <div className="p-4">
+        <div className="mb-4 flex items-start justify-between gap-2">
           <div className="rounded-2xl border border-[#e5d8c4] bg-[#fffaf0] px-3 py-2 text-center">
             <span className="block text-[10px] font-bold uppercase tracking-widest text-[#a43a28]">
               {date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
@@ -129,23 +147,20 @@ function EventCard({
             <span className="block text-2xl font-black leading-none">{date.getDate()}</span>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <span className="rounded-full bg-white/[.06] px-3 py-1 text-xs text-stone-300">
+            <span className="rounded-full bg-[#f1eadf] px-2 py-1 text-[11px] text-[#665b4d]">
               {event.category || "Cultura"}
             </span>
             <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${kind === "free" ? "bg-emerald-400/10 text-emerald-300" : kind === "paid" ? "bg-amber-400/10 text-amber-300" : "bg-stone-400/10 text-stone-400"}`}
+              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${kind === "free" ? "bg-emerald-100 text-emerald-700" : kind === "paid" ? "bg-amber-100 text-amber-700" : "bg-stone-100 text-stone-500"}`}
             >
               {priceLabel(event)}
             </span>
           </div>
         </div>
-        <h3 className="text-xl font-extrabold leading-tight text-[#292620] transition group-hover:text-[#a43a28]">
+        <h3 className="line-clamp-2 text-base font-extrabold leading-tight text-[#292620] transition group-hover:text-[#a43a28]">
           {event.title || "Evento cultural"}
         </h3>
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#746b60]">
-          {event.summary || event.full_description || "Confira os detalhes deste evento."}
-        </p>
-        <div className="mt-6 space-y-2.5 border-t border-[#eee4d6] pt-5 text-sm text-[#5f574d]">
+        <div className="mt-4 space-y-2 border-t border-[#eee4d6] pt-4 text-xs text-[#5f574d]">
           <p className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-amber-400" />
             {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
@@ -155,11 +170,44 @@ function EventCard({
             <span className="line-clamp-2">{event.location || eventCity(event)}</span>
           </p>
         </div>
-        <span className="mt-6 flex items-center gap-2 text-sm font-bold text-[#a43a28]">
+        <span className="mt-4 flex items-center gap-2 text-xs font-bold text-[#a43a28]">
           Ver detalhes <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
         </span>
       </div>
     </button>
+  );
+}
+
+function EventDayCards({
+  events,
+  onSelect,
+}: {
+  events: EventItem[];
+  onSelect: (event: EventItem) => void;
+}) {
+  return (
+    <>
+      <div className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-5">
+        {events.map((event) => (
+          <EventCard key={event.id} event={event} onSelect={onSelect} />
+        ))}
+      </div>
+      <Carousel className="md:hidden" opts={{ align: "start" }}>
+        <CarouselContent className="-ml-3">
+          {events.map((event) => (
+            <CarouselItem key={event.id} className="basis-[86%] pl-3">
+              <EventCard event={event} onSelect={onSelect} />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        {events.length > 1 ? (
+          <>
+            <CarouselPrevious className="left-2 bg-white/95" />
+            <CarouselNext className="right-2 bg-white/95" />
+          </>
+        ) : null}
+      </Carousel>
+    </>
   );
 }
 
@@ -173,6 +221,16 @@ function FeaturedEvents({
   if (!events.length) return null;
   const feature = (event: EventItem) => (
     <article className="relative min-h-[340px] overflow-hidden rounded-[2rem] bg-[#30241d] p-7 text-[#fff8e8] shadow-[0_24px_70px_rgba(74,47,28,.18)] sm:p-10">
+      {event.image_url ? (
+        <>
+          <img
+            src={event.image_url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#241a15]/95 via-[#241a15]/80 to-[#241a15]/35" />
+        </>
+      ) : null}
       <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#d59b2d]/20" />
       <Sparkles className="absolute bottom-8 right-8 h-28 w-28 text-[#d8a936]/20" />
       <div className="relative flex min-h-[270px] max-w-3xl flex-col justify-between gap-10">
@@ -189,10 +247,19 @@ function FeaturedEvents({
         </div>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="space-y-2 text-sm">
-            <p className="flex gap-2"><CalendarDays className="h-4 w-4 text-[#e5b64a]" />{new Date(event.event_date).toLocaleString("pt-BR")}</p>
-            <p className="flex gap-2"><MapPin className="h-4 w-4 text-[#e5b64a]" />{event.location || eventCity(event)}</p>
+            <p className="flex gap-2">
+              <CalendarDays className="h-4 w-4 text-[#e5b64a]" />
+              {new Date(event.event_date).toLocaleString("pt-BR")}
+            </p>
+            <p className="flex gap-2">
+              <MapPin className="h-4 w-4 text-[#e5b64a]" />
+              {event.location || eventCity(event)}
+            </p>
           </div>
-          <Button onClick={() => onSelect(event)} className="rounded-full bg-[#fff7df] px-6 text-[#442b1e] hover:bg-white">
+          <Button
+            onClick={() => onSelect(event)}
+            className="rounded-full bg-[#fff7df] px-6 text-[#442b1e] hover:bg-white"
+          >
             Ver evento <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
@@ -202,11 +269,19 @@ function FeaturedEvents({
   return (
     <section className="bg-[#fffaf0] px-5 py-14">
       <div className="mx-auto max-w-7xl">
-        <p className="text-xs font-black uppercase tracking-[.24em] text-[#a43a28]">Escolhas da curadoria</p>
+        <p className="text-xs font-black uppercase tracking-[.24em] text-[#a43a28]">
+          Escolhas da curadoria
+        </p>
         <h2 className="mb-7 mt-2 font-serif text-4xl font-black text-[#2b2823]">Destaques</h2>
-        {events.length === 1 ? feature(events[0]) : (
+        {events.length === 1 ? (
+          feature(events[0])
+        ) : (
           <Carousel opts={{ loop: true }}>
-            <CarouselContent>{events.map((event) => <CarouselItem key={event.id}>{feature(event)}</CarouselItem>)}</CarouselContent>
+            <CarouselContent>
+              {events.map((event) => (
+                <CarouselItem key={event.id}>{feature(event)}</CarouselItem>
+              ))}
+            </CarouselContent>
             <CarouselPrevious className="left-4 border-0 bg-white/90 text-[#3b2b20]" />
             <CarouselNext className="right-4 border-0 bg-white/90 text-[#3b2b20]" />
           </Carousel>
@@ -218,9 +293,13 @@ function FeaturedEvents({
 
 function EventsMap({ events }: { events: EventItem[] }) {
   const element = useRef<HTMLDivElement>(null);
-  const instance = useRef<{ setView: (point: [number, number], zoom: number) => unknown; remove: () => void } | null>(null);
+  const instance = useRef<{
+    setView: (point: [number, number], zoom: number) => unknown;
+    remove: () => void;
+  } | null>(null);
   const mapped = useMemo(
-    () => events.filter((event) => Number.isFinite(event.latitude) && Number.isFinite(event.longitude)),
+    () =>
+      events.filter((event) => Number.isFinite(event.latitude) && Number.isFinite(event.longitude)),
     [events],
   );
   useEffect(() => {
@@ -231,27 +310,88 @@ function EventsMap({ events }: { events: EventItem[] }) {
       const map = leaflet.map(element.current);
       instance.current = map;
       map.setView([-14.2, -51.9], 4);
-      leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
+      leaflet
+        .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "© OpenStreetMap",
+        })
+        .addTo(map);
       const layers = mapped.map((event) => {
         const title = (event.title || "Evento cultural").replace(/[<>]/g, "");
         const local = (event.location || eventCity(event)).replace(/[<>]/g, "");
         const marker = leaflet.marker([event.latitude as number, event.longitude as number]);
-        marker.addTo(map).bindPopup(`<strong>${title}</strong><br>${new Date(event.event_date).toLocaleString("pt-BR")}<br>${local}<br><a href="#evento-${event.id}">Ver evento</a>`);
+        marker
+          .addTo(map)
+          .bindPopup(
+            `<strong>${title}</strong><br>${new Date(event.event_date).toLocaleString("pt-BR")}<br>${local}<br><a href="#evento-${event.id}">Ver evento</a>`,
+          );
         return marker;
       });
-      if (layers.length) map.fitBounds(leaflet.featureGroup(layers).getBounds(), { padding: [40, 40], maxZoom: 13 });
+      if (layers.length)
+        map.fitBounds(leaflet.featureGroup(layers).getBounds(), { padding: [40, 40], maxZoom: 13 });
     };
     if ((window as unknown as { L?: MapApi }).L) mount();
     else {
-      if (!document.querySelector("[data-leaflet-css]")) { const link = document.createElement("link"); link.rel = "stylesheet"; link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; link.dataset.leafletCss = "true"; document.head.appendChild(link); }
+      if (!document.querySelector("[data-leaflet-css]")) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.dataset.leafletCss = "true";
+        document.head.appendChild(link);
+      }
       const current = document.querySelector<HTMLScriptElement>("[data-leaflet-js]");
       if (current) current.addEventListener("load", mount);
-      else { const script = document.createElement("script"); script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; script.dataset.leafletJs = "true"; script.onload = mount; document.body.appendChild(script); }
+      else {
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.dataset.leafletJs = "true";
+        script.onload = mount;
+        document.body.appendChild(script);
+      }
     }
-    return () => { instance.current?.remove(); instance.current = null; };
+    return () => {
+      instance.current?.remove();
+      instance.current = null;
+    };
   }, [mapped]);
-  const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => instance.current?.setView([coords.latitude, coords.longitude], 12));
-  return <section className="bg-[#f4ede2] px-5 py-16"><div className="mx-auto max-w-7xl"><div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.22em] text-[#687538]">Território e descoberta</p><h2 className="mt-2 font-serif text-4xl font-black">Explore o que está acontecendo perto de você</h2><p className="mt-3 text-[#756b5d]">Os pins usam exatamente os mesmos eventos publicados e filtrados exibidos acima.</p></div><Button variant="outline" onClick={locate} className="rounded-full border-[#b7a78e] bg-white"><LocateFixed className="mr-2 h-4 w-4" />Usar minha localização</Button></div><div className="overflow-hidden rounded-[2rem] border border-[#d8cbb8] bg-white shadow-xl"><div ref={element} className="h-[480px] w-full" />{!mapped.length ? <p className="p-4 text-center text-sm text-[#756b5d]">Nenhum evento deste resultado possui coordenadas válidas para o mapa.</p> : null}</div></div></section>;
+  const locate = () =>
+    navigator.geolocation?.getCurrentPosition(({ coords }) =>
+      instance.current?.setView([coords.latitude, coords.longitude], 12),
+    );
+  return (
+    <section className="bg-[#f4ede2] px-5 py-16">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.22em] text-[#687538]">
+              Território e descoberta
+            </p>
+            <h2 className="mt-2 font-serif text-4xl font-black">
+              Explore o que está acontecendo perto de você
+            </h2>
+            <p className="mt-3 text-[#756b5d]">
+              Os pins usam exatamente os mesmos eventos publicados e filtrados exibidos acima.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={locate}
+            className="rounded-full border-[#b7a78e] bg-white"
+          >
+            <LocateFixed className="mr-2 h-4 w-4" />
+            Usar minha localização
+          </Button>
+        </div>
+        <div className="overflow-hidden rounded-[2rem] border border-[#d8cbb8] bg-white shadow-xl">
+          <div ref={element} className="h-[480px] w-full" />
+          {!mapped.length ? (
+            <p className="p-4 text-center text-sm text-[#756b5d]">
+              Nenhum evento deste resultado possui coordenadas válidas para o mapa.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function MonthCalendar({
@@ -451,7 +591,13 @@ function PublicAgenda() {
       .sort((a, b) => b.featured_priority - a.featured_priority);
   }, [filtered]);
   const hasFilters = Boolean(
-    query || city !== "all" || category !== "all" || price !== "all" || appliedFrom || appliedTo || includePast,
+    query ||
+    city !== "all" ||
+    category !== "all" ||
+    price !== "all" ||
+    appliedFrom ||
+    appliedTo ||
+    includePast,
   );
   const clearFilters = () => {
     setQuery("");
@@ -499,11 +645,22 @@ function PublicAgenda() {
   };
   return (
     <main className="min-h-screen bg-[#fffdf8] text-[#292620]">
-      <section className="bg-[#171310]"><img src="/agenda-banner.webp" alt="Inimigos do Fim — Cultura acontecendo agora" className="mx-auto h-auto w-full max-w-[2048px]" /></section>
+      <section className="bg-[#171310]">
+        <img
+          src="/agenda-banner.webp"
+          alt="Inimigos do Fim — Cultura acontecendo agora"
+          className="mx-auto h-auto w-full max-w-[2048px]"
+        />
+      </section>
       <FeaturedEvents events={featured} onSelect={setSelected} />
       <section className="border-b border-[#e2d6c5] bg-white px-5 py-10">
         <div className="mx-auto max-w-7xl space-y-4">
-          <div><p className="text-xs font-black uppercase tracking-[.22em] text-[#a43a28]">Encontre sua próxima experiência</p><h2 className="mt-2 font-serif text-3xl font-black">Explore a programação</h2></div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.22em] text-[#a43a28]">
+              Encontre sua próxima experiência
+            </p>
+            <h2 className="mt-2 font-serif text-3xl font-black">Explore a programação</h2>
+          </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.4fr_.8fr_.8fr_.8fr_auto]">
             <div className="relative">
               <Search className="absolute left-4 top-3.5 h-5 w-5 text-stone-500" />
@@ -584,7 +741,9 @@ function PublicAgenda() {
             ].map(([label, value]) => (
               <button
                 key={value}
-                onClick={() => setPeriod(value as "today" | "tomorrow" | "weekend" | "week" | "month" | "all")}
+                onClick={() =>
+                  setPeriod(value as "today" | "tomorrow" | "weekend" | "week" | "month" | "all")
+                }
                 className="rounded-full border border-[#d2b782] bg-[#fff8e8] px-3 py-1.5 font-semibold text-[#74452c] transition hover:bg-[#eed39d]"
               >
                 {label}
@@ -593,6 +752,7 @@ function PublicAgenda() {
             <Input
               type="date"
               value={from}
+              onClick={(event) => event.currentTarget.showPicker?.()}
               onChange={(event) => setFrom(event.target.value)}
               aria-label="Data inicial"
               className="h-9 w-auto border-[#d8cbb8] bg-[#fffdf8]"
@@ -601,6 +761,7 @@ function PublicAgenda() {
             <Input
               type="date"
               value={to}
+              onClick={(event) => event.currentTarget.showPicker?.()}
               onChange={(event) => setTo(event.target.value)}
               aria-label="Data final"
               className="h-9 w-auto border-[#d8cbb8] bg-[#fffdf8]"
@@ -625,7 +786,17 @@ function PublicAgenda() {
         </div>
       </section>
       <section className="mx-auto max-w-7xl px-5 py-10 sm:py-14">
-        <div className="mb-8 flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#687538]">Programação cultural</p><h2 className="mt-2 font-serif text-4xl font-black">Eventos encontrados</h2></div><span className="rounded-full bg-[#f1dfbb] px-4 py-2 text-sm font-black text-[#75442b]">{filtered.length} resultado{filtered.length === 1 ? "" : "s"}</span></div>
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.2em] text-[#687538]">
+              Programação cultural
+            </p>
+            <h2 className="mt-2 font-serif text-4xl font-black">Eventos encontrados</h2>
+          </div>
+          <span className="rounded-full bg-[#f1dfbb] px-4 py-2 text-sm font-black text-[#75442b]">
+            {filtered.length} resultado{filtered.length === 1 ? "" : "s"}
+          </span>
+        </div>
         {loading ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((item) => (
@@ -666,11 +837,7 @@ function PublicAgenda() {
                   </h2>
                   <div className="h-px flex-1 bg-[#e2d7c8]" />
                 </div>
-                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {items.map((event) => (
-                    <EventCard key={event.id} event={event} onSelect={setSelected} />
-                  ))}
-                </div>
+                <EventDayCards events={items} onSelect={setSelected} />
               </section>
             ))}
           </div>
@@ -699,6 +866,13 @@ function PublicAgenda() {
           </DialogHeader>
           {selected ? (
             <div className="space-y-6">
+              {selected.image_url ? (
+                <img
+                  src={selected.image_url}
+                  alt=""
+                  className="aspect-video w-full rounded-2xl object-cover"
+                />
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-amber-400/10 px-3 py-1 text-sm text-amber-300">
                   {selected.category || "Cultura"}
