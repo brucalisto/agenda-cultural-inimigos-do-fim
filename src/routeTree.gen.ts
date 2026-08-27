@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as FeedsRouteImport } from './routes/feeds'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
@@ -22,6 +23,7 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
+import { Route as ApiPublicSyncFeedsRouteImport } from './routes/api/public/sync-feeds'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -37,6 +39,11 @@ const AgendaRoute = AgendaRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedsRoute = FeedsRouteImport.update({
+  id: '/feeds',
+  path: '/feeds',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsRoute = GroupsRouteImport.update({
@@ -89,6 +96,11 @@ const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
   path: '/api/public/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncFeedsRoute = ApiPublicSyncFeedsRouteImport.update({
+  id: '/api/public/sync-feeds',
+  path: '/api/public/sync-feeds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
     id: '/api/public/whatsapp-webhook',
@@ -100,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
@@ -110,12 +123,14 @@ export interface FileRoutesByFullPath {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
@@ -126,6 +141,7 @@ export interface FileRoutesByTo {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesById {
@@ -133,6 +149,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
@@ -143,6 +160,7 @@ export interface FileRoutesById {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRouteTypes {
@@ -151,6 +169,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
@@ -161,12 +180,14 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/api/public/events'
+    | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
     | '/auth'
+    | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
@@ -177,12 +198,14 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/api/public/events'
+    | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   id:
     | '__root__'
     | '/'
     | '/agenda'
     | '/auth'
+    | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
@@ -193,6 +216,7 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/api/public/events'
+    | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesById: FileRoutesById
 }
@@ -200,6 +224,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
+  FeedsRoute: typeof FeedsRoute
   GroupsRoute: typeof GroupsRoute
   InboxRoute: typeof InboxRoute
   IntegrationsRoute: typeof IntegrationsRoute
@@ -210,6 +235,7 @@ export interface RootRouteChildren {
   RulesRoute: typeof RulesRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
+  ApiPublicSyncFeedsRoute: typeof ApiPublicSyncFeedsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
 }
 
@@ -234,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feeds': {
+      id: '/feeds'
+      path: '/feeds'
+      fullPath: '/feeds'
+      preLoaderRoute: typeof FeedsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/groups': {
@@ -306,6 +339,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync-feeds': {
+      id: '/api/public/sync-feeds'
+      path: '/api/public/sync-feeds'
+      fullPath: '/api/public/sync-feeds'
+      preLoaderRoute: typeof ApiPublicSyncFeedsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-webhook': {
       id: '/api/public/whatsapp-webhook'
       path: '/api/public/whatsapp-webhook'
@@ -320,6 +360,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
+  FeedsRoute: FeedsRoute,
   GroupsRoute: GroupsRoute,
   InboxRoute: InboxRoute,
   IntegrationsRoute: IntegrationsRoute,
@@ -330,6 +371,7 @@ const rootRouteChildren: RootRouteChildren = {
   RulesRoute: RulesRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
+  ApiPublicSyncFeedsRoute: ApiPublicSyncFeedsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
 }
 export const routeTree = rootRouteImport

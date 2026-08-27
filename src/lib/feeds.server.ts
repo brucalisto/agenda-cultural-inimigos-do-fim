@@ -3,6 +3,9 @@ import { LEGACY_NOTION_EXPORT_GZIP_BASE64 } from "@/data/legacy-notion-export.ba
 import { extractPublicPage } from "@/lib/links.server";
 import { processWithAI } from "@/lib/gemini/service.server";
 import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
+import { consolidateFeedEvents, feedEventIdentity } from "@/lib/feed-normalization.server";
+import { fetchNotionEvents } from "@/lib/notion-feed.server";
+import { extractRssFeed } from "@/lib/rss-feed.server";
 
 export type FeedSource = {
   id: string;
@@ -10,6 +13,7 @@ export type FeedSource = {
   url: string;
   trusted: boolean;
   autoPublish: boolean;
+  sourceType?: "notion" | "rss" | "web" | "instagram";
 };
 
 type LegacyNotionRow = {
@@ -50,7 +54,11 @@ function inferCity(city: string | null, location: string | null) {
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length < 2) return null;
-  const last = parts.at(-1)?.replace(/\s*-\s*[A-Z]{2}$/i, "").trim() || "";
+  const last =
+    parts
+      .at(-1)
+      ?.replace(/\s*-\s*[A-Z]{2}$/i, "")
+      .trim() || "";
   if (!/[A-Za-zÀ-ÿ]/.test(last) || /\d/.test(last) || last.length > 60) return null;
   return last;
 }
@@ -116,7 +124,9 @@ async function upsertFeedRow(
         };
 
   const extracted =
-    finalRow.extracted_data && typeof finalRow.extracted_data === "object" && !Array.isArray(finalRow.extracted_data)
+    finalRow.extracted_data &&
+    typeof finalRow.extracted_data === "object" &&
+    !Array.isArray(finalRow.extracted_data)
       ? (finalRow.extracted_data as Record<string, unknown>)
       : {};
 
@@ -136,7 +146,12 @@ async function upsertFeedRow(
       .update(rowWithKey)
       .eq("id", existing.id);
     if (error) throw error;
-    return { id: existing.id, duplicate, status: rowWithKey.review_status || "pendente", updated: true };
+    return {
+      id: existing.id,
+      duplicate,
+      status: rowWithKey.review_status || "pendente",
+      updated: true,
+    };
   }
 
   const { data: inserted, error } = await supabaseAdmin
@@ -145,7 +160,12 @@ async function upsertFeedRow(
     .select("id")
     .single();
   if (error) throw error;
-  return { id: inserted.id, duplicate, status: rowWithKey.review_status || "pendente", updated: false };
+  return {
+    id: inserted.id,
+    duplicate,
+    status: rowWithKey.review_status || "pendente",
+    updated: false,
+  };
 }
 
 function legacyRowPayload(item: LegacyNotionRow, eventSequence: number, importedAt: string) {
@@ -227,7 +247,18 @@ export async function ingestLegacyNotionExport() {
 }
 
 export async function ingestFeedSource(source: FeedSource) {
-  const page = await extractPublicPage(source.url);
+  if (source.sourceType === "notion" || /(?:notion\.site|notion\.com)/i.test(source.url)) {
+    return ingestNotionSource(source);
+  }
+  if (source.sourceType === "instagram" || /instagram\.com/i.test(source.url)) {
+    throw new Error(
+      "Instagram exige uma integração autorizada; a coleta pública não é confiável e não foi ativada.",
+    );
+  }
+  const rssText = source.sourceType === "rss" ? await extractRssFeed(source.url) : null;
+  const page = rssText
+    ? { title: source.name, description: null, text: rssText }
+    : await extractPublicPage(source.url);
   const context = [
     `FONTE: ${source.name}`,
     `URL: ${source.url}`,
@@ -243,7 +274,8 @@ export async function ingestFeedSource(source: FeedSource) {
   const now = new Date().toISOString();
   const results: Array<{ title: string | null; status: string; duplicate: boolean }> = [];
 
-  for (const [eventSequence, item] of interpreted.items.entries()) {
+  const consolidatedItems = consolidateFeedEvents(interpreted.items);
+  for (const [eventSequence, item] of consolidatedItems.entries()) {
     const baseRow = {
       message_id: null,
       event_sequence: eventSequence,
@@ -258,6 +290,9 @@ export async function ingestFeedSource(source: FeedSource) {
         feedSourceUrl: source.url,
         trustedSource: source.trusted,
         importedAt: now,
+        ...(item.extracted_data && typeof item.extracted_data === "object"
+          ? item.extracted_data
+          : {}),
       },
       model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
       prompt_version: "feed-1.1.0",
@@ -270,11 +305,7 @@ export async function ingestFeedSource(source: FeedSource) {
     const externalKey = [source.id, sourceUrl, baseRow.title || "", baseRow.event_date || ""]
       .join("|")
       .toLowerCase();
-    const saved = await upsertFeedRow(
-      baseRow,
-      externalKey,
-      source.trusted && source.autoPublish,
-    );
+    const saved = await upsertFeedRow(baseRow, externalKey, source.trusted && source.autoPublish);
 
     results.push({
       title: baseRow.title,
@@ -293,8 +324,37 @@ export async function ingestFeedSource(source: FeedSource) {
 }
 
 export async function ingestDefaultFeeds() {
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id,nome,endpoint_url,enabled,field_mapping")
+    .eq("provider", "feed_source")
+    .eq("enabled", true);
+  if (error) throw error;
+
+  const sources: FeedSource[] = (data || [])
+    .filter((row) => row.endpoint_url)
+    .map((row) => {
+      const meta =
+        row.field_mapping &&
+        typeof row.field_mapping === "object" &&
+        !Array.isArray(row.field_mapping)
+          ? (row.field_mapping as Record<string, unknown>)
+          : {};
+      return {
+        id: row.id,
+        name: row.nome,
+        url: row.endpoint_url as string,
+        trusted: meta.trusted === true,
+        autoPublish: meta.autoPublish === true,
+        sourceType:
+          typeof meta.sourceType === "string"
+            ? (meta.sourceType as FeedSource["sourceType"])
+            : "web",
+      };
+    });
+
   const results = [];
-  for (const source of DEFAULT_FEED_SOURCES) {
+  for (const source of sources) {
     try {
       results.push({ ok: true, ...(await ingestFeedSource(source)) });
     } catch (error) {
@@ -307,3 +367,212 @@ export async function ingestDefaultFeeds() {
   }
   return results;
 }
+
+function notionStatusIsInactive(status: string | null) {
+  return /cancelad|rascunho|arquivad|inativ|adiad/i.test(status || "");
+}
+
+async function reconcileNotionSource(source: FeedSource, seenKeys: string[]) {
+  const { data, error } = await supabaseAdmin
+    .from("interpreted_contents")
+    .select("id,extracted_data,review_status")
+    .contains("extracted_data", { feedSourceId: source.id });
+  if (error) throw error;
+  const seen = new Set(seenKeys);
+  const missing = (data || []).filter((row) => {
+    const extracted =
+      row.extracted_data &&
+      typeof row.extracted_data === "object" &&
+      !Array.isArray(row.extracted_data)
+        ? (row.extracted_data as Record<string, unknown>)
+        : {};
+    return typeof extracted.feedExternalKey === "string" && !seen.has(extracted.feedExternalKey);
+  });
+  if (!missing.length) return 0;
+  const now = new Date().toISOString();
+  await Promise.all(
+    missing.map(async (row) => {
+      const extracted = row.extracted_data as Record<string, unknown>;
+      const { error: updateError } = await supabaseAdmin
+        .from("interpreted_contents")
+        .update({
+          review_status: "desativado",
+          reviewed_at: now,
+          updated_at: now,
+          extracted_data: { ...extracted, inactiveAtSource: true, inactiveDetectedAt: now },
+        })
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+    }),
+  );
+  return missing.length;
+}
+
+async function ingestNotionSource(source: FeedSource) {
+  const { rows, dataSourceId } = await fetchNotionEvents(source.url);
+  const now = new Date().toISOString();
+  const normalized = rows.map((item) => ({
+    ...item,
+    extracted_data: {
+      sourceType: "notion",
+      feedSourceId: source.id,
+      feedSourceName: source.name,
+      feedSourceUrl: source.url,
+      trustedSource: source.trusted,
+      autoPublish: source.autoPublish,
+      notionDataSourceId: dataSourceId,
+      notionLastEditedAt: item.lastEditedAt,
+      notionStatus: item.status,
+      importedAt: now,
+    },
+  }));
+  const consolidated = consolidateFeedEvents(normalized);
+  await adoptLegacyNotionRows(source, consolidated);
+  const results: Array<{
+    title: string | null;
+    status: string;
+    duplicate: boolean;
+    updated: boolean;
+  }> = [];
+  const seenKeys: string[] = [];
+
+  for (const [eventSequence, item] of consolidated.entries()) {
+    const externalKey = item.externalKey;
+    seenKeys.push(externalKey);
+    const inactive = notionStatusIsInactive(item.status);
+    const row = {
+      message_id: null,
+      event_sequence: eventSequence,
+      title: item.title,
+      category: item.category,
+      summary: item.summary,
+      full_description: item.full_description,
+      event_date: item.event_date,
+      location: item.location,
+      city: inferCity(item.city, item.location),
+      price: item.price,
+      source_url: item.source_url || source.url,
+      contact_name: item.contact_name,
+      contact_phone: item.contact_phone,
+      contact_instagram: item.contact_instagram,
+      missing_fields: [],
+      warnings: [],
+      confidence_score: 1,
+      model_used: "notion-api:structured",
+      prompt_version: "notion-api-1.0.0",
+      review_status: inactive
+        ? "desativado"
+        : source.trusted && source.autoPublish
+          ? "publicado"
+          : "pendente",
+      reviewed_at: inactive || (source.trusted && source.autoPublish) ? now : null,
+      extracted_data: item.extracted_data,
+    };
+    const saved = await upsertFeedRow(
+      row,
+      externalKey,
+      !inactive && source.trusted && source.autoPublish,
+    );
+    results.push({ title: item.title, ...saved });
+  }
+
+  const deactivated = await reconcileNotionSource(source, seenKeys);
+  return {
+    source: source.name,
+    imported: results.filter((item) => !item.updated).length,
+    updated: results.filter((item) => item.updated).length,
+    published: results.filter((item) => item.status === "publicado").length,
+    duplicates: results.filter((item) => item.duplicate).length,
+    deactivated,
+    results,
+  };
+}
+
+async function adoptLegacyNotionRows(
+  source: FeedSource,
+  items: Array<NormalizedNotionEventShape & { externalKey: string }>,
+) {
+  const { data, error } = await supabaseAdmin
+    .from("interpreted_contents")
+    .select("id,title,event_date,location,city,extracted_data")
+    .contains("extracted_data", { feedSourceId: "legacy-notion-agenda" });
+  if (error) throw error;
+  if (!data?.length) return;
+
+  const legacyGroups = new Map<string, typeof data>();
+  for (const row of data) {
+    const key = feedEventIdentity(row);
+    const group = legacyGroups.get(key) || [];
+    group.push(row);
+    legacyGroups.set(key, group);
+  }
+
+  const now = new Date().toISOString();
+  for (const item of items) {
+    const matches = legacyGroups.get(feedEventIdentity(item)) || [];
+    if (!matches.length) continue;
+    const [primary, ...redundant] = matches.sort((a, b) =>
+      (a.event_date || "").localeCompare(b.event_date || ""),
+    );
+    const existingExtracted =
+      primary.extracted_data &&
+      typeof primary.extracted_data === "object" &&
+      !Array.isArray(primary.extracted_data)
+        ? (primary.extracted_data as Record<string, unknown>)
+        : {};
+    const { error: adoptError } = await supabaseAdmin
+      .from("interpreted_contents")
+      .update({
+        extracted_data: {
+          ...existingExtracted,
+          ...(item.extracted_data || {}),
+          feedSourceId: source.id,
+          feedSourceName: source.name,
+          feedSourceUrl: source.url,
+          feedExternalKey: item.externalKey,
+          migratedFromLegacyNotion: true,
+          migratedAt: now,
+        },
+        updated_at: now,
+      })
+      .eq("id", primary.id);
+    if (adoptError) throw adoptError;
+
+    await Promise.all(
+      redundant.map(async (row) => {
+        const extracted =
+          row.extracted_data &&
+          typeof row.extracted_data === "object" &&
+          !Array.isArray(row.extracted_data)
+            ? (row.extracted_data as Record<string, unknown>)
+            : {};
+        const { error: redundantError } = await supabaseAdmin
+          .from("interpreted_contents")
+          .update({
+            review_status: "desativado",
+            updated_at: now,
+            extracted_data: { ...extracted, consolidatedInto: primary.id, consolidatedAt: now },
+          })
+          .eq("id", row.id);
+        if (redundantError) throw redundantError;
+      }),
+    );
+  }
+}
+
+type NormalizedNotionEventShape = {
+  title: string | null;
+  category: string | null;
+  summary: string | null;
+  full_description: string | null;
+  event_date: string | null;
+  location: string | null;
+  city: string | null;
+  price: string | null;
+  source_url: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_instagram: string | null;
+  status: string | null;
+  extracted_data: Record<string, unknown>;
+};

@@ -36,12 +36,20 @@ export type FeedSourceRecord = {
   updated_at: string;
 };
 
-const NOTION_URL = "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link";
+const NOTION_URL =
+  "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link";
 const FEED_PROVIDER = "feed_source";
 
 function metadata(value: unknown): FeedMetadata {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as FeedMetadata;
+}
+
+function sourceType(url: string) {
+  if (/(?:notion\.site|notion\.com)/i.test(url)) return "notion";
+  if (/(?:instagram\.com)/i.test(url)) return "instagram";
+  if (/(?:\/rss\b|\/feed\b|\.xml(?:\?|$))/i.test(url)) return "rss";
+  return "web";
 }
 
 function normalizeSource(row: PublicationDestinationRow): FeedSourceRecord {
@@ -66,19 +74,16 @@ export async function requireAdminAccess(accessToken: string) {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
   if (error || !data.user) throw new Error("Sessão inválida ou expirada.");
 
-  const [{ data: roleRow, error: roleError }, { data: profile, error: profileError }] = await Promise.all([
-    supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "admin")
-      .maybeSingle(),
-    supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .maybeSingle(),
-  ]);
+  const [{ data: roleRow, error: roleError }, { data: profile, error: profileError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .eq("role", "admin")
+        .maybeSingle(),
+      supabaseAdmin.from("profiles").select("role").eq("id", data.user.id).maybeSingle(),
+    ]);
 
   if (roleError && profileError) {
     throw new Error("Não foi possível validar a permissão administrativa.");
@@ -148,7 +153,7 @@ export async function saveFeedSourceForAdmin(
 ) {
   await requireAdminAccess(accessToken);
   const url = new URL(input.url.trim()).toString();
-  const sourceType = url.includes("notion.site") || url.includes("notion.com") ? "notion" : "web";
+  const detectedSourceType = sourceType(url);
   const now = new Date().toISOString();
 
   if (!input.name.trim()) throw new Error("Informe um nome para a fonte.");
@@ -171,7 +176,7 @@ export async function saveFeedSourceForAdmin(
         enabled: input.active,
         field_mapping: {
           ...currentMeta,
-          sourceType,
+          sourceType: detectedSourceType,
           trusted: input.trusted,
           autoPublish: input.trusted && input.autoPublish,
         },
@@ -202,7 +207,7 @@ export async function saveFeedSourceForAdmin(
       provider: FEED_PROVIDER,
       enabled: input.active,
       field_mapping: {
-        sourceType,
+        sourceType: detectedSourceType,
         trusted: input.trusted,
         autoPublish: input.trusted && input.autoPublish,
         lastSyncedAt: null,
@@ -261,6 +266,7 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
     url: sourceRecord.url,
     trusted: sourceRecord.trusted,
     autoPublish: sourceRecord.auto_publish,
+    sourceType: sourceRecord.source_type as FeedSource["sourceType"],
   };
 
   const currentMeta = metadata(data.field_mapping);
@@ -295,6 +301,62 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
       .eq("id", id);
     throw new Error(message);
   }
+}
+
+export async function syncAllConfiguredFeedSources() {
+  await ensureNotionSource();
+  const { data, error } = await supabaseAdmin
+    .from("publication_destinations")
+    .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
+    .eq("provider", FEED_PROVIDER)
+    .eq("enabled", true)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const results = [];
+  for (const row of (data || []) as PublicationDestinationRow[]) {
+    const record = normalizeSource(row);
+    const currentMeta = metadata(row.field_mapping);
+    try {
+      const result = await ingestFeedSource({
+        id: record.id,
+        name: record.name,
+        url: record.url,
+        trusted: record.trusted,
+        autoPublish: record.auto_publish,
+        sourceType: record.source_type as FeedSource["sourceType"],
+      });
+      await supabaseAdmin
+        .from("publication_destinations")
+        .update({
+          field_mapping: {
+            ...currentMeta,
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncStatus: "sucesso",
+            lastSyncResult: result,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", record.id);
+      results.push({ ok: true, id: record.id, ...result });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Falha ao sincronizar fonte.";
+      await supabaseAdmin
+        .from("publication_destinations")
+        .update({
+          field_mapping: {
+            ...currentMeta,
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncStatus: "erro",
+            lastSyncResult: { error: message },
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", record.id);
+      results.push({ ok: false, id: record.id, source: record.name, error: message });
+    }
+  }
+  return results;
 }
 
 export async function getLegacyNotionStatus(accessToken: string) {

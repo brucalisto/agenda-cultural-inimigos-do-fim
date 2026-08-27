@@ -1,0 +1,22 @@
+name: Sincronizar feeds da Agenda
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar sincronização protegida
+        env:
+          FEED_SYNC_URL: ${{ vars.FEED_SYNC_URL }}
+          FEED_SYNC_SECRET: ${{ secrets.FEED_SYNC_SECRET }}
+        run: |
+          test -n "$FEED_SYNC_URL" || { echo "Configure a variável FEED_SYNC_URL"; exit 1; }
+          test -n "$FEED_SYNC_SECRET" || { echo "Configure o secret FEED_SYNC_SECRET"; exit 1; }
+          curl --fail-with-body --retry 2 --max-time 240 \
+            -X POST \
+            -H "Authorization: Bearer $FEED_SYNC_SECRET" \
+            "$FEED_SYNC_URL/api/public/sync-feeds"
