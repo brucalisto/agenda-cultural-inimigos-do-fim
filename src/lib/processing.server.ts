@@ -19,6 +19,27 @@ async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
   };
 }
 
+type LoadedMedia = { mimeType: string; data: string };
+
+async function storeOriginalEventImage(messageId: string, media: LoadedMedia) {
+  if (!/^image\/(?:jpeg|png|webp)$/i.test(media.mimeType)) return null;
+  const bytes = Buffer.from(media.data, "base64");
+  if (bytes.byteLength > 8 * 1024 * 1024) return null;
+
+  const extension = media.mimeType.includes("png")
+    ? "png"
+    : media.mimeType.includes("webp")
+      ? "webp"
+      : "jpg";
+  const storagePath = `original/${messageId}/${Date.now()}.${extension}`;
+  const { error } = await supabaseAdmin.storage
+    .from("event-images")
+    .upload(storagePath, bytes, { contentType: media.mimeType, upsert: false });
+  if (error) throw error;
+
+  return supabaseAdmin.storage.from("event-images").getPublicUrl(storagePath).data.publicUrl;
+}
+
 function describeForGrouping(payload: BaileysWebhook) {
   return [
     `Tipo: ${payload.contentType}`,
@@ -98,6 +119,15 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
   if (error) throw error;
 
   try {
+    const { data: existingContents } = await db
+      .from("interpreted_contents")
+      .select("event_sequence,image_url")
+      .eq("message_id", message.id);
+    const existingImages = new Map(
+      (existingContents || [])
+        .filter((content) => content.image_url)
+        .map((content) => [content.event_sequence, content.image_url as string]),
+    );
     const cutoff = new Date(new Date(occurred).getTime() - 5 * 60_000).toISOString();
     const { data: previousMessages } = await db
       .from("whatsapp_messages")
@@ -112,7 +142,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       .order("occurred_at", { ascending: false })
       .limit(8);
 
-    let payloads = [payload];
+    const payloads = [payload];
     const bundledMessageIds: string[] = [];
     let groupingReference = payload;
     const previousIds = (previousMessages || []).map((candidate) => candidate.id);
@@ -145,10 +175,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     }
 
     if (bundledMessageIds.length) {
-      await db
-        .from("interpreted_contents")
-        .delete()
-        .in("message_id", bundledMessageIds);
+      await db.from("interpreted_contents").delete().in("message_id", bundledMessageIds);
       await db
         .from("whatsapp_messages")
         .update({
@@ -163,9 +190,16 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     await db.from("message_media").delete().eq("message_id", message.id);
 
     const contexts: string[] = [];
-    const mediaFiles: Array<{ mimeType: string; data: string }> = [];
+    const mediaFiles: LoadedMedia[] = [];
     const extraWarnings: string[] = [];
     const loadedRemoteImages = new Set<string>();
+    let eventImageCandidate: { media: LoadedMedia; priority: number } | null = null;
+    const considerEventImage = (media: LoadedMedia, priority: number) => {
+      if (!media.mimeType.startsWith("image/")) return;
+      if (!eventImageCandidate || priority > eventImageCandidate.priority) {
+        eventImageCandidate = { media, priority };
+      }
+    };
     for (const [index, item] of payloads.entries()) {
       contexts.push(
         `MENSAGEM ${index + 1}\n${[item.text, item.caption].filter(Boolean).join("\n")}`,
@@ -183,7 +217,9 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           );
           if (page.imageUrl && !loadedRemoteImages.has(page.imageUrl)) {
             try {
-              mediaFiles.push(await loadPublicImage(page.imageUrl));
+              const remoteImage = await loadPublicImage(page.imageUrl);
+              mediaFiles.push(remoteImage);
+              considerEventImage(remoteImage, 1);
               loadedRemoteImages.add(page.imageUrl);
             } catch (cause) {
               extraWarnings.push(
@@ -211,7 +247,12 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         }
       }
       if (item.linkPreview?.jpegThumbnailBase64) {
-        mediaFiles.push({ mimeType: "image/jpeg", data: item.linkPreview.jpegThumbnailBase64 });
+        const thumbnail = {
+          mimeType: "image/jpeg",
+          data: item.linkPreview.jpegThumbnailBase64,
+        };
+        mediaFiles.push(thumbnail);
+        considerEventImage(thumbnail, 0);
       }
       if (item.media) {
         await db.from("message_media").insert({
@@ -223,7 +264,9 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           storage_path: item.media.relativePath,
         });
         try {
-          mediaFiles.push(await loadMedia(item.media));
+          const attachedMedia = await loadMedia(item.media);
+          mediaFiles.push(attachedMedia);
+          considerEventImage(attachedMedia, 2);
         } catch (cause) {
           extraWarnings.push(cause instanceof Error ? cause.message : "Mídia indisponível");
         }
@@ -240,6 +283,18 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     }
 
     const interpreted = await processWithAI(context || "Analise a mídia anexada.", mediaFiles);
+    let originalImageUrl: string | null = null;
+    if (eventImageCandidate) {
+      try {
+        originalImageUrl = await storeOriginalEventImage(message.id, eventImageCandidate.media);
+      } catch (cause) {
+        extraWarnings.push(
+          cause instanceof Error
+            ? `Imagem original não foi salva: ${cause.message}`
+            : "Imagem original não foi salva.",
+        );
+      }
+    }
     const baseRows = interpreted.items.map((item, eventSequence) => {
       const reviewStatus =
         item.confidence_score >= 0.75 && item.missing_fields.length === 0
@@ -249,6 +304,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         message_id: message.id,
         event_sequence: eventSequence,
         ...item,
+        image_url: existingImages.get(eventSequence) || originalImageUrl,
         city: inferCity(item.city, item.location),
         price: item.price == null ? null : String(item.price),
         warnings: [...item.warnings, ...extraWarnings],

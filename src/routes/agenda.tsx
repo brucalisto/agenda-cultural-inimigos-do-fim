@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { categoryIllustration } from "@/lib/category-illustrations";
 
 export const Route = createFileRoute("/agenda")({ component: PublicAgenda });
 type EventItem = {
@@ -127,16 +128,12 @@ function EventCard({
       className="group relative h-full overflow-hidden rounded-[1.35rem] border border-[#e1d4c2] bg-white text-left shadow-[0_12px_35px_rgba(74,52,31,.08)] transition duration-300 hover:-translate-y-1 hover:border-[#c78a35] hover:shadow-[0_20px_45px_rgba(133,76,32,.13)]"
     >
       <div className="grid aspect-[4/3] place-items-center overflow-hidden bg-[linear-gradient(135deg,#f3e6ce,#fffaf0)] text-[#a43a28]">
-        {event.image_url ? (
-          <img
-            src={event.image_url}
-            alt=""
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <Ticket className="h-12 w-12 opacity-20" />
-        )}
+        <img
+          src={categoryIllustration(event.category)}
+          alt={`Ilustração da categoria ${event.category || "Outros"}`}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          loading="lazy"
+        />
       </div>
       <div className="p-4">
         <div className="mb-4 flex items-start justify-between gap-2">
@@ -221,16 +218,12 @@ function FeaturedEvents({
   if (!events.length) return null;
   const feature = (event: EventItem) => (
     <article className="relative min-h-[340px] overflow-hidden rounded-[2rem] bg-[#30241d] p-7 text-[#fff8e8] shadow-[0_24px_70px_rgba(74,47,28,.18)] sm:p-10">
-      {event.image_url ? (
-        <>
-          <img
-            src={event.image_url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#241a15]/95 via-[#241a15]/80 to-[#241a15]/35" />
-        </>
-      ) : null}
+      <img
+        src={categoryIllustration(event.category)}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#241a15]/95 via-[#241a15]/80 to-[#241a15]/35" />
       <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#d59b2d]/20" />
       <Sparkles className="absolute bottom-8 right-8 h-28 w-28 text-[#d8a936]/20" />
       <div className="relative flex min-h-[270px] max-w-3xl flex-col justify-between gap-10">
