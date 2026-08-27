@@ -372,6 +372,23 @@ function notionStatusIsInactive(status: string | null) {
   return /cancelad|rascunho|arquivad|inativ|adiad/i.test(status || "");
 }
 
+async function storeNotionEventImage(externalKey: string, remoteUrl: string | null) {
+  if (!remoteUrl) return null;
+  const response = await fetch(remoteUrl);
+  if (!response.ok) throw new Error(`Imagem do Notion indisponível (${response.status}).`);
+  const mimeType = response.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+  if (!/^image\/(?:jpeg|png|webp)$/i.test(mimeType)) return null;
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > 8 * 1024 * 1024) return null;
+  const extension = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
+  const storagePath = `notion/${externalKey.replace(/[^a-z0-9-]/gi, "-")}.${extension}`;
+  const { error } = await supabaseAdmin.storage
+    .from("event-images")
+    .upload(storagePath, bytes, { contentType: mimeType, upsert: true });
+  if (error) throw error;
+  return supabaseAdmin.storage.from("event-images").getPublicUrl(storagePath).data.publicUrl;
+}
+
 async function reconcileNotionSource(source: FeedSource, seenKeys: string[]) {
   const { data, error } = await supabaseAdmin
     .from("interpreted_contents")
@@ -411,21 +428,32 @@ async function reconcileNotionSource(source: FeedSource, seenKeys: string[]) {
 async function ingestNotionSource(source: FeedSource) {
   const { rows, dataSourceId } = await fetchNotionEvents(source.url);
   const now = new Date().toISOString();
-  const normalized = rows.map((item) => ({
-    ...item,
-    extracted_data: {
-      sourceType: "notion",
-      feedSourceId: source.id,
-      feedSourceName: source.name,
-      feedSourceUrl: source.url,
-      trustedSource: source.trusted,
-      autoPublish: source.autoPublish,
-      notionDataSourceId: dataSourceId,
-      notionLastEditedAt: item.lastEditedAt,
-      notionStatus: item.status,
-      importedAt: now,
-    },
-  }));
+  const normalized = await Promise.all(
+    rows.map(async (item) => {
+      let storedImageUrl: string | null = null;
+      try {
+        storedImageUrl = await storeNotionEventImage(item.externalKey, item.image_url);
+      } catch {
+        storedImageUrl = null;
+      }
+      return {
+        ...item,
+        image_url: storedImageUrl,
+        extracted_data: {
+          sourceType: "notion",
+          feedSourceId: source.id,
+          feedSourceName: source.name,
+          feedSourceUrl: source.url,
+          trustedSource: source.trusted,
+          autoPublish: source.autoPublish,
+          notionDataSourceId: dataSourceId,
+          notionLastEditedAt: item.lastEditedAt,
+          notionStatus: item.status,
+          importedAt: now,
+        },
+      };
+    }),
+  );
   const consolidated = consolidateFeedEvents(normalized);
   await adoptLegacyNotionRows(source, consolidated);
   const results: Array<{
@@ -455,6 +483,7 @@ async function ingestNotionSource(source: FeedSource) {
       contact_name: item.contact_name,
       contact_phone: item.contact_phone,
       contact_instagram: item.contact_instagram,
+      ...(item.image_url ? { image_url: item.image_url } : {}),
       missing_fields: [],
       warnings: [],
       confidence_score: 1,
@@ -573,6 +602,7 @@ type NormalizedNotionEventShape = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_instagram: string | null;
+  image_url: string | null;
   status: string | null;
   extracted_data: Record<string, unknown>;
 };

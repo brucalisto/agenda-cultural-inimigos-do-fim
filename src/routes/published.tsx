@@ -1,17 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  Edit,
-  ExternalLink,
-  ImageIcon,
-  Loader2,
-  Search,
-  Sparkles,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react";
+import { CalendarDays, Edit, ExternalLink, Loader2, Search, Star, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
@@ -39,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { legacyNotionImportStatus } from "@/lib/feed-sources.functions";
 import { importLegacyNotionAgenda } from "@/lib/feed.functions";
-import { createEventImage } from "@/lib/event-images.functions";
+import { categoryIllustration } from "@/lib/category-illustrations";
 
 type PublishedItem = {
   id: string;
@@ -97,16 +86,12 @@ function EventRow({
     <Card className="overflow-hidden">
       <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
         <div className="grid h-20 w-full shrink-0 place-items-center overflow-hidden rounded-lg bg-muted sm:w-28">
-          {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <ImageIcon className="h-7 w-7 text-muted-foreground/40" />
-          )}
+          <img
+            src={categoryIllustration(item.category)}
+            alt={`Ilustração da categoria ${item.category || "Outros"}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -148,7 +133,6 @@ function PublishedPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [date, setDate] = useState("");
-  const [generatingImage, setGeneratingImage] = useState(false);
 
   const load = async () => {
     const curated = await supabase
@@ -248,25 +232,6 @@ function PublishedPage() {
       await load();
     }
   };
-  const generateImage = async () => {
-    if (!editing) return;
-    setGeneratingImage(true);
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.access_token) throw new Error("Sua sessão expirou.");
-      const result = await createEventImage({
-        data: { accessToken: data.session.access_token, eventId: editing.id },
-      });
-      setEditing({ ...editing, image_url: result.imageUrl });
-      toast.success("Imagem criada e vinculada ao evento.");
-      await load();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Não foi possível gerar a imagem.");
-    } finally {
-      setGeneratingImage(false);
-    }
-  };
-
   const eventList = (list: PublishedItem[], empty: string) =>
     list.length ? (
       list.map((item) => (
@@ -429,27 +394,11 @@ function PublishedPage() {
                 onChange={(e) => setEditing({ ...editing, source_url: e.target.value })}
                 placeholder="Link oficial"
               />
-              <div className="flex gap-2">
-                <Input
-                  value={editing.image_url || ""}
-                  onChange={(e) => setEditing({ ...editing, image_url: e.target.value })}
-                  placeholder="URL da imagem"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  disabled={generatingImage}
-                  onClick={() => void generateImage()}
-                  aria-label="Gerar imagem do evento com inteligência artificial"
-                >
-                  {generatingImage ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+              <Input
+                value={editing.image_url || ""}
+                onChange={(e) => setEditing({ ...editing, image_url: e.target.value })}
+                placeholder="URL da imagem original do evento"
+              />
               <Textarea
                 className="md:col-span-2"
                 value={editing.summary || ""}

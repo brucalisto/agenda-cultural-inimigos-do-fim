@@ -13,6 +13,11 @@ type NotionProperty = {
   email?: string | null;
   number?: number | null;
   checkbox?: boolean;
+  files?: Array<{
+    type?: "file" | "external";
+    file?: { url?: string };
+    external?: { url?: string };
+  }>;
   formula?: {
     type?: string;
     string?: string | null;
@@ -28,6 +33,11 @@ type NotionPage = {
   archived?: boolean;
   in_trash?: boolean;
   last_edited_time?: string;
+  cover?: {
+    type?: "file" | "external";
+    file?: { url?: string };
+    external?: { url?: string };
+  } | null;
   properties?: Record<string, NotionProperty>;
 };
 
@@ -46,6 +56,7 @@ export type NotionEventRow = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_instagram: string | null;
+  image_url: string | null;
   status: string | null;
   lastEditedAt: string | null;
 };
@@ -121,6 +132,15 @@ function dateValue(properties: Record<string, NotionProperty>, aliases: string[]
   return start ? { start, end: null } : null;
 }
 
+function fileUrl(candidate?: NotionProperty | NotionPage["cover"]) {
+  if (!candidate) return null;
+  if ("files" in candidate) {
+    const first = candidate.files?.[0];
+    return first?.file?.url || first?.external?.url || null;
+  }
+  return candidate.file?.url || candidate.external?.url || null;
+}
+
 function databaseIdFromUrl(url: string) {
   const matches = url.match(/[a-f0-9]{32}/gi) || [];
   return matches[0] || null;
@@ -188,6 +208,9 @@ function mapPage(page: NotionPage): NotionEventRow {
     contact_name: value(properties, ["Contato", "Responsável", "Produção"]),
     contact_phone: value(properties, ["Telefone", "WhatsApp", "Celular"]),
     contact_instagram: value(properties, ["Instagram", "Perfil"]),
+    image_url:
+      fileUrl(property(properties, ["Imagem", "Banner", "Capa", "Image", "Foto"])) ||
+      fileUrl(page.cover),
     status: value(properties, ["Status", "Situação", "Publicação"]),
     lastEditedAt: page.last_edited_time || null,
   };
