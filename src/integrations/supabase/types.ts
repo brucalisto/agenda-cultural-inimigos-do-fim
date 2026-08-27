@@ -208,6 +208,7 @@ export type Database = {
           featured_starts_at: string | null;
           geocoded_at: string | null;
           id: string;
+          image_url: string | null;
           is_featured: boolean;
           keywords: string[] | null;
           latitude: number | null;
@@ -244,6 +245,7 @@ export type Database = {
           featured_starts_at?: string | null;
           geocoded_at?: string | null;
           id?: string;
+          image_url?: string | null;
           is_featured?: boolean;
           keywords?: string[] | null;
           latitude?: number | null;
@@ -280,6 +282,7 @@ export type Database = {
           featured_starts_at?: string | null;
           geocoded_at?: string | null;
           id?: string;
+          image_url?: string | null;
           is_featured?: boolean;
           keywords?: string[] | null;
           latitude?: number | null;

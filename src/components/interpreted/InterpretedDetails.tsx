@@ -52,6 +52,7 @@ import {
   type InterpretedContent,
 } from "@/lib/interpreted";
 import { reprocessMessage } from "@/lib/gemini.functions";
+import { createEventImage } from "@/lib/event-images.functions";
 import { simulateAutomation } from "@/lib/automation.functions";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -136,6 +137,23 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
     try {
       await updateInterpretedContent(id, { review_status: status });
       toast.success(`Status atualizado para ${status}`);
+      if (status === "publicado") {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) {
+          try {
+            await createEventImage({
+              data: { accessToken: data.session.access_token, eventId: id },
+            });
+            toast.success("Imagem ilustrativa criada para a Agenda.");
+          } catch (cause) {
+            toast.warning(
+              cause instanceof Error
+                ? `Evento publicado, mas a imagem não foi criada: ${cause.message}`
+                : "Evento publicado, mas a imagem não foi criada.",
+            );
+          }
+        }
+      }
       refetch();
     } catch (error: unknown) {
       toast.error(
