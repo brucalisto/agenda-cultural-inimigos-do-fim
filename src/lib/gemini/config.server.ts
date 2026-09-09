@@ -11,11 +11,13 @@ export const GEMINI_CONFIG = {
 };
 
 export const GROQ_CONFIG = {
-  MODEL_NAME: "qwen/qwen3.6-27b",
+  // GPT-OSS 20B is a current Groq production model and is better suited to
+  // structured extraction than the preview Qwen model we were using.
+  MODEL_NAME: "openai/gpt-oss-20b",
   AUDIO_MODEL_NAME: "whisper-large-v3-turbo",
   API_URL: "https://api.groq.com/openai/v1",
-  // Current tier reports a 1,000 output-token/minute ceiling for this model.
-  MAX_OUTPUT_TOKENS: 900,
+  // Keep completion compact to stay comfortably inside free-tier limits.
+  MAX_OUTPUT_TOKENS: 800,
 };
 
 export const OPENROUTER_CONFIG = {
