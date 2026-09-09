@@ -15,6 +15,26 @@ function validSignature(body: string, signature: string | null, secret: string) 
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
+function formatProcessingError(cause: unknown) {
+  if (cause instanceof Error) return cause.message;
+  if (typeof cause === "object" && cause) {
+    const value = cause as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    const parts = [
+      value.message && String(value.message),
+      value.code && `código ${String(value.code)}`,
+      value.details && String(value.details),
+      value.hint && `dica: ${String(value.hint)}`,
+    ].filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+    try {
+      return JSON.stringify(cause).slice(0, 1000);
+    } catch {
+      return "Falha de processamento sem detalhes serializáveis";
+    }
+  }
+  return String(cause || "Falha de processamento sem detalhes");
+}
+
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
   server: {
     handlers: {
@@ -123,6 +143,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 processing_status: "ignored",
                 error_message: `Grupo detectado, mas não autorizado (${payload.groupName} · ${externalGroupId})`,
                 processed_at: new Date().toISOString(),
+                processing_duration_ms: Date.now() - started,
                 http_status: 200,
               })
               .eq("id", event.id);
@@ -142,17 +163,18 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
             .eq("id", event.id);
           return Response.json({ ok: true, ...result });
         } catch (cause) {
-          const message = cause instanceof Error ? cause.message : "Falha";
+          const message = formatProcessingError(cause);
           await db
             .from("webhook_events")
             .update({
               processing_status: "error",
               error_message: message,
               processed_at: new Date().toISOString(),
+              processing_duration_ms: Date.now() - started,
               http_status: 500,
             })
             .eq("id", event.id);
-          return Response.json({ ok: false, error: "Processing failed" }, { status: 500 });
+          return Response.json({ ok: false, error: message }, { status: 500 });
         }
       },
     },
