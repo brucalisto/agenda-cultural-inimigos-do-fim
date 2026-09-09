@@ -10,6 +10,12 @@ export const GEMINI_CONFIG = {
   TEMPERATURE: 0.1,
 };
 
+export const CLOUDFLARE_CONFIG = {
+  MODEL_NAME: "@cf/meta/llama-3.2-11b-vision-instruct",
+  API_URL: "https://api.cloudflare.com/client/v4/accounts",
+  MAX_OUTPUT_TOKENS: 1800,
+};
+
 export const GROQ_CONFIG = {
   // GPT-OSS 20B is a current Groq production model and is better suited to
   // structured extraction than the preview Qwen model we were using.
