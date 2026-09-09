@@ -64,8 +64,11 @@ async function fetchInstagramHtml(input: string) {
 function discoverPostUrlsFromHtml(html: string) {
   const urls: string[] = [];
 
+  const bs = String.fromCharCode(92);
+  const s = "(?:" + bs + bs + ")?/";
   const absolute = new RegExp(
-    'https:\\\\?/\\\\?/(?:www\\.)?instagram\\.com\\\\?/(p|reel|tv)\\\\?/([^\\\\/"?&]+)',
+    "https:" + s + s + "(?:www" + bs + bs + ".)?instagram" + bs + bs + ".com" + s +
+      "(p|reel|tv)" + s + "([A-Za-z0-9_-]+)",
     "gi",
   );
   let match: RegExpExecArray | null;
