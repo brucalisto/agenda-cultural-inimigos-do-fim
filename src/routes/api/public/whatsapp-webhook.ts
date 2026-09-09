@@ -46,13 +46,35 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         if (!secret) return new Response("Webhook secret missing", { status: 500 });
         if (!validSignature(body, request.headers.get("x-baileys-signature"), secret))
           return new Response("Unauthorized", { status: 401 });
+
         let payload;
         try {
           payload = parseBaileysWebhook(JSON.parse(body));
         } catch {
           return new Response("Invalid Baileys payload", { status: 400 });
         }
+
         const db = supabaseAdmin;
+
+        // Baileys may retry the same delivery while the first request is still processing.
+        // Do not create multiple log rows for the same WhatsApp event.
+        const { data: existingEvent, error: existingEventError } = await db
+          .from("webhook_events")
+          .select("id, processing_status, http_status")
+          .eq("external_event_id", payload.eventId)
+          .order("received_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (existingEventError) throw existingEventError;
+        if (existingEvent) {
+          return Response.json({
+            ok: true,
+            duplicate: true,
+            status: existingEvent.processing_status,
+            eventId: existingEvent.id,
+          });
+        }
+
         const { data: event, error: eventError } = await db
           .from("webhook_events")
           .insert({
@@ -66,6 +88,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
           .select()
           .single();
         if (eventError || !event) throw eventError || new Error("Falha ao registrar webhook");
+
         try {
           if (isNonEditorialContentType(payload.contentType)) {
             await db
