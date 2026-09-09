@@ -27,7 +27,7 @@ function normalizePostUrl(input: string) {
   const url = assertInstagramUrl(input);
   const match = url.pathname.match(/^\/(p|reel|tv)\/([^/]+)/i);
   if (!match) return null;
-  return `https://www.instagram.com/${match[1]}/${match[2]}/`;
+  return `https://www.instagram.com/${match[1].toLowerCase()}/${match[2]}/`;
 }
 
 function uniq<T>(values: T[]) {
@@ -62,21 +62,28 @@ async function fetchInstagramHtml(input: string) {
 
 function discoverPostUrlsFromHtml(html: string) {
   const urls: string[] = [];
-  const patterns = [
-    /https:\\/\\/(?:www\.)?instagram\.com\\/(?:p|reel|tv)\\/([^\\/"?&]+)/gi,
-    /href=["']\/(?:p|reel|tv)\/([^/"'?&]+)\/[^"']*["']/gi,
+
+  const absolute = /https:\\/\\/(?:www\.)?instagram\.com\\/(p|reel|tv)\\/([^\\/"?&]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = absolute.exec(html))) {
+    urls.push(`https://www.instagram.com/${match[1].toLowerCase()}/${match[2]}/`);
+  }
+
+  const href = /href=["']\/(p|reel|tv)\/([^/"'?&]+)\/[^"']*["']/gi;
+  while ((match = href.exec(html))) {
+    urls.push(`https://www.instagram.com/${match[1].toLowerCase()}/${match[2]}/`);
+  }
+
+  const shortcodePatterns = [
     /"shortcode"\s*:\s*"([A-Za-z0-9_-]+)"/gi,
     /"code"\s*:\s*"([A-Za-z0-9_-]{5,})"/gi,
   ];
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
+  for (const pattern of shortcodePatterns) {
     while ((match = pattern.exec(html))) {
-      const shortcode = match[1];
-      if (!shortcode) continue;
-      urls.push(`https://www.instagram.com/p/${shortcode}/`);
-      if (urls.length >= MAX_POSTS * 4) break;
+      if (match[1]) urls.push(`https://www.instagram.com/p/${match[1]}/`);
     }
   }
+
   return uniq(urls).slice(0, MAX_POSTS);
 }
 
