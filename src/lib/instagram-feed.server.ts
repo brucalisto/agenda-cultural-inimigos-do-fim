@@ -38,7 +38,8 @@ function decodeJsonString(value: string) {
   try {
     return JSON.parse(`"${value.replace(/"/g, '\\"')}"`) as string;
   } catch {
-    return value.replace(/\\u0026/g, "&").replace(/\\\//g, "/");
+    const bs = String.fromCharCode(92);
+    return value.split(bs + "u0026").join("&").split(bs + "/").join("/");
   }
 }
 
