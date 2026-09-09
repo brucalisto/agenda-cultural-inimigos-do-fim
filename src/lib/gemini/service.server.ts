@@ -167,9 +167,6 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new Error("GROQ_API_KEY não está configurada.");
   const compactContent = compactText(content, GROQ_MAX_CONTENT_CHARS);
-  const visual = compactContent.length < 300
-    ? mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 1)
-    : [];
   const audible = mediaFiles.filter(
     (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
   );
@@ -182,16 +179,7 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
     transcripts.filter(Boolean).join("\n\n"),
     GROQ_MAX_TRANSCRIPT_CHARS,
   );
-  const userContent: Array<Record<string, unknown>> = [
-    {
-      type: "text",
-      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}\n\nRetorne somente JSON válido, sem markdown e sem explicações.`,
-    },
-    ...visual.map((file) => ({
-      type: "image_url",
-      image_url: { url: `data:${file.mimeType};base64,${file.data}` },
-    })),
-  ];
+  const userContent = `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}\n\nRetorne somente JSON válido, sem markdown e sem explicações.`;
   const response = await fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
