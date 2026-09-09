@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { resolveAdminAccess } from "@/lib/admin-auth.server";
 import { parseBaileysWebhook } from "@/lib/adapters/baileys.server";
 import { processBaileysMessage } from "@/lib/processing.server";
 import {
@@ -8,28 +9,22 @@ import {
   normalizeWhatsAppGroupName,
 } from "@/lib/whatsapp-groups";
 
+export const getAdminAccessStatus = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({ accessToken: z.string().min(1) }).parse(data))
+  .handler(async ({ data }) => {
+    const access = await resolveAdminAccess(data.accessToken);
+    return { isAdmin: access.isAdmin, source: access.source };
+  });
+
 export const reprocessWebhookEvent = createServerFn({ method: "POST" })
   .inputValidator((data) =>
     z.object({ eventId: z.string().uuid(), accessToken: z.string().min(1) }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { data: auth, error: authError } = await supabaseAdmin.auth.getUser(data.accessToken);
-    if (authError || !auth.user)
-      throw new Error("Sessão expirada. Entre novamente para reprocessar.");
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", auth.user.id)
-      .maybeSingle();
-
-    const metadataRole =
-      (auth.user.app_metadata?.role as string | undefined) ||
-      (auth.user.user_metadata?.role as string | undefined);
-    const isAdmin = profile?.role === "admin" || metadataRole === "admin";
-    if (!isAdmin)
+    const access = await resolveAdminAccess(data.accessToken);
+    if (!access.isAdmin)
       throw new Error(
-        "Sua sessão está autenticada, mas o perfil não está marcado como administrador. Atualize o papel do usuário para admin e entre novamente.",
+        "Sua sessão está autenticada, mas este usuário ainda não foi reconhecido como administrador da aplicação. Configure o perfil como admin ou inclua o e-mail de login em ADMIN_EMAILS e entre novamente.",
       );
 
     const { data: event, error } = await supabaseAdmin
@@ -85,7 +80,12 @@ export const reprocessWebhookEvent = createServerFn({ method: "POST" })
         .eq("id", event.id);
       return { success: true, ...result };
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Falha no reprocessamento";
+      const message =
+        cause instanceof Error
+          ? cause.message
+          : typeof cause === "object" && cause && "message" in cause
+            ? String((cause as { message?: unknown }).message || "Falha no reprocessamento")
+            : String(cause || "Falha no reprocessamento");
       await supabaseAdmin
         .from("webhook_events")
         .update({
@@ -96,6 +96,6 @@ export const reprocessWebhookEvent = createServerFn({ method: "POST" })
           processing_duration_ms: Date.now() - started,
         })
         .eq("id", event.id);
-      throw cause;
+      throw new Error(message);
     }
   });
