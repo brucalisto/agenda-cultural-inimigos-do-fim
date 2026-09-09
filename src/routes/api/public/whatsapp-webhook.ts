@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isNonEditorialContentType, parseBaileysWebhook } from "@/lib/adapters/baileys.server";
 import { processBaileysMessage } from "@/lib/processing.server";
-import { normalizeWhatsAppGroupId } from "@/lib/whatsapp-groups";
+import {
+  normalizeWhatsAppGroupId,
+  normalizeWhatsAppGroupName,
+} from "@/lib/whatsapp-groups";
 
 function validSignature(body: string, signature: string | null, secret: string) {
   if (!signature?.startsWith("sha256=")) return false;
@@ -57,12 +60,32 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               .eq("id", event.id);
             return Response.json({ ok: true, ignored: true, reason: "non_editorial_interaction" });
           }
+
           const externalGroupId = normalizeWhatsAppGroupId(payload.groupId);
-          let { data: group } = await db
+          const incomingGroupName = normalizeWhatsAppGroupName(payload.groupName);
+
+          let { data: group, error: groupLookupError } = await db
             .from("whatsapp_groups")
             .select("*")
             .eq("external_group_id", externalGroupId)
             .maybeSingle();
+          if (groupLookupError) throw groupLookupError;
+
+          if (!group?.ativo || !group?.autorizado) {
+            const { data: authorizedGroups, error: authorizedGroupsError } = await db
+              .from("whatsapp_groups")
+              .select("*")
+              .eq("ativo", true)
+              .eq("autorizado", true)
+              .limit(100);
+            if (authorizedGroupsError) throw authorizedGroupsError;
+
+            const sameName = (authorizedGroups || []).filter(
+              (candidate) => normalizeWhatsAppGroupName(candidate.nome || "") === incomingGroupName,
+            );
+            if (sameName.length === 1) group = sameName[0];
+          }
+
           if (!group) {
             const inserted = await db
               .from("whatsapp_groups")
@@ -86,28 +109,32 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               if (inserted.error) throw inserted.error;
               group = inserted.data;
             }
-          } else if (group.nome !== payload.groupName)
+          } else if (group.nome !== payload.groupName) {
             await db
               .from("whatsapp_groups")
               .update({ nome: payload.groupName, updated_at: new Date().toISOString() })
               .eq("id", group.id);
+          }
+
           if (!group?.ativo || !group?.autorizado) {
             await db
               .from("webhook_events")
               .update({
                 processing_status: "ignored",
-                error_message: "Grupo detectado, mas não autorizado",
+                error_message: `Grupo detectado, mas não autorizado (${payload.groupName} · ${externalGroupId})`,
                 processed_at: new Date().toISOString(),
                 http_status: 200,
               })
               .eq("id", event.id);
             return Response.json({ ok: true, ignored: true });
           }
+
           const result = await processBaileysMessage(payload, group.id);
           await db
             .from("webhook_events")
             .update({
               processing_status: "processed",
+              error_message: null,
               processed_at: new Date().toISOString(),
               processing_duration_ms: Date.now() - started,
               http_status: 200,
