@@ -16,13 +16,21 @@ export const reprocessWebhookEvent = createServerFn({ method: "POST" })
     const { data: auth, error: authError } = await supabaseAdmin.auth.getUser(data.accessToken);
     if (authError || !auth.user)
       throw new Error("Sessão expirada. Entre novamente para reprocessar.");
+
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("role")
       .eq("id", auth.user.id)
-      .single();
-    if (profile?.role !== "admin")
-      throw new Error("Somente administradores podem reprocessar webhooks.");
+      .maybeSingle();
+
+    const metadataRole =
+      (auth.user.app_metadata?.role as string | undefined) ||
+      (auth.user.user_metadata?.role as string | undefined);
+    const isAdmin = profile?.role === "admin" || metadataRole === "admin";
+    if (!isAdmin)
+      throw new Error(
+        "Sua sessão está autenticada, mas o perfil não está marcado como administrador. Atualize o papel do usuário para admin e entre novamente.",
+      );
 
     const { data: event, error } = await supabaseAdmin
       .from("webhook_events")

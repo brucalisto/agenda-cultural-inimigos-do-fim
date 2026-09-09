@@ -8,6 +8,19 @@ export type AIResult = InterpretedContentsResponse & {
   provider: "groq" | "gemini";
 };
 
+const GROQ_MAX_CONTENT_CHARS = 14000;
+const GROQ_MAX_TRANSCRIPT_CHARS = 6000;
+
+function compactText(value: string, maxChars: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars)}\n\n[conteúdo truncado automaticamente para respeitar o limite do provedor]`;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getDateContext() {
   const timeZone = "America/Sao_Paulo";
   const now = new Date();
@@ -60,16 +73,18 @@ async function transcribeWithGroq(file: MediaFile, apiKey: string) {
 async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new Error("GROQ_API_KEY não está configurada.");
-  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 5);
+  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 3);
   const audible = mediaFiles.filter(
     (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
   );
   const transcripts: string[] = [];
   for (const file of audible) transcripts.push(await transcribeWithGroq(file, apiKey));
+  const compactContent = compactText(content, GROQ_MAX_CONTENT_CHARS);
+  const compactTranscripts = compactText(transcripts.filter(Boolean).join("\n\n"), GROQ_MAX_TRANSCRIPT_CHARS);
   const userContent: Array<Record<string, unknown>> = [
     {
       type: "text",
-      text: `${getDateContext()}\n\nConteúdo para análise:\n${content}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${transcripts.filter(Boolean).join("\n\n") || "Nenhuma"}`,
+      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}`,
     },
     ...visual.map((file) => ({
       type: "image_url",
@@ -111,34 +126,45 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
     { text: `${getDateContext()}\n\nConteúdo para análise:\n\n${content}` },
     ...mediaFiles.map((file) => ({ inlineData: { mimeType: file.mimeType, data: file.data } })),
   ];
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPTS.v1 }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          maxOutputTokens: GEMINI_CONFIG.MAX_OUTPUT_TOKENS,
-          temperature: GEMINI_CONFIG.TEMPERATURE,
-          responseMimeType: "application/json",
-        },
-      }),
-    },
-  );
-  if (!response.ok)
-    throw new Error(`Gemini falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
-  const payload = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Resposta vazia do Gemini.");
-  return {
-    ...InterpretedContentsSchema.parse(JSON.parse(text)),
-    modelUsed: GEMINI_CONFIG.MODEL_NAME,
-    provider: "gemini",
-  };
+
+  let lastError = "Falha desconhecida";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPTS.v1 }] },
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            maxOutputTokens: GEMINI_CONFIG.MAX_OUTPUT_TOKENS,
+            temperature: GEMINI_CONFIG.TEMPERATURE,
+            responseMimeType: "application/json",
+          },
+        }),
+      },
+    );
+
+    if (response.ok) {
+      const payload = (await response.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Resposta vazia do Gemini.");
+      return {
+        ...InterpretedContentsSchema.parse(JSON.parse(text)),
+        modelUsed: GEMINI_CONFIG.MODEL_NAME,
+        provider: "gemini",
+      };
+    }
+
+    lastError = `Gemini falhou (${response.status}): ${(await response.text()).slice(0, 300)}`;
+    if (![429, 503].includes(response.status) || attempt === 2) break;
+    await sleep(1200 * (attempt + 1));
+  }
+
+  throw new Error(lastError);
 }
 
 export async function processWithAI(content: string, mediaFiles: MediaFile[] = []) {
@@ -173,7 +199,7 @@ export async function areMessagesComplementary(previous: string, current: string
       messages: [
         {
           role: "user",
-          content: `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda JSON {"complementary":true|false}.\nMENSAGEM 1:\n${previous}\nMENSAGEM 2:\n${current}`,
+          content: `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 5000)}\nMENSAGEM 2:\n${compactText(current, 5000)}`,
         },
       ],
       temperature: 0,
