@@ -6,6 +6,11 @@ import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
 import { consolidateFeedEvents, feedEventIdentity } from "@/lib/feed-normalization.server";
 import { fetchNotionEvents } from "@/lib/notion-feed.server";
 import { extractRssFeed } from "@/lib/rss-feed.server";
+import {
+  discoverInstagramPosts,
+  extractInstagramPublicPost,
+  loadInstagramImages,
+} from "@/lib/instagram-feed.server";
 
 export type FeedSource = {
   id: string;
@@ -64,8 +69,6 @@ function inferCity(city: string | null, location: string | null) {
 }
 
 async function decodeLegacyNotionExport(): Promise<LegacyNotionRow[]> {
-  // Usa somente Web APIs, compatíveis tanto com o runtime do Lovable/Cloudflare
-  // quanto com runtimes Node modernos. Evita depender de node:zlib em produção.
   const binary = atob(LEGACY_NOTION_EXPORT_GZIP_BASE64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
@@ -93,8 +96,6 @@ async function upsertFeedRow(
   externalKey: string,
   autoPublish: boolean,
 ) {
-  // Descobre o registro desta mesma fonte antes da análise de duplicidade. Assim,
-  // uma ressincronização não compara o evento com ele próprio.
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("interpreted_contents")
     .select("id")
@@ -220,8 +221,6 @@ export async function ingestLegacyNotionExport() {
     updated: boolean;
   }> = [];
 
-  // Processa em lotes limitados: mantém a proteção de duplicidade, mas evita
-  // centenas de chamadas sequenciais numa única requisição do painel.
   for (let start = 0; start < rows.length; start += LEGACY_IMPORT_BATCH_SIZE) {
     const batch = rows.slice(start, start + LEGACY_IMPORT_BATCH_SIZE);
     const savedBatch = await Promise.all(
@@ -246,14 +245,114 @@ export async function ingestLegacyNotionExport() {
   };
 }
 
+async function ingestInstagramSource(source: FeedSource) {
+  const postUrls = await discoverInstagramPosts(source.url);
+  const results: Array<{
+    title: string | null;
+    status: string;
+    duplicate: boolean;
+    postUrl: string;
+    skipped?: boolean;
+  }> = [];
+
+  for (const postUrl of postUrls) {
+    const post = await extractInstagramPublicPost(postUrl);
+    const postKey = `instagram:${source.id}:${post.shortcode}`;
+
+    const { data: alreadySeen, error: seenError } = await supabaseAdmin
+      .from("interpreted_contents")
+      .select("id")
+      .contains("extracted_data", { instagramPostKey: postKey })
+      .limit(1);
+    if (seenError) throw seenError;
+    if (alreadySeen?.length) {
+      results.push({
+        title: post.title,
+        status: "ja_processado",
+        duplicate: false,
+        postUrl: post.url,
+        skipped: true,
+      });
+      continue;
+    }
+
+    const media = await loadInstagramImages(post.imageUrls);
+    const context = [
+      `FONTE: ${source.name}`,
+      `PERFIL/FONTE MONITORADA: ${source.url}`,
+      `PUBLICAÇÃO: ${post.url}`,
+      post.title && `TÍTULO/METADADO: ${post.title}`,
+      post.description && `LEGENDA/DESCRIÇÃO: ${post.description}`,
+      post.text,
+      "Esta publicação pode ser carrossel, imagem, reel ou vídeo e pode conter programação de vários dias.",
+      "Extraia CADA evento separadamente quando houver mais de um. Não invente dados ausentes.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const interpreted = await processWithAI(context, media);
+    const now = new Date().toISOString();
+    const consolidatedItems = consolidateFeedEvents(interpreted.items);
+
+    for (const [eventSequence, item] of consolidatedItems.entries()) {
+      const externalKey = `${postKey}:${eventSequence}`;
+      const baseRow = {
+        message_id: null,
+        event_sequence: eventSequence,
+        ...item,
+        city: inferCity(item.city, item.location),
+        price: item.price == null ? null : String(item.price),
+        source_url: post.url,
+        ...(post.imageUrls[0] ? { image_url: post.imageUrls[0] } : {}),
+        extracted_data: {
+          sourceType: "instagram",
+          feedSourceId: source.id,
+          feedSourceName: source.name,
+          feedSourceUrl: source.url,
+          instagramPostKey: postKey,
+          instagramPostUrl: post.url,
+          instagramShortcode: post.shortcode,
+          importedAt: now,
+          imageCount: post.imageUrls.length,
+          ...(item.extracted_data && typeof item.extracted_data === "object"
+            ? item.extracted_data
+            : {}),
+        },
+        model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
+        prompt_version: "instagram-public-1.0.0",
+        review_status: "necessita_revisao",
+        reviewed_at: null,
+        updated_at: now,
+      };
+
+      const saved = await upsertFeedRow(baseRow, externalKey, false);
+      results.push({
+        title: baseRow.title,
+        status: saved.status,
+        duplicate: saved.duplicate,
+        postUrl: post.url,
+      });
+    }
+  }
+
+  return {
+    source: source.name,
+    checkedPosts: postUrls.length,
+    imported: results.filter((item) => !item.skipped).length,
+    skipped: results.filter((item) => item.skipped).length,
+    published: 0,
+    review: results.filter((item) => item.status === "necessita_revisao").length,
+    duplicates: results.filter((item) => item.duplicate).length,
+    results,
+  };
+}
+
 export async function ingestFeedSource(source: FeedSource) {
   if (source.sourceType === "notion" || /(?:notion\.site|notion\.com)/i.test(source.url)) {
     return ingestNotionSource(source);
   }
   if (source.sourceType === "instagram" || /instagram\.com/i.test(source.url)) {
-    throw new Error(
-      "Instagram exige uma integração autorizada; a coleta pública não é confiável e não foi ativada.",
-    );
+    return ingestInstagramSource(source);
   }
   const rssText = source.sourceType === "rss" ? await extractRssFeed(source.url) : null;
   const page = rssText
