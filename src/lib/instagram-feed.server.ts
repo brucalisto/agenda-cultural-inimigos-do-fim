@@ -38,7 +38,8 @@ function decodeJsonString(value: string) {
   try {
     return JSON.parse(`"${value.replace(/"/g, '\\"')}"`) as string;
   } catch {
-    return value.replace(/\\u0026/g, "&").replace(/\\\//g, "/");
+    const bs = String.fromCharCode(92);
+    return value.split(bs + "u0026").join("&").split(bs + "/").join("/");
   }
 }
 
@@ -63,8 +64,11 @@ async function fetchInstagramHtml(input: string) {
 function discoverPostUrlsFromHtml(html: string) {
   const urls: string[] = [];
 
+  const bs = String.fromCharCode(92);
+  const s = "(?:" + bs + bs + ")?/";
   const absolute = new RegExp(
-    'https:\\\\?/\\\\?/(?:www\\.)?instagram\\.com\\\\?/(p|reel|tv)\\\\?/([^\\\\/"?&]+)',
+    "https:" + s + s + "(?:www" + bs + bs + ".)?instagram" + bs + bs + ".com" + s +
+      "(p|reel|tv)" + s + "([A-Za-z0-9_-]+)",
     "gi",
   );
   let match: RegExpExecArray | null;
