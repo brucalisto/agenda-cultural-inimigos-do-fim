@@ -58,11 +58,17 @@ const activityData = [
   { time: "15:00", count: 59 },
 ];
 
+function formatDateTime(value: string | null) {
+  if (!value) return "Nenhum registro";
+  return new Date(value).toLocaleString("pt-BR");
+}
+
 function Dashboard() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [lastWebhook, setLastWebhook] = useState<string | null>(null);
+  const [lastInterpretation, setLastInterpretation] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -74,41 +80,15 @@ function Dashboard() {
         const start = new Date();
         start.setHours(0, 0, 0, 0);
         Promise.all([
-          supabase
-            .from("whatsapp_messages")
-            .select("*", { count: "exact", head: true })
-            .neq("message_type", "reactionMessage")
-            .gte("received_at", start.toISOString()),
-          supabase
-            .from("whatsapp_messages")
-            .select("*", { count: "exact", head: true })
-            .neq("message_type", "reactionMessage")
-            .in("processing_status", ["interpretado", "necessita_revisao"]),
-          supabase
-            .from("interpreted_contents")
-            .select("*", { count: "exact", head: true })
-            .in("review_status", ["pendente", "necessita_revisao"]),
-          supabase
-            .from("interpreted_contents")
-            .select("*", { count: "exact", head: true })
-            .eq("review_status", "publicado"),
-          supabase
-            .from("whatsapp_messages")
-            .select("*", { count: "exact", head: true })
-            .neq("message_type", "reactionMessage")
-            .eq("processing_status", "ignorado"),
-          supabase
-            .from("whatsapp_messages")
-            .select("*", { count: "exact", head: true })
-            .neq("message_type", "reactionMessage")
-            .eq("processing_status", "erro"),
-          supabase
-            .from("webhook_events")
-            .select("received_at")
-            .order("received_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]).then(([today, processed, pending, published, ignored, errors, last]) => {
+          supabase.from("whatsapp_messages").select("*", { count: "exact", head: true }).neq("message_type", "reactionMessage").gte("received_at", start.toISOString()),
+          supabase.from("whatsapp_messages").select("*", { count: "exact", head: true }).neq("message_type", "reactionMessage").in("processing_status", ["interpretado", "necessita_revisao"]),
+          supabase.from("interpreted_contents").select("*", { count: "exact", head: true }).in("review_status", ["pendente", "necessita_revisao"]),
+          supabase.from("interpreted_contents").select("*", { count: "exact", head: true }).eq("review_status", "publicado"),
+          supabase.from("whatsapp_messages").select("*", { count: "exact", head: true }).neq("message_type", "reactionMessage").eq("processing_status", "ignorado"),
+          supabase.from("whatsapp_messages").select("*", { count: "exact", head: true }).neq("message_type", "reactionMessage").eq("processing_status", "erro"),
+          supabase.from("webhook_events").select("received_at").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("interpreted_contents").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        ]).then(([today, processed, pending, published, ignored, errors, last, interpretation]) => {
           setCounts({
             today: today.count ?? 0,
             processed: processed.count ?? 0,
@@ -118,17 +98,14 @@ function Dashboard() {
             errors: errors.count ?? 0,
           });
           setLastWebhook(last.data?.received_at ?? null);
+          setLastInterpretation(interpretation.data?.created_at ?? null);
         });
       }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (!session) {
-        window.location.href = "/auth";
-      }
+      if (!session) window.location.href = "/auth";
     });
 
     return () => subscription.unsubscribe();
@@ -142,139 +119,62 @@ function Dashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Visão Geral</h1>
-          <p className="text-muted-foreground">
-            Monitoramento em tempo real dos seus grupos do WhatsApp.
-          </p>
+          <p className="text-muted-foreground">Monitoramento em tempo real dos seus grupos do WhatsApp.</p>
         </div>
 
-        {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {statDefinitions.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md"
-            >
+            <div key={stat.label} className="rounded-xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
                   <h3 className="mt-1 text-2xl font-bold">{counts[stat.key] ?? "—"}</h3>
                 </div>
-                <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
+                <div className={`rounded-lg bg-secondary p-2 ${stat.color}`}><stat.icon className="h-5 w-5" /></div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Activity Chart */}
-          <div className="rounded-xl border bg-card p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Atividade Recente</h3>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /><h3 className="font-semibold">Saúde do fluxo editorial</h3></div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Último webhook recebido</p>
+              <p className="mt-1 font-mono text-sm">{formatDateTime(lastWebhook)}</p>
             </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activityData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="oklch(0.929 0.013 255.508 / 0.5)"
-                  />
-                  <XAxis dataKey="time" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "oklch(1 0 0)",
-                      borderRadius: "8px",
-                      border: "1px solid oklch(0.929 0.013 255.508)",
-                    }}
-                  />
-                  <Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Última interpretação criada</p>
+              <p className="mt-1 font-mono text-sm">{formatDateTime(lastInterpretation)}</p>
             </div>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Se o webhook estiver recente e a interpretação estiver antiga, o problema está entre o recebimento da mensagem e o processamento pela IA.</p>
+        </div>
 
-          {/* Content Type Distribution */}
+        <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-xl border bg-card p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Distribuição por Tipo</h3>
-              <PieChart className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={distributionData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {distributionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold">Atividade Recente</h3><Activity className="h-4 w-4 text-muted-foreground" /></div>
+            <div className="h-[300px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={activityData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.929 0.013 255.508 / 0.5)" /><XAxis dataKey="time" axisLine={false} tickLine={false} /><YAxis axisLine={false} tickLine={false} /><Tooltip contentStyle={{ backgroundColor: "oklch(1 0 0)", borderRadius: "8px", border: "1px solid oklch(0.929 0.013 255.508)" }} /><Bar dataKey="count" fill="oklch(0.208 0.042 265.755)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold">Distribuição por Tipo</h3><PieChart className="h-4 w-4 text-muted-foreground" /></div>
+            <div className="h-[300px] w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={distributionData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{distributionData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div>
           </div>
         </div>
 
-        {/* API Status Section */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Zap className="h-5 w-5 text-amber-500" />
-                <h3 className="font-semibold">Baileys</h3>
-              </div>
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
-                Estado
-              </p>
-              <p className="text-sm">Monitorado pela integração</p>
-            </div>
+            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-3"><Zap className="h-5 w-5 text-amber-500" /><h3 className="font-semibold">Baileys</h3></div><span className="flex h-2 w-2 rounded-full bg-emerald-500"></span></div>
+            <div className="space-y-2"><p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p><p className="text-sm">Monitorado pela integração</p></div>
           </div>
-
           <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Bot className="h-5 w-5 text-purple-500" />
-                <h3 className="font-semibold">Gemini AI</h3>
-              </div>
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
-                Estado
-              </p>
-              <p className="text-sm">Gemini 2.5 Flash</p>
-            </div>
+            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-3"><Bot className="h-5 w-5 text-purple-500" /><h3 className="font-semibold">Gemini AI</h3></div><span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span></div>
+            <div className="space-y-2"><p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Estado</p><p className="text-sm">Gemini 2.5 Flash</p></div>
           </div>
-
           <div className="rounded-xl border bg-card p-6 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Webhook className="h-5 w-5 text-blue-500" />
-                <h3 className="font-semibold">Último Webhook</h3>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
-                Recebido em
-              </p>
-              <p className="text-sm font-mono text-muted-foreground">
-                {lastWebhook ? new Date(lastWebhook).toLocaleString("pt-BR") : "Nenhum recebido"}
-              </p>
-            </div>
+            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-3"><Webhook className="h-5 w-5 text-blue-500" /><h3 className="font-semibold">Último Webhook</h3></div></div>
+            <div className="space-y-2"><p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Recebido em</p><p className="text-sm font-mono text-muted-foreground">{formatDateTime(lastWebhook)}</p></div>
           </div>
         </div>
       </div>

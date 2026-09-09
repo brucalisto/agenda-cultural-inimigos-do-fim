@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { reprocessMessages } from "@/lib/gemini.functions";
-import { getInterpretedContents } from "@/lib/interpreted";
+import { getInterpretedContents, type InterpretedContent } from "@/lib/interpreted";
 
 export const Route = createFileRoute("/interpreted")({ component: ReviewWorkspace });
 
@@ -56,9 +56,32 @@ function duplicateInfo(extractedData: unknown) {
   return duplicate;
 }
 
+function sourceKind(item: InterpretedContent) {
+  if (item.whatsapp_messages) return "whatsapp";
+  if (item.source_url?.includes("notion")) return "notion";
+  if (item.source_url) return "feed";
+  return "unknown";
+}
+
+function isLikelyEvent(item: InterpretedContent) {
+  const category = (item.category || "").trim().toLowerCase();
+  if (["outro", "outros", "n/a", "nao informado", "não informado"].includes(category)) return false;
+  return Boolean(item.event_date || item.location || item.city || item.title);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "Não informado";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Não informado";
+  return parsed.toLocaleString("pt-BR");
+}
+
 export function ReviewWorkspace() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [origin, setOrigin] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [showNonEvents, setShowNonEvents] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"selected" | "category" | null>(null);
@@ -68,24 +91,36 @@ export function ReviewWorkspace() {
     isLoading,
     refetch,
   } = useQuery({ queryKey: ["interpreted-contents"], queryFn: getInterpretedContents });
+
   const categories = useMemo(
     () => [...new Set(data.map((item) => item.category).filter(Boolean))] as string[],
     [data],
   );
+  const statuses = useMemo(
+    () => [...new Set(data.map((item) => item.review_status).filter(Boolean))] as string[],
+    [data],
+  );
+  const lastInterpretation = data[0]?.created_at ?? null;
+
   const filtered = useMemo(
     () =>
       data.filter((item) => {
         const term = search.toLowerCase();
+        const itemSource = sourceKind(item);
         return (
           !["publicado", "aprovado"].includes(item.review_status) &&
+          (showNonEvents || isLikelyEvent(item)) &&
           (category === "all" || item.category === category) &&
+          (origin === "all" || itemSource === origin) &&
+          (status === "all" || item.review_status === status) &&
           (!term ||
             item.title?.toLowerCase().includes(term) ||
             item.whatsapp_messages?.text_content?.toLowerCase().includes(term))
         );
       }),
-    [category, data, search],
+    [category, data, origin, search, showNonEvents, status],
   );
+
   const allSelected = filtered.length > 0 && filtered.every((item) => selected.has(item.id));
   const toggleAll = () =>
     setSelected((current) => {
@@ -93,6 +128,7 @@ export function ReviewWorkspace() {
       filtered.forEach((item) => (allSelected ? next.delete(item.id) : next.add(item.id)));
       return next;
     });
+
   const reprocess = async () => {
     const messageIds = [
       ...new Set(
@@ -123,6 +159,7 @@ export function ReviewWorkspace() {
       setBusy(false);
     }
   };
+
   const remove = async () => {
     const ids = confirm === "category" ? filtered.map((item) => item.id) : [...selected];
     setBusy(true);
@@ -139,6 +176,7 @@ export function ReviewWorkspace() {
       setBusy(false);
     }
   };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -150,8 +188,12 @@ export function ReviewWorkspace() {
           <p className="text-muted-foreground">
             Confira, edite, consolide e publique as interpretações geradas pela IA.
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Última interpretação registrada: <span className="font-medium text-foreground">{formatDateTime(lastInterpretation)}</span>
+          </p>
         </div>
-        <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[1fr_240px]">
+
+        <div className="grid gap-3 rounded-lg border bg-card p-4 lg:grid-cols-[1fr_200px_180px_200px]">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
@@ -162,57 +204,64 @@ export function ReviewWorkspace() {
             />
           </div>
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as categorias</SelectItem>
-              {categories.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {value}
-                </SelectItem>
-              ))}
+              {categories.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={origin} onValueChange={setOrigin}>
+            <SelectTrigger><SelectValue placeholder="Origem" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+              <SelectItem value="notion">Notion</SelectItem>
+              <SelectItem value="feed">Feed externo</SelectItem>
+              <SelectItem value="unknown">Desconhecida</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              {statuses.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span><strong>{filtered.length}</strong> item(ns) visíveis</span>
+            <label className="flex items-center gap-2 text-muted-foreground">
+              <Checkbox checked={showNonEvents} onCheckedChange={(value) => setShowNonEvents(Boolean(value))} />
+              Mostrar também conteúdos não classificados como evento
+            </label>
+          </div>
+          <span className="text-xs text-muted-foreground">Por padrão, a revisão prioriza apenas eventos.</span>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">{selected.size} selecionado(s)</span>
           <Button variant="outline" size="sm" disabled={!selected.size || busy} onClick={reprocess}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reprocessar selecionados
+            <RotateCcw className="mr-2 h-4 w-4" /> Reprocessar selecionados
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!selected.size || busy}
-            onClick={() => setConfirm("selected")}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Excluir selecionados
+          <Button variant="outline" size="sm" disabled={!selected.size || busy} onClick={() => setConfirm("selected")}>
+            <Trash2 className="mr-2 h-4 w-4" /> Excluir selecionados
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={category === "all" || !filtered.length || busy}
-            onClick={() => setConfirm("category")}
-          >
+          <Button variant="destructive" size="sm" disabled={category === "all" || !filtered.length || busy} onClick={() => setConfirm("category")}>
             Excluir categoria filtrada
           </Button>
         </div>
-        <div className="overflow-hidden rounded-md border bg-card">
+
+        <div className="overflow-x-auto rounded-md border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                    aria-label="Selecionar conteúdos filtrados"
-                  />
-                </TableHead>
+                <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Selecionar conteúdos filtrados" /></TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead>Origem</TableHead>
+                <TableHead>Recebido em</TableHead>
                 <TableHead>Data do evento</TableHead>
                 <TableHead>Confiança</TableHead>
                 <TableHead>Status</TableHead>
@@ -221,79 +270,37 @@ export function ReviewWorkspace() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center">
-                    Carregando...
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={9} className="py-10 text-center">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                    Nenhum conteúdo encontrado.
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={9} className="py-10 text-center text-muted-foreground">Nenhum evento encontrado com os filtros atuais.</TableCell></TableRow>
               ) : (
                 filtered.map((item) => {
                   const duplicate = duplicateInfo(item.extracted_data);
+                  const kind = sourceKind(item);
+                  const sourceLabel = kind === "whatsapp" ? "WhatsApp" : kind === "notion" ? "Notion" : kind === "feed" ? "Feed externo" : "Desconhecida";
                   return (
                     <TableRow key={item.id} className={duplicate ? "bg-amber-50/50 dark:bg-amber-950/10" : undefined}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selected.has(item.id)}
-                          onCheckedChange={() =>
-                            setSelected((current) => {
-                              const next = new Set(current);
-                              if (next.has(item.id)) next.delete(item.id);
-                              else next.add(item.id);
-                              return next;
-                            })
-                          }
-                          aria-label={`Selecionar ${item.title || "conteúdo"}`}
-                        />
-                      </TableCell>
+                      <TableCell><Checkbox checked={selected.has(item.id)} onCheckedChange={() => setSelected((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} aria-label={`Selecionar ${item.title || "conteúdo"}`} /></TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-1">
                           <span>{item.title || "Sem título"}</span>
                           {duplicate ? (
-                            <button
-                              type="button"
-                              className="flex w-fit items-center gap-1 text-left text-xs font-normal text-amber-700 hover:underline dark:text-amber-400"
-                              onClick={() => setDetailsId(duplicate.id || null)}
-                              title={duplicate.reasons?.join(", ")}
-                            >
-                              <CopyCheck className="h-3 w-3" />
-                              Possível duplicidade {duplicate.score ? `(${Math.round(duplicate.score * 100)}%)` : ""}: {duplicate.title || "ver evento existente"}
+                            <button type="button" className="flex w-fit items-center gap-1 text-left text-xs font-normal text-amber-700 hover:underline dark:text-amber-400" onClick={() => setDetailsId(duplicate.id || null)} title={duplicate.reasons?.join(", ")}>
+                              <CopyCheck className="h-3 w-3" /> Possível duplicidade {duplicate.score ? `(${Math.round(duplicate.score * 100)}%)` : ""}: {duplicate.title || "ver evento existente"}
                             </button>
                           ) : null}
                         </div>
                       </TableCell>
+                      <TableCell><Badge variant="outline">{item.category || "N/A"}</Badge></TableCell>
                       <TableCell>
-                        <Badge variant="outline">{item.category || "N/A"}</Badge>
+                        <Badge variant="secondary">{sourceLabel}</Badge>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.whatsapp_messages?.whatsapp_groups?.nome || item.whatsapp_messages?.sender_name || ""}</div>
                       </TableCell>
-                      <TableCell>
-                        {item.whatsapp_messages?.sender_name || (item.source_url ? "Feed externo" : "Desconhecido")}
-                        <div className="text-xs text-muted-foreground">
-                          {item.whatsapp_messages?.whatsapp_groups?.nome || (item.source_url ? "Fonte importada" : "")}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {item.event_date
-                          ? new Date(item.event_date).toLocaleDateString("pt-BR")
-                          : "Não informada"}
-                      </TableCell>
+                      <TableCell>{formatDateTime(item.created_at)}</TableCell>
+                      <TableCell>{item.event_date ? new Date(item.event_date).toLocaleDateString("pt-BR") : "Não informada"}</TableCell>
                       <TableCell>{Math.round((item.confidence_score || 0) * 100)}%</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="secondary">{item.review_status}</Badge>
-                          {duplicate ? <Badge variant="outline">duplicidade</Badge> : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => setDetailsId(item.id)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver
-                        </Button>
-                      </TableCell>
+                      <TableCell><div className="flex flex-col gap-1"><Badge variant="secondary">{item.review_status}</Badge>{duplicate ? <Badge variant="outline">duplicidade</Badge> : null}</div></TableCell>
+                      <TableCell className="text-right"><Button variant="ghost" size="sm" onClick={() => setDetailsId(item.id)}><Eye className="mr-2 h-4 w-4" /> Ver</Button></TableCell>
                     </TableRow>
                   );
                 })
@@ -302,39 +309,28 @@ export function ReviewWorkspace() {
           </Table>
         </div>
       </div>
+
       <Sheet open={Boolean(detailsId)} onOpenChange={(open) => !open && setDetailsId(null)}>
         <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-4xl">
           <SheetHeader className="sticky top-0 z-10 border-b bg-background p-6">
             <SheetTitle>Detalhes do Conteúdo</SheetTitle>
-            <SheetDescription>
-              Veja a interpretação e todas as mensagens consolidadas.
-            </SheetDescription>
+            <SheetDescription>Veja a interpretação e todas as mensagens consolidadas.</SheetDescription>
           </SheetHeader>
-          {detailsId ? (
-            <InterpretedDetails id={detailsId} onClose={() => setDetailsId(null)} />
-          ) : null}
+          {detailsId ? <InterpretedDetails id={detailsId} onClose={() => setDetailsId(null)} /> : null}
         </SheetContent>
       </Sheet>
+
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm === "category"
-                ? `Os ${filtered.length} conteúdos visíveis da categoria “${category}” serão excluídos.`
-                : `${selected.size} conteúdo(s) serão excluídos.`}{" "}
-              Esta ação não pode ser desfeita.
+              {confirm === "category" ? `Os ${filtered.length} conteúdos visíveis da categoria “${category}” serão excluídos.` : `${selected.size} conteúdo(s) serão excluídos.`} Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy}
-              onClick={remove}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Excluir
-            </AlertDialogAction>
+            <AlertDialogAction disabled={busy} onClick={remove} className="bg-destructive text-destructive-foreground">Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
