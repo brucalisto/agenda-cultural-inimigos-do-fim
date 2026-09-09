@@ -14,7 +14,9 @@ export const GROQ_CONFIG = {
   MODEL_NAME: "qwen/qwen3.6-27b",
   AUDIO_MODEL_NAME: "whisper-large-v3-turbo",
   API_URL: "https://api.groq.com/openai/v1",
-  MAX_OUTPUT_TOKENS: 4096,
+  // The current Groq tier enforces 1,000 output tokens/minute for this model.
+  // Keep the request below that ceiling so fallback can actually complete.
+  MAX_OUTPUT_TOKENS: 800,
 };
 
 export const OPENROUTER_CONFIG = {
