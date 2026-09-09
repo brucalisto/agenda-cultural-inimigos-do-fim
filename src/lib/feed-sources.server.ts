@@ -38,6 +38,7 @@ export type FeedSourceRecord = {
 
 const NOTION_URL =
   "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link";
+const FUNDACC_INSTAGRAM_URL = "https://www.instagram.com/fundacc/";
 const FEED_PROVIDER = "feed_source";
 
 function metadata(value: unknown): FeedMetadata {
@@ -54,14 +55,15 @@ function sourceType(url: string) {
 
 function normalizeSource(row: PublicationDestinationRow): FeedSourceRecord {
   const meta = metadata(row.field_mapping);
+  const type = meta.sourceType || "web";
   return {
     id: row.id,
     name: row.nome,
     url: row.endpoint_url || "",
-    source_type: meta.sourceType || "web",
+    source_type: type,
     active: row.enabled !== false,
     trusted: meta.trusted === true,
-    auto_publish: meta.autoPublish === true,
+    auto_publish: type === "instagram" ? false : meta.autoPublish === true,
     last_synced_at: meta.lastSyncedAt || null,
     last_sync_status: meta.lastSyncStatus || null,
     last_sync_result: meta.lastSyncResult ?? null,
@@ -94,27 +96,52 @@ export async function requireAdminAccess(accessToken: string) {
   return data.user;
 }
 
-async function ensureNotionSource() {
+async function ensureSource(input: {
+  name: string;
+  url: string;
+  type: "notion" | "instagram";
+  trusted: boolean;
+  autoPublish: boolean;
+}) {
   const { data: existing, error: lookupError } = await supabaseAdmin
     .from("publication_destinations")
     .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
     .eq("provider", FEED_PROVIDER)
-    .eq("endpoint_url", NOTION_URL)
+    .eq("endpoint_url", input.url)
     .maybeSingle();
   if (lookupError) throw lookupError;
-  if (existing) return existing as PublicationDestinationRow;
+  if (existing) {
+    const current = metadata(existing.field_mapping);
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from("publication_destinations")
+      .update({
+        enabled: existing.enabled !== false,
+        field_mapping: {
+          ...current,
+          sourceType: input.type,
+          trusted: input.trusted,
+          autoPublish: input.type === "instagram" ? false : input.autoPublish,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+      .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
+      .single();
+    if (updateError) throw updateError;
+    return updated as PublicationDestinationRow;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("publication_destinations")
     .insert({
-      nome: "Agenda Cultural Inimigos do Fim — Notion",
-      endpoint_url: NOTION_URL,
+      nome: input.name,
+      endpoint_url: input.url,
       provider: FEED_PROVIDER,
       enabled: true,
       field_mapping: {
-        sourceType: "notion",
-        trusted: true,
-        autoPublish: true,
+        sourceType: input.type,
+        trusted: input.trusted,
+        autoPublish: input.type === "instagram" ? false : input.autoPublish,
         lastSyncedAt: null,
         lastSyncStatus: null,
         lastSyncResult: null,
@@ -127,9 +154,26 @@ async function ensureNotionSource() {
   return data as PublicationDestinationRow;
 }
 
+async function ensureDefaultSources() {
+  await ensureSource({
+    name: "Agenda Cultural Inimigos do Fim — Notion",
+    url: NOTION_URL,
+    type: "notion",
+    trusted: true,
+    autoPublish: true,
+  });
+  await ensureSource({
+    name: "FUNDACC — Instagram",
+    url: FUNDACC_INSTAGRAM_URL,
+    type: "instagram",
+    trusted: false,
+    autoPublish: false,
+  });
+}
+
 export async function listFeedSourcesForAdmin(accessToken: string) {
   await requireAdminAccess(accessToken);
-  await ensureNotionSource();
+  await ensureDefaultSources();
 
   const { data, error } = await supabaseAdmin
     .from("publication_destinations")
@@ -155,6 +199,8 @@ export async function saveFeedSourceForAdmin(
   const url = new URL(input.url.trim()).toString();
   const detectedSourceType = sourceType(url);
   const now = new Date().toISOString();
+  const safeAutoPublish =
+    detectedSourceType === "instagram" ? false : input.trusted && input.autoPublish;
 
   if (!input.name.trim()) throw new Error("Informe um nome para a fonte.");
 
@@ -178,7 +224,7 @@ export async function saveFeedSourceForAdmin(
           ...currentMeta,
           sourceType: detectedSourceType,
           trusted: input.trusted,
-          autoPublish: input.trusted && input.autoPublish,
+          autoPublish: safeAutoPublish,
         },
         updated_at: now,
       })
@@ -209,7 +255,7 @@ export async function saveFeedSourceForAdmin(
       field_mapping: {
         sourceType: detectedSourceType,
         trusted: input.trusted,
-        autoPublish: input.trusted && input.autoPublish,
+        autoPublish: safeAutoPublish,
         lastSyncedAt: null,
         lastSyncStatus: null,
         lastSyncResult: null,
@@ -235,6 +281,9 @@ export async function removeFeedSourceForAdmin(accessToken: string, id: string) 
   const meta = metadata(source.field_mapping);
   if (meta.sourceType === "notion" && source.endpoint_url === NOTION_URL) {
     throw new Error("A fonte principal do Notion não pode ser removida. Você pode pausá-la.");
+  }
+  if (meta.sourceType === "instagram" && source.endpoint_url === FUNDACC_INSTAGRAM_URL) {
+    throw new Error("A fonte principal da FUNDACC não pode ser removida. Você pode pausá-la.");
   }
 
   const { error } = await supabaseAdmin
@@ -265,7 +314,7 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
     name: sourceRecord.name,
     url: sourceRecord.url,
     trusted: sourceRecord.trusted,
-    autoPublish: sourceRecord.auto_publish,
+    autoPublish: sourceRecord.source_type === "instagram" ? false : sourceRecord.auto_publish,
     sourceType: sourceRecord.source_type as FeedSource["sourceType"],
   };
 
@@ -277,6 +326,9 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
       .update({
         field_mapping: {
           ...currentMeta,
+          sourceType: sourceRecord.source_type,
+          trusted: sourceRecord.trusted,
+          autoPublish: sourceRecord.source_type === "instagram" ? false : sourceRecord.auto_publish,
           lastSyncedAt: new Date().toISOString(),
           lastSyncStatus: "sucesso",
           lastSyncResult: result,
@@ -292,6 +344,9 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
       .update({
         field_mapping: {
           ...currentMeta,
+          sourceType: sourceRecord.source_type,
+          trusted: sourceRecord.trusted,
+          autoPublish: sourceRecord.source_type === "instagram" ? false : sourceRecord.auto_publish,
           lastSyncedAt: new Date().toISOString(),
           lastSyncStatus: "erro",
           lastSyncResult: { error: message },
@@ -304,7 +359,7 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
 }
 
 export async function syncAllConfiguredFeedSources() {
-  await ensureNotionSource();
+  await ensureDefaultSources();
   const { data, error } = await supabaseAdmin
     .from("publication_destinations")
     .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
@@ -323,7 +378,7 @@ export async function syncAllConfiguredFeedSources() {
         name: record.name,
         url: record.url,
         trusted: record.trusted,
-        autoPublish: record.auto_publish,
+        autoPublish: record.source_type === "instagram" ? false : record.auto_publish,
         sourceType: record.source_type as FeedSource["sourceType"],
       });
       await supabaseAdmin
@@ -331,6 +386,9 @@ export async function syncAllConfiguredFeedSources() {
         .update({
           field_mapping: {
             ...currentMeta,
+            sourceType: record.source_type,
+            trusted: record.trusted,
+            autoPublish: record.source_type === "instagram" ? false : record.auto_publish,
             lastSyncedAt: new Date().toISOString(),
             lastSyncStatus: "sucesso",
             lastSyncResult: result,
@@ -346,6 +404,9 @@ export async function syncAllConfiguredFeedSources() {
         .update({
           field_mapping: {
             ...currentMeta,
+            sourceType: record.source_type,
+            trusted: record.trusted,
+            autoPublish: record.source_type === "instagram" ? false : record.auto_publish,
             lastSyncedAt: new Date().toISOString(),
             lastSyncStatus: "erro",
             lastSyncResult: { error: message },
