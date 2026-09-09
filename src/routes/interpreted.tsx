@@ -56,6 +56,30 @@ function duplicateInfo(extractedData: unknown) {
   return duplicate;
 }
 
+function isEventForReview(item: Awaited<ReturnType<typeof getInterpretedContents>>[number]) {
+  if (["publicado", "aprovado", "ignorado", "desativado"].includes(item.review_status)) {
+    return false;
+  }
+
+  if (
+    item.extracted_data &&
+    typeof item.extracted_data === "object" &&
+    !Array.isArray(item.extracted_data)
+  ) {
+    const classified = (item.extracted_data as { isEvent?: unknown }).isEvent;
+    if (typeof classified === "boolean") return classified;
+  }
+
+  const category = (item.category || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  if (["", "outro", "noticia", "aviso", "promocao", "n/a"].includes(category)) return false;
+  if (!item.title || /^sem t[ií]tulo$/i.test(item.title.trim())) return false;
+  return Boolean(item.event_date || item.location || item.missing_fields?.length);
+}
+
 export function ReviewWorkspace() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -77,7 +101,7 @@ export function ReviewWorkspace() {
       data.filter((item) => {
         const term = search.toLowerCase();
         return (
-          !["publicado", "aprovado"].includes(item.review_status) &&
+          isEventForReview(item) &&
           (category === "all" || item.category === category) &&
           (!term ||
             item.title?.toLowerCase().includes(term) ||
@@ -214,6 +238,7 @@ export function ReviewWorkspace() {
                 <TableHead>Categoria</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Data do evento</TableHead>
+                <TableHead>Registrado em</TableHead>
                 <TableHead>Confiança</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -222,13 +247,13 @@ export function ReviewWorkspace() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center">
+                  <TableCell colSpan={9} className="py-10 text-center">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     Nenhum conteúdo encontrado.
                   </TableCell>
                 </TableRow>
@@ -280,6 +305,12 @@ export function ReviewWorkspace() {
                         {item.event_date
                           ? new Date(item.event_date).toLocaleDateString("pt-BR")
                           : "Não informada"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {new Date(item.created_at).toLocaleString("pt-BR", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </TableCell>
                       <TableCell>{Math.round((item.confidence_score || 0) * 100)}%</TableCell>
                       <TableCell>
