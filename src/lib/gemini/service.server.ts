@@ -10,12 +10,31 @@ export type AIResult = InterpretedContentsResponse & {
 
 const GROQ_MAX_CONTENT_CHARS = 8000;
 const GROQ_MAX_TRANSCRIPT_CHARS = 2500;
-const OPENROUTER_MAX_CONTENT_CHARS = 50000;
+const OPENROUTER_MAX_CONTENT_CHARS = 12000;
+const PROVIDER_TIMEOUT_MS = 8000;
+const COMPLEMENT_TIMEOUT_MS = 5000;
 
 function compactText(value: string, maxChars: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
   return `${normalized.slice(0, maxChars)}\n\n[conteúdo truncado automaticamente para respeitar o limite do provedor]`;
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = PROVIDER_TIMEOUT_MS) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} excedeu ${Math.round(timeoutMs / 1000)}s e foi interrompido.`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function getDateContext() {
@@ -79,11 +98,15 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
     throw new Error("OpenRouter primário não recebe áudio/vídeo diretamente neste fluxo.");
   }
 
-  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 4);
+  const compactContent = compactText(content, OPENROUTER_MAX_CONTENT_CHARS);
+  const useImages = compactContent.length < 300;
+  const visual = useImages
+    ? mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 2)
+    : [];
   const userContent: Array<Record<string, unknown>> = [
     {
       type: "text",
-      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content, OPENROUTER_MAX_CONTENT_CHARS)}`,
+      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}`,
     },
     ...visual.map((file) => ({
       type: "image_url",
@@ -131,13 +154,16 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
 async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new Error("GROQ_API_KEY não está configurada.");
-  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 2);
+  const compactContent = compactText(content, GROQ_MAX_CONTENT_CHARS);
+  const visual = compactContent.length < 300
+    ? mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 1)
+    : [];
   const audible = mediaFiles.filter(
     (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
   );
   const transcripts: string[] = [];
-  for (const file of audible) transcripts.push(await transcribeWithGroq(file, apiKey));
-  const compactContent = compactText(content, GROQ_MAX_CONTENT_CHARS);
+  for (const file of audible)
+    transcripts.push(await withTimeout(transcribeWithGroq(file, apiKey), "Transcrição Groq", 10000));
   const compactTranscripts = compactText(
     transcripts.filter(Boolean).join("\n\n"),
     GROQ_MAX_TRANSCRIPT_CHARS,
@@ -183,9 +209,14 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
 async function processWithGemini(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY não está configurada.");
+  const compactContent = compactText(content, 12000);
+  const useImages = compactContent.length < 300;
+  const selectedMedia = mediaFiles.filter(
+    (file) => !file.mimeType.startsWith("image/") || useImages,
+  );
   const parts: Array<Record<string, unknown>> = [
-    { text: `${getDateContext()}\n\nConteúdo para análise:\n\n${content}` },
-    ...mediaFiles.map((file) => ({ inlineData: { mimeType: file.mimeType, data: file.data } })),
+    { text: `${getDateContext()}\n\nConteúdo para análise:\n\n${compactContent}` },
+    ...selectedMedia.map((file) => ({ inlineData: { mimeType: file.mimeType, data: file.data } })),
   ];
 
   const response = await fetch(
@@ -225,17 +256,15 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
     (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
   );
 
-  // OpenRouter is the primary provider for text/images. Audio/video goes to Gemini first,
-  // because the OpenRouter free chat router in this flow accepts text/images, not raw media.
   if (!hasAudioOrVideo) {
     try {
-      return await processWithOpenRouter(content, mediaFiles);
+      return await withTimeout(processWithOpenRouter(content, mediaFiles), "OpenRouter");
     } catch (openRouterError) {
       try {
-        return await processWithGemini(content, mediaFiles);
+        return await withTimeout(processWithGemini(content, mediaFiles), "Gemini");
       } catch (geminiError) {
         try {
-          return await processWithGroq(content, mediaFiles);
+          return await withTimeout(processWithGroq(content, mediaFiles), "Groq");
         } catch (groqError) {
           throw new Error(
             `OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : "falha"}. Contingência Gemini: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
@@ -246,10 +275,10 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
   }
 
   try {
-    return await processWithGemini(content, mediaFiles);
+    return await withTimeout(processWithGemini(content, mediaFiles), "Gemini multimídia", 12000);
   } catch (geminiError) {
     try {
-      return await processWithGroq(content, mediaFiles);
+      return await withTimeout(processWithGroq(content, mediaFiles), "Groq multimídia", 12000);
     } catch (groqError) {
       throw new Error(
         `Gemini multimídia: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
@@ -264,22 +293,26 @@ export async function areMessagesComplementary(previous: string, current: string
   const openRouterKey = process.env["OPENROUTER_API_KEY"];
   if (openRouterKey) {
     try {
-      const response = await fetch(`${OPENROUTER_CONFIG.API_URL}/chat/completions`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${openRouterKey}`,
-          "content-type": "application/json",
-          "HTTP-Referer": "https://agenda-cultural-inimigos-do-fim.lovable.app",
-          "X-Title": "Agenda Cultural Inimigos do Fim",
-        },
-        body: JSON.stringify({
-          model: OPENROUTER_CONFIG.MODEL_NAME,
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0,
-          max_tokens: 40,
-          response_format: { type: "json_object" },
+      const response = await withTimeout(
+        fetch(`${OPENROUTER_CONFIG.API_URL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${openRouterKey}`,
+            "content-type": "application/json",
+            "HTTP-Referer": "https://agenda-cultural-inimigos-do-fim.lovable.app",
+            "X-Title": "Agenda Cultural Inimigos do Fim",
+          },
+          body: JSON.stringify({
+            model: OPENROUTER_CONFIG.MODEL_NAME,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0,
+            max_tokens: 40,
+            response_format: { type: "json_object" },
+          }),
         }),
-      });
+        "OpenRouter complementaridade",
+        COMPLEMENT_TIMEOUT_MS,
+      );
       if (response.ok) {
         const payload = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
@@ -293,22 +326,26 @@ export async function areMessagesComplementary(previous: string, current: string
 
   const groqKey = process.env["GROQ_API_KEY"];
   if (!groqKey) return false;
-  const response = await fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: GROQ_CONFIG.MODEL_NAME,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
-      max_completion_tokens: 40,
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!response.ok) return false;
-  const payload = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
   try {
+    const response = await withTimeout(
+      fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          model: GROQ_CONFIG.MODEL_NAME,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          max_completion_tokens: 40,
+          response_format: { type: "json_object" },
+        }),
+      }),
+      "Groq complementaridade",
+      COMPLEMENT_TIMEOUT_MS,
+    );
+    if (!response.ok) return false;
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
     return Boolean(JSON.parse(payload.choices?.[0]?.message?.content || "{}").complementary);
   } catch {
     return false;
