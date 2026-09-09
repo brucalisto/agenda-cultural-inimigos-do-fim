@@ -1,24 +1,21 @@
-import { GEMINI_CONFIG, GROQ_CONFIG } from "./config.server";
+import { GEMINI_CONFIG, GROQ_CONFIG, OPENROUTER_CONFIG } from "./config.server";
 import { SYSTEM_PROMPTS } from "./prompts.server";
 import { InterpretedContentsSchema, type InterpretedContentsResponse } from "./schema";
 
 type MediaFile = { mimeType: string; data: string };
 export type AIResult = InterpretedContentsResponse & {
   modelUsed: string;
-  provider: "groq" | "gemini";
+  provider: "openrouter" | "gemini" | "groq";
 };
 
-const GROQ_MAX_CONTENT_CHARS = 14000;
-const GROQ_MAX_TRANSCRIPT_CHARS = 6000;
+const GROQ_MAX_CONTENT_CHARS = 8000;
+const GROQ_MAX_TRANSCRIPT_CHARS = 2500;
+const OPENROUTER_MAX_CONTENT_CHARS = 50000;
 
 function compactText(value: string, maxChars: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
   return `${normalized.slice(0, maxChars)}\n\n[conteúdo truncado automaticamente para respeitar o limite do provedor]`;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getDateContext() {
@@ -70,17 +67,81 @@ async function transcribeWithGroq(file: MediaFile, apiKey: string) {
   return payload.text || "";
 }
 
+async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
+  const apiKey = process.env["OPENROUTER_API_KEY"];
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY não está configurada.");
+
+  if (
+    mediaFiles.some(
+      (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
+    )
+  ) {
+    throw new Error("OpenRouter primário não recebe áudio/vídeo diretamente neste fluxo.");
+  }
+
+  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 4);
+  const userContent: Array<Record<string, unknown>> = [
+    {
+      type: "text",
+      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content, OPENROUTER_MAX_CONTENT_CHARS)}`,
+    },
+    ...visual.map((file) => ({
+      type: "image_url",
+      image_url: { url: `data:${file.mimeType};base64,${file.data}` },
+    })),
+  ];
+
+  const response = await fetch(`${OPENROUTER_CONFIG.API_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+      "HTTP-Referer": "https://agenda-cultural-inimigos-do-fim.lovable.app",
+      "X-Title": "Agenda Cultural Inimigos do Fim",
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_CONFIG.MODEL_NAME,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPTS.v1 },
+        { role: "user", content: userContent },
+      ],
+      temperature: GEMINI_CONFIG.TEMPERATURE,
+      max_tokens: OPENROUTER_CONFIG.MAX_OUTPUT_TOKENS,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok)
+    throw new Error(`OpenRouter falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
+
+  const payload = (await response.json()) as {
+    model?: string;
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const text = payload.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Resposta vazia do OpenRouter.");
+
+  return {
+    ...InterpretedContentsSchema.parse(JSON.parse(text)),
+    modelUsed: payload.model || OPENROUTER_CONFIG.MODEL_NAME,
+    provider: "openrouter",
+  };
+}
+
 async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) throw new Error("GROQ_API_KEY não está configurada.");
-  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 3);
+  const visual = mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 2);
   const audible = mediaFiles.filter(
     (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
   );
   const transcripts: string[] = [];
   for (const file of audible) transcripts.push(await transcribeWithGroq(file, apiKey));
   const compactContent = compactText(content, GROQ_MAX_CONTENT_CHARS);
-  const compactTranscripts = compactText(transcripts.filter(Boolean).join("\n\n"), GROQ_MAX_TRANSCRIPT_CHARS);
+  const compactTranscripts = compactText(
+    transcripts.filter(Boolean).join("\n\n"),
+    GROQ_MAX_TRANSCRIPT_CHARS,
+  );
   const userContent: Array<Record<string, unknown>> = [
     {
       type: "text",
@@ -127,81 +188,117 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
     ...mediaFiles.map((file) => ({ inlineData: { mimeType: file.mimeType, data: file.data } })),
   ];
 
-  let lastError = "Falha desconhecida";
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPTS.v1 }] },
-          contents: [{ role: "user", parts }],
-          generationConfig: {
-            maxOutputTokens: GEMINI_CONFIG.MAX_OUTPUT_TOKENS,
-            temperature: GEMINI_CONFIG.TEMPERATURE,
-            responseMimeType: "application/json",
-          },
-        }),
-      },
-    );
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPTS.v1 }] },
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          maxOutputTokens: GEMINI_CONFIG.MAX_OUTPUT_TOKENS,
+          temperature: GEMINI_CONFIG.TEMPERATURE,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
 
-    if (response.ok) {
-      const payload = (await response.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      };
-      const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("Resposta vazia do Gemini.");
-      return {
-        ...InterpretedContentsSchema.parse(JSON.parse(text)),
-        modelUsed: GEMINI_CONFIG.MODEL_NAME,
-        provider: "gemini",
-      };
-    }
+  if (!response.ok)
+    throw new Error(`Gemini falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
 
-    lastError = `Gemini falhou (${response.status}): ${(await response.text()).slice(0, 300)}`;
-    if (![429, 503].includes(response.status) || attempt === 2) break;
-    await sleep(1200 * (attempt + 1));
-  }
-
-  throw new Error(lastError);
+  const payload = (await response.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Resposta vazia do Gemini.");
+  return {
+    ...InterpretedContentsSchema.parse(JSON.parse(text)),
+    modelUsed: GEMINI_CONFIG.MODEL_NAME,
+    provider: "gemini",
+  };
 }
 
 export async function processWithAI(content: string, mediaFiles: MediaFile[] = []) {
-  if (mediaFiles.some((file) => file.mimeType.startsWith("video/"))) {
+  const hasAudioOrVideo = mediaFiles.some(
+    (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
+  );
+
+  // OpenRouter is the primary provider for text/images. Audio/video goes to Gemini first,
+  // because the OpenRouter free chat router in this flow accepts text/images, not raw media.
+  if (!hasAudioOrVideo) {
     try {
-      return await processWithGemini(content, mediaFiles);
-    } catch {
-      return processWithGroq(content, mediaFiles);
+      return await processWithOpenRouter(content, mediaFiles);
+    } catch (openRouterError) {
+      try {
+        return await processWithGemini(content, mediaFiles);
+      } catch (geminiError) {
+        try {
+          return await processWithGroq(content, mediaFiles);
+        } catch (groqError) {
+          throw new Error(
+            `OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : "falha"}. Contingência Gemini: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
+          );
+        }
+      }
     }
   }
+
   try {
-    return await processWithGroq(content, mediaFiles);
-  } catch (groqError) {
+    return await processWithGemini(content, mediaFiles);
+  } catch (geminiError) {
     try {
-      return await processWithGemini(content, mediaFiles);
-    } catch (geminiError) {
+      return await processWithGroq(content, mediaFiles);
+    } catch (groqError) {
       throw new Error(
-        `Groq: ${groqError instanceof Error ? groqError.message : "falha"}. Contingência Gemini: ${geminiError instanceof Error ? geminiError.message : "falha"}.`,
+        `Gemini multimídia: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
       );
     }
   }
 }
 
 export async function areMessagesComplementary(previous: string, current: string) {
-  const apiKey = process.env["GROQ_API_KEY"];
-  if (!apiKey) return false;
+  const prompt = `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 4000)}\nMENSAGEM 2:\n${compactText(current, 4000)}`;
+
+  const openRouterKey = process.env["OPENROUTER_API_KEY"];
+  if (openRouterKey) {
+    try {
+      const response = await fetch(`${OPENROUTER_CONFIG.API_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${openRouterKey}`,
+          "content-type": "application/json",
+          "HTTP-Referer": "https://agenda-cultural-inimigos-do-fim.lovable.app",
+          "X-Title": "Agenda Cultural Inimigos do Fim",
+        },
+        body: JSON.stringify({
+          model: OPENROUTER_CONFIG.MODEL_NAME,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          max_tokens: 40,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        return Boolean(JSON.parse(payload.choices?.[0]?.message?.content || "{}").complementary);
+      }
+    } catch {
+      // Fall through to Groq only if the primary provider cannot answer.
+    }
+  }
+
+  const groqKey = process.env["GROQ_API_KEY"];
+  if (!groqKey) return false;
   const response = await fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
     method: "POST",
-    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: GROQ_CONFIG.MODEL_NAME,
-      messages: [
-        {
-          role: "user",
-          content: `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 5000)}\nMENSAGEM 2:\n${compactText(current, 5000)}`,
-        },
-      ],
+      messages: [{ role: "user", content: prompt }],
       temperature: 0,
       max_completion_tokens: 40,
       response_format: { type: "json_object" },
