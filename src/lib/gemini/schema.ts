@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const InterpretedContentSchema = z.object({
+  is_event: z.boolean().nullable().optional().default(null),
   title: z.string().nullable(),
   category: z.string().nullable(),
   summary: z.string().nullable(),

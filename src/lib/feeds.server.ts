@@ -6,6 +6,7 @@ import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
 import { consolidateFeedEvents, feedEventIdentity } from "@/lib/feed-normalization.server";
 import { fetchNotionEvents } from "@/lib/notion-feed.server";
 import { extractRssFeed } from "@/lib/rss-feed.server";
+import { isCulturalEvent } from "@/lib/event-classification";
 
 export type FeedSource = {
   id: string;
@@ -274,12 +275,13 @@ export async function ingestFeedSource(source: FeedSource) {
   const now = new Date().toISOString();
   const results: Array<{ title: string | null; status: string; duplicate: boolean }> = [];
 
-  const consolidatedItems = consolidateFeedEvents(interpreted.items);
+  const consolidatedItems = consolidateFeedEvents(interpreted.items.filter(isCulturalEvent));
   for (const [eventSequence, item] of consolidatedItems.entries()) {
+    const { is_event: _isEvent, ...eventFields } = item;
     const baseRow = {
       message_id: null,
       event_sequence: eventSequence,
-      ...item,
+      ...eventFields,
       city: inferCity(item.city, item.location),
       price: item.price == null ? null : String(item.price),
       source_url: item.source_url || source.url,
