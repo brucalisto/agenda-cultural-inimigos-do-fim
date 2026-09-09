@@ -178,22 +178,25 @@ function WebhookLogsPage() {
                                   <strong>Erro:</strong> {log.error_message}
                                 </div>
                               )}
-                              {(log.processing_status === "ignored" ||
-                                log.processing_status === "error") && (
-                                <div className="flex justify-end">
-                                  <Button
-                                    onClick={() => void reprocess(log)}
-                                    disabled={reprocessingId === log.id}
-                                  >
-                                    {reprocessingId === log.id ? (
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <RotateCcw className="mr-2 h-4 w-4" />
-                                    )}
-                                    Reprocessar evento
-                                  </Button>
-                                </div>
-                              )}
+                              {isAdmin &&
+                                (log.processing_status === "received" ||
+                                  log.processing_status === "ignored" ||
+                                  log.processing_status === "error" ||
+                                  Boolean(log.error_message)) && (
+                                  <div className="flex justify-end">
+                                    <Button
+                                      onClick={() => void reprocess(log)}
+                                      disabled={reprocessingId === log.id}
+                                    >
+                                      {reprocessingId === log.id ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="mr-2 h-4 w-4" />
+                                      )}
+                                      Reprocessar evento
+                                    </Button>
+                                  </div>
+                                )}
 
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div className="space-y-1">
