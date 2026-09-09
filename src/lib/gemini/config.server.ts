@@ -20,7 +20,9 @@ export const GROQ_CONFIG = {
 };
 
 export const OPENROUTER_CONFIG = {
-  MODEL_NAME: "openrouter/free",
+  // Use a concrete free multimodal model instead of the generic free router.
+  // This removes one routing step and is better suited to structured extraction.
+  MODEL_NAME: "google/gemma-4-26b-a4b-it:free",
   API_URL: "https://openrouter.ai/api/v1",
-  MAX_OUTPUT_TOKENS: 4096,
+  MAX_OUTPUT_TOKENS: 1200,
 };
