@@ -26,7 +26,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { reprocessWebhookEvent } from "@/lib/webhook.functions";
+import { getAdminAccessStatus, reprocessWebhookEvent } from "@/lib/webhook.functions";
 import { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/logs")({
@@ -55,22 +55,19 @@ function WebhookLogsPage() {
     },
   });
 
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
+  const { data: adminAccess } = useQuery({
+    queryKey: ["admin-access", user?.id],
     queryFn: async () => {
-      if (!user) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      if (error) return null;
-      return data;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return { isAdmin: false, source: "none" as const };
+      return getAdminAccessStatus({ data: { accessToken } });
     },
     enabled: !!user,
   });
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = adminAccess?.isAdmin === true;
+
   const reprocess = async (log: Tables<"webhook_events">) => {
     setReprocessingId(log.id);
     try {
@@ -78,7 +75,7 @@ function WebhookLogsPage() {
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
       await reprocessWebhookEvent({ data: { eventId: log.id, accessToken } });
-      toast.success("Evento reprocessado. A mensagem foi enviada ao Gemini.");
+      toast.success("Evento reprocessado pela cadeia de IA.");
       await refetch();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Não foi possível reprocessar.");
@@ -234,7 +231,7 @@ function WebhookLogsPage() {
                                   </div>
                                 ) : (
                                   <div className="bg-muted/30 border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground italic">
-                                    A visualização do payload é restrita a administradores.
+                                    A visualização do payload é restrita a administradores da aplicação.
                                   </div>
                                 )}
                               </div>
