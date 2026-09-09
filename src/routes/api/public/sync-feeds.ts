@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { syncAllConfiguredFeedSources } from "@/lib/feed-sources.server";
+import { retryRecentFailedMessages } from "@/lib/processing.server";
 
 function authorized(request: Request) {
   const expected = process.env["CRON_SECRET"] || process.env["FEED_SYNC_SECRET"];
@@ -15,8 +16,9 @@ export const Route = createFileRoute("/api/public/sync-feeds")({
         if (!authorized(request)) {
           return Response.json({ error: "Não autorizado" }, { status: 401 });
         }
-        const result = await syncAllConfiguredFeedSources();
-        return Response.json({ ok: true, result });
+        const messageRetries = await retryRecentFailedMessages();
+        const feeds = await syncAllConfiguredFeedSources();
+        return Response.json({ ok: true, messageRetries, feeds });
       },
     },
   },

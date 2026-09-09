@@ -4,6 +4,7 @@ import { BaileysWebhookSchema, type BaileysWebhook } from "@/lib/adapters/bailey
 import { areMessagesComplementary, processWithAI } from "@/lib/gemini/service.server";
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
 import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
+import { isCulturalEvent } from "@/lib/event-classification";
 
 async function loadMedia(media: NonNullable<BaileysWebhook["media"]>) {
   const base = process.env["BAILEYS_API_URL"]?.replace(/\/$/, "");
@@ -295,7 +296,21 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         );
       }
     }
-    const baseRows = interpreted.items.map((item, eventSequence) => {
+    const eventItems = interpreted.items.filter(isCulturalEvent);
+    if (!eventItems.length) {
+      await db.from("interpreted_contents").delete().eq("message_id", message.id);
+      await db
+        .from("whatsapp_messages")
+        .update({
+          processing_status: "ignorado",
+          error_message: "Conteúdo analisado e classificado como não evento cultural",
+        })
+        .eq("id", message.id);
+      return { ignored: true, reason: "not_cultural_event" };
+    }
+
+    const baseRows = eventItems.map((item, eventSequence) => {
+      const { is_event: _isEvent, ...eventFields } = item;
       const reviewStatus =
         item.confidence_score >= 0.75 && item.missing_fields.length === 0
           ? "pendente"
@@ -303,7 +318,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       return {
         message_id: message.id,
         event_sequence: eventSequence,
-        ...item,
+        ...eventFields,
         image_url: existingImages.get(eventSequence) || originalImageUrl,
         city: inferCity(item.city, item.location),
         price: item.price == null ? null : String(item.price),
@@ -314,7 +329,8 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           bundledMessageId: bundledMessageIds.at(-1) || null,
           bundledMessageIds,
           eventSequence,
-          eventCount: interpreted.items.length,
+          eventCount: eventItems.length,
+          isEvent: true,
           messages: payloads.map((source) => ({
             messageId: source.messageId,
             contentType: source.contentType,
@@ -371,4 +387,90 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       .eq("id", message.id);
     throw cause;
   }
+}
+
+export async function retryRecentFailedMessages(options?: {
+  limit?: number;
+  maxRetries?: number;
+  maxAgeHours?: number;
+}) {
+  const limit = Math.min(Math.max(options?.limit ?? 5, 1), 20);
+  const maxRetries = Math.min(Math.max(options?.maxRetries ?? 3, 1), 5);
+  const maxAgeHours = Math.min(Math.max(options?.maxAgeHours ?? 24, 1), 168);
+  const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString();
+
+  const { data: candidates, error } = await supabaseAdmin
+    .from("whatsapp_messages")
+    .select("id,group_id,raw_payload,retry_count,received_at")
+    .eq("processing_status", "erro")
+    .is("bundled_into_message_id", null)
+    .lt("retry_count", maxRetries)
+    .gte("received_at", cutoff)
+    .order("received_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const groupIds = [
+    ...new Set((candidates || []).map((item) => item.group_id).filter(Boolean)),
+  ] as string[];
+  const { data: groups, error: groupsError } = groupIds.length
+    ? await supabaseAdmin
+        .from("whatsapp_groups")
+        .select("id")
+        .in("id", groupIds)
+        .eq("ativo", true)
+        .eq("autorizado", true)
+    : { data: [] as Array<{ id: string }>, error: null };
+  if (groupsError) throw groupsError;
+  const allowedGroupIds = new Set((groups || []).map((group) => group.id));
+
+  const results: Array<{ id: string; ok: boolean; reason?: string }> = [];
+  for (const candidate of candidates || []) {
+    if (!candidate.group_id || !allowedGroupIds.has(candidate.group_id)) {
+      results.push({ id: candidate.id, ok: false, reason: "group_inactive" });
+      continue;
+    }
+
+    const parsed = BaileysWebhookSchema.safeParse(candidate.raw_payload);
+    if (!parsed.success) {
+      await supabaseAdmin
+        .from("whatsapp_messages")
+        .update({
+          retry_count: maxRetries,
+          error_message: "Payload original inválido; retentativa automática encerrada",
+        })
+        .eq("id", candidate.id);
+      results.push({ id: candidate.id, ok: false, reason: "invalid_payload" });
+      continue;
+    }
+
+    const nextRetry = (candidate.retry_count || 0) + 1;
+    const { data: claimed, error: claimError } = await supabaseAdmin
+      .from("whatsapp_messages")
+      .update({ retry_count: nextRetry, processing_status: "processando" })
+      .eq("id", candidate.id)
+      .eq("processing_status", "erro")
+      .select("id")
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!claimed) continue;
+
+    try {
+      await processBaileysMessage(parsed.data, candidate.group_id);
+      results.push({ id: candidate.id, ok: true });
+    } catch (cause) {
+      results.push({
+        id: candidate.id,
+        ok: false,
+        reason: cause instanceof Error ? cause.message : "retry_failed",
+      });
+    }
+  }
+
+  return {
+    attempted: results.length,
+    recovered: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
 }

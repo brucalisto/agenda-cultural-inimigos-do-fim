@@ -8,10 +8,13 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    concurrency:
+      group: agenda-source-sync
+      cancel-in-progress: false
     steps:
       - name: Chamar sincronização protegida
         env:
-          FEED_SYNC_URL: ${{ vars.FEED_SYNC_URL }}
+          FEED_SYNC_URL: ${{ vars.FEED_SYNC_URL || 'https://agenda-cultural-inimigos-do-fim.lovable.app' }}
           FEED_SYNC_SECRET: ${{ secrets.FEED_SYNC_SECRET }}
         run: |
           test -n "$FEED_SYNC_URL" || { echo "Configure a variável FEED_SYNC_URL"; exit 1; }
