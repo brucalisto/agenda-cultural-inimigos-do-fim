@@ -11,8 +11,9 @@ export type AIResult = InterpretedContentsResponse & {
 const GROQ_MAX_CONTENT_CHARS = 8000;
 const GROQ_MAX_TRANSCRIPT_CHARS = 2500;
 const OPENROUTER_MAX_CONTENT_CHARS = 12000;
-const PROVIDER_TIMEOUT_MS = 8000;
-const COMPLEMENT_TIMEOUT_MS = 5000;
+const TEXT_PROVIDER_TIMEOUT_MS = 20000;
+const MULTIMEDIA_PROVIDER_TIMEOUT_MS = 25000;
+const COMPLEMENT_TIMEOUT_MS = 8000;
 
 function compactText(value: string, maxChars: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
@@ -20,7 +21,19 @@ function compactText(value: string, maxChars: number) {
   return `${normalized.slice(0, maxChars)}\n\n[conteúdo truncado automaticamente para respeitar o limite do provedor]`;
 }
 
-async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = PROVIDER_TIMEOUT_MS) {
+function parseModelJson(text: string) {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
+    throw new Error("A IA respondeu, mas não retornou um JSON válido.");
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -106,7 +119,7 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
   const userContent: Array<Record<string, unknown>> = [
     {
       type: "text",
-      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}`,
+      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nRetorne somente um objeto JSON válido, sem markdown e sem texto fora do JSON.`,
     },
     ...visual.map((file) => ({
       type: "image_url",
@@ -130,12 +143,11 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
       ],
       temperature: GEMINI_CONFIG.TEMPERATURE,
       max_tokens: OPENROUTER_CONFIG.MAX_OUTPUT_TOKENS,
-      response_format: { type: "json_object" },
     }),
   });
 
   if (!response.ok)
-    throw new Error(`OpenRouter falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`OpenRouter falhou (${response.status}): ${(await response.text()).slice(0, 500)}`);
 
   const payload = (await response.json()) as {
     model?: string;
@@ -145,7 +157,7 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
   if (!text) throw new Error("Resposta vazia do OpenRouter.");
 
   return {
-    ...InterpretedContentsSchema.parse(JSON.parse(text)),
+    ...InterpretedContentsSchema.parse(parseModelJson(text)),
     modelUsed: payload.model || OPENROUTER_CONFIG.MODEL_NAME,
     provider: "openrouter",
   };
@@ -163,7 +175,9 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
   );
   const transcripts: string[] = [];
   for (const file of audible)
-    transcripts.push(await withTimeout(transcribeWithGroq(file, apiKey), "Transcrição Groq", 10000));
+    transcripts.push(
+      await withTimeout(transcribeWithGroq(file, apiKey), "Transcrição Groq", 12000),
+    );
   const compactTranscripts = compactText(
     transcripts.filter(Boolean).join("\n\n"),
     GROQ_MAX_TRANSCRIPT_CHARS,
@@ -171,7 +185,7 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
   const userContent: Array<Record<string, unknown>> = [
     {
       type: "text",
-      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}`,
+      text: `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}\n\nRetorne somente JSON válido, sem markdown e sem explicações.`,
     },
     ...visual.map((file) => ({
       type: "image_url",
@@ -189,18 +203,17 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
       ],
       temperature: GEMINI_CONFIG.TEMPERATURE,
       max_completion_tokens: GROQ_CONFIG.MAX_OUTPUT_TOKENS,
-      response_format: { type: "json_object" },
     }),
   });
   if (!response.ok)
-    throw new Error(`Groq falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`Groq falhou (${response.status}): ${(await response.text()).slice(0, 500)}`);
   const payload = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const text = payload.choices?.[0]?.message?.content;
   if (!text) throw new Error("Resposta vazia da Groq.");
   return {
-    ...InterpretedContentsSchema.parse(JSON.parse(text)),
+    ...InterpretedContentsSchema.parse(parseModelJson(text)),
     modelUsed: GROQ_CONFIG.MODEL_NAME,
     provider: "groq",
   };
@@ -237,7 +250,7 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
   );
 
   if (!response.ok)
-    throw new Error(`Gemini falhou (${response.status}): ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`Gemini falhou (${response.status}): ${(await response.text()).slice(0, 500)}`);
 
   const payload = (await response.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -245,7 +258,7 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
   const text = payload.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Resposta vazia do Gemini.");
   return {
-    ...InterpretedContentsSchema.parse(JSON.parse(text)),
+    ...InterpretedContentsSchema.parse(parseModelJson(text)),
     modelUsed: GEMINI_CONFIG.MODEL_NAME,
     provider: "gemini",
   };
@@ -258,13 +271,25 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
 
   if (!hasAudioOrVideo) {
     try {
-      return await withTimeout(processWithOpenRouter(content, mediaFiles), "OpenRouter");
+      return await withTimeout(
+        processWithOpenRouter(content, mediaFiles),
+        "OpenRouter",
+        TEXT_PROVIDER_TIMEOUT_MS,
+      );
     } catch (openRouterError) {
       try {
-        return await withTimeout(processWithGemini(content, mediaFiles), "Gemini");
+        return await withTimeout(
+          processWithGemini(content, mediaFiles),
+          "Gemini",
+          TEXT_PROVIDER_TIMEOUT_MS,
+        );
       } catch (geminiError) {
         try {
-          return await withTimeout(processWithGroq(content, mediaFiles), "Groq");
+          return await withTimeout(
+            processWithGroq(content, mediaFiles),
+            "Groq",
+            TEXT_PROVIDER_TIMEOUT_MS,
+          );
         } catch (groqError) {
           throw new Error(
             `OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : "falha"}. Contingência Gemini: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
@@ -275,10 +300,18 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
   }
 
   try {
-    return await withTimeout(processWithGemini(content, mediaFiles), "Gemini multimídia", 12000);
+    return await withTimeout(
+      processWithGemini(content, mediaFiles),
+      "Gemini multimídia",
+      MULTIMEDIA_PROVIDER_TIMEOUT_MS,
+    );
   } catch (geminiError) {
     try {
-      return await withTimeout(processWithGroq(content, mediaFiles), "Groq multimídia", 12000);
+      return await withTimeout(
+        processWithGroq(content, mediaFiles),
+        "Groq multimídia",
+        MULTIMEDIA_PROVIDER_TIMEOUT_MS,
+      );
     } catch (groqError) {
       throw new Error(
         `Gemini multimídia: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
@@ -288,7 +321,7 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
 }
 
 export async function areMessagesComplementary(previous: string, current: string) {
-  const prompt = `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 4000)}\nMENSAGEM 2:\n${compactText(current, 4000)}`;
+  const prompt = `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda somente JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 4000)}\nMENSAGEM 2:\n${compactText(current, 4000)}`;
 
   const openRouterKey = process.env["OPENROUTER_API_KEY"];
   if (openRouterKey) {
@@ -306,8 +339,7 @@ export async function areMessagesComplementary(previous: string, current: string
             model: OPENROUTER_CONFIG.MODEL_NAME,
             messages: [{ role: "user", content: prompt }],
             temperature: 0,
-            max_tokens: 40,
-            response_format: { type: "json_object" },
+            max_tokens: 60,
           }),
         }),
         "OpenRouter complementaridade",
@@ -317,10 +349,10 @@ export async function areMessagesComplementary(previous: string, current: string
         const payload = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
         };
-        return Boolean(JSON.parse(payload.choices?.[0]?.message?.content || "{}").complementary);
+        return Boolean(parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary);
       }
     } catch {
-      // Fall through to Groq only if the primary provider cannot answer.
+      // Fall through to Groq.
     }
   }
 
@@ -335,8 +367,7 @@ export async function areMessagesComplementary(previous: string, current: string
           model: GROQ_CONFIG.MODEL_NAME,
           messages: [{ role: "user", content: prompt }],
           temperature: 0,
-          max_completion_tokens: 40,
-          response_format: { type: "json_object" },
+          max_completion_tokens: 60,
         }),
       }),
       "Groq complementaridade",
@@ -346,7 +377,7 @@ export async function areMessagesComplementary(previous: string, current: string
     const payload = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
-    return Boolean(JSON.parse(payload.choices?.[0]?.message?.content || "{}").complementary);
+    return Boolean(parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary);
   } catch {
     return false;
   }
