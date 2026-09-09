@@ -1,19 +1,73 @@
-import { GEMINI_CONFIG, GROQ_CONFIG, OPENROUTER_CONFIG } from "./config.server";
+import { CLOUDFLARE_CONFIG, GEMINI_CONFIG, GROQ_CONFIG, OPENROUTER_CONFIG } from "./config.server";
 import { SYSTEM_PROMPTS } from "./prompts.server";
 import { InterpretedContentsSchema, type InterpretedContentsResponse } from "./schema";
 
 type MediaFile = { mimeType: string; data: string };
 export type AIResult = InterpretedContentsResponse & {
   modelUsed: string;
-  provider: "openrouter" | "gemini" | "groq";
+  provider: "cloudflare" | "openrouter" | "gemini" | "groq";
 };
 
 const GROQ_MAX_CONTENT_CHARS = 8000;
 const GROQ_MAX_TRANSCRIPT_CHARS = 2500;
 const OPENROUTER_MAX_CONTENT_CHARS = 12000;
-const TEXT_PROVIDER_TIMEOUT_MS = 20000;
-const MULTIMEDIA_PROVIDER_TIMEOUT_MS = 25000;
+const CLOUDFLARE_TIMEOUT_MS = 30000;
+const GROQ_TIMEOUT_MS = 25000;
+const GEMINI_TIMEOUT_MS = 30000;
+const OPENROUTER_TIMEOUT_MS = 25000;
 const COMPLEMENT_TIMEOUT_MS = 8000;
+
+const INTERPRETED_CONTENTS_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        properties: {
+          title: { type: ["string", "null"] },
+          category: { type: ["string", "null"] },
+          summary: { type: ["string", "null"] },
+          full_description: { type: ["string", "null"] },
+          event_date: { type: ["string", "null"] },
+          location: { type: ["string", "null"] },
+          city: { type: ["string", "null"] },
+          price: { type: ["number", "null"] },
+          contact_name: { type: ["string", "null"] },
+          contact_phone: { type: ["string", "null"] },
+          contact_instagram: { type: ["string", "null"] },
+          source_url: { type: ["string", "null"] },
+          keywords: { type: "array", items: { type: "string" } },
+          missing_fields: { type: "array", items: { type: "string" } },
+          warnings: { type: "array", items: { type: "string" } },
+          confidence_score: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: [
+          "title",
+          "category",
+          "summary",
+          "full_description",
+          "event_date",
+          "location",
+          "city",
+          "price",
+          "contact_name",
+          "contact_phone",
+          "contact_instagram",
+          "source_url",
+          "keywords",
+          "missing_fields",
+          "warnings",
+          "confidence_score",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["items"],
+  additionalProperties: false,
+} as const;
 
 function compactText(value: string, maxChars: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
@@ -22,7 +76,10 @@ function compactText(value: string, maxChars: number) {
 }
 
 function parseModelJson(text: string) {
-  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -40,7 +97,10 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: num
       promise,
       new Promise<T>((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`${label} excedeu ${Math.round(timeoutMs / 1000)}s e foi interrompido.`)),
+          () =>
+            reject(
+              new Error(`${label} excedeu ${Math.round(timeoutMs / 1000)}s e foi interrompido.`),
+            ),
           timeoutMs,
         );
       }),
@@ -99,6 +159,80 @@ async function transcribeWithGroq(file: MediaFile, apiKey: string) {
   return payload.text || "";
 }
 
+async function processWithCloudflare(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
+  const accountId = process.env["CLOUDFLARE_ACCOUNT_ID"];
+  const apiToken = process.env["CLOUDFLARE_API_TOKEN"];
+  if (!accountId || !apiToken) {
+    throw new Error("CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN não está configurado.");
+  }
+
+  const compactContent = compactText(content, OPENROUTER_MAX_CONTENT_CHARS);
+  const imageFile = mediaFiles.find((file) => file.mimeType.startsWith("image/"));
+  if (!compactContent && !imageFile) {
+    throw new Error("Cloudflare não recebeu texto ou imagem compatível para analisar.");
+  }
+  const userContent = `${getDateContext()}\n\nConteúdo/legenda para análise:\n${compactContent || "Nenhum texto informado. Extraia os dados visíveis na imagem."}\n\nRetorne somente JSON válido conforme o schema solicitado.`;
+  const body: Record<string, unknown> = {
+    messages: [
+      { role: "system", content: SYSTEM_PROMPTS.v1 },
+      { role: "user", content: userContent },
+    ],
+    max_tokens: CLOUDFLARE_CONFIG.MAX_OUTPUT_TOKENS,
+    temperature: GEMINI_CONFIG.TEMPERATURE,
+    response_format: {
+      type: "json_schema",
+      json_schema: INTERPRETED_CONTENTS_JSON_SCHEMA,
+    },
+  };
+  if (imageFile) {
+    body.image = `data:${imageFile.mimeType};base64,${imageFile.data}`;
+  }
+
+  const response = await fetch(
+    `${CLOUDFLARE_CONFIG.API_URL}/${accountId}/ai/run/${CLOUDFLARE_CONFIG.MODEL_NAME}`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Cloudflare falhou (${response.status}): ${(await response.text()).slice(0, 500)}`,
+    );
+  }
+
+  const payload = (await response.json()) as {
+    success?: boolean;
+    errors?: Array<{ message?: string }>;
+    result?: { response?: unknown };
+  };
+  if (payload.success === false) {
+    throw new Error(
+      `Cloudflare falhou: ${
+        payload.errors
+          ?.map((error) => error.message)
+          .filter(Boolean)
+          .join("; ") || "erro desconhecido"
+      }`,
+    );
+  }
+  const rawResult = payload.result?.response;
+  if (rawResult === undefined || rawResult === null || rawResult === "") {
+    throw new Error("Resposta vazia da Cloudflare.");
+  }
+  const parsed = typeof rawResult === "string" ? parseModelJson(rawResult) : rawResult;
+
+  return {
+    ...InterpretedContentsSchema.parse(parsed),
+    modelUsed: CLOUDFLARE_CONFIG.MODEL_NAME,
+    provider: "cloudflare",
+  };
+}
+
 async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): Promise<AIResult> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   if (!apiKey) throw new Error("OPENROUTER_API_KEY não está configurada.");
@@ -147,7 +281,9 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
   });
 
   if (!response.ok)
-    throw new Error(`OpenRouter falhou (${response.status}): ${(await response.text()).slice(0, 500)}`);
+    throw new Error(
+      `OpenRouter falhou (${response.status}): ${(await response.text()).slice(0, 500)}`,
+    );
 
   const payload = (await response.json()) as {
     model?: string;
@@ -179,6 +315,9 @@ async function processWithGroq(content: string, mediaFiles: MediaFile[]): Promis
     transcripts.filter(Boolean).join("\n\n"),
     GROQ_MAX_TRANSCRIPT_CHARS,
   );
+  if (!compactContent && !compactTranscripts) {
+    throw new Error("Groq não recebeu texto ou transcrição compatível para analisar.");
+  }
   const userContent = `${getDateContext()}\n\nConteúdo para análise:\n${compactContent}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${compactTranscripts || "Nenhuma"}\n\nRetorne somente JSON válido, sem markdown e sem explicações.`;
   const response = await fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
     method: "POST",
@@ -253,63 +392,153 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
 }
 
 export async function processWithAI(content: string, mediaFiles: MediaFile[] = []) {
-  const hasAudioOrVideo = mediaFiles.some(
-    (file) => file.mimeType.startsWith("audio/") || file.mimeType.startsWith("video/"),
-  );
+  const attempts: Array<{
+    label: string;
+    timeoutMs: number;
+    run: () => Promise<AIResult>;
+  }> = [
+    {
+      label: "Cloudflare",
+      timeoutMs: CLOUDFLARE_TIMEOUT_MS,
+      run: () => processWithCloudflare(content, mediaFiles),
+    },
+    {
+      label: "Groq",
+      timeoutMs: GROQ_TIMEOUT_MS,
+      run: () => processWithGroq(content, mediaFiles),
+    },
+    {
+      label: "Gemini",
+      timeoutMs: GEMINI_TIMEOUT_MS,
+      run: () => processWithGemini(content, mediaFiles),
+    },
+    {
+      label: "OpenRouter",
+      timeoutMs: OPENROUTER_TIMEOUT_MS,
+      run: () => processWithOpenRouter(content, mediaFiles),
+    },
+  ];
+  const errors: string[] = [];
 
-  if (!hasAudioOrVideo) {
+  for (const attempt of attempts) {
     try {
-      return await withTimeout(
-        processWithOpenRouter(content, mediaFiles),
-        "OpenRouter",
-        TEXT_PROVIDER_TIMEOUT_MS,
-      );
-    } catch (openRouterError) {
-      try {
-        return await withTimeout(
-          processWithGemini(content, mediaFiles),
-          "Gemini",
-          TEXT_PROVIDER_TIMEOUT_MS,
-        );
-      } catch (geminiError) {
-        try {
-          return await withTimeout(
-            processWithGroq(content, mediaFiles),
-            "Groq",
-            TEXT_PROVIDER_TIMEOUT_MS,
-          );
-        } catch (groqError) {
-          throw new Error(
-            `OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : "falha"}. Contingência Gemini: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
-          );
-        }
-      }
+      return await withTimeout(attempt.run(), attempt.label, attempt.timeoutMs);
+    } catch (error) {
+      errors.push(`${attempt.label}: ${error instanceof Error ? error.message : "falha"}`);
     }
   }
 
-  try {
-    return await withTimeout(
-      processWithGemini(content, mediaFiles),
-      "Gemini multimídia",
-      MULTIMEDIA_PROVIDER_TIMEOUT_MS,
-    );
-  } catch (geminiError) {
-    try {
-      return await withTimeout(
-        processWithGroq(content, mediaFiles),
-        "Groq multimídia",
-        MULTIMEDIA_PROVIDER_TIMEOUT_MS,
-      );
-    } catch (groqError) {
-      throw new Error(
-        `Gemini multimídia: ${geminiError instanceof Error ? geminiError.message : "falha"}. Contingência Groq: ${groqError instanceof Error ? groqError.message : "falha"}.`,
-      );
-    }
-  }
+  throw new Error(errors.join(". "));
 }
 
 export async function areMessagesComplementary(previous: string, current: string) {
   const prompt = `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda somente JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 4000)}\nMENSAGEM 2:\n${compactText(current, 4000)}`;
+
+  const accountId = process.env["CLOUDFLARE_ACCOUNT_ID"];
+  const cloudflareToken = process.env["CLOUDFLARE_API_TOKEN"];
+  if (accountId && cloudflareToken) {
+    try {
+      const response = await withTimeout(
+        fetch(`${CLOUDFLARE_CONFIG.API_URL}/${accountId}/ai/run/${CLOUDFLARE_CONFIG.MODEL_NAME}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${cloudflareToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 60,
+            temperature: 0,
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                type: "object",
+                properties: { complementary: { type: "boolean" } },
+                required: ["complementary"],
+                additionalProperties: false,
+              },
+            },
+          }),
+        }),
+        "Cloudflare complementaridade",
+        COMPLEMENT_TIMEOUT_MS,
+      );
+      if (response.ok) {
+        const payload = (await response.json()) as { result?: { response?: unknown } };
+        const raw = payload.result?.response;
+        const parsed = typeof raw === "string" ? parseModelJson(raw) : raw;
+        const value = (parsed as { complementary?: unknown } | null)?.complementary;
+        if (typeof value === "boolean") return value;
+      }
+    } catch {
+      // Fall through to the next provider.
+    }
+  }
+
+  const groqKey = process.env["GROQ_API_KEY"];
+  if (groqKey) {
+    try {
+      const response = await withTimeout(
+        fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            model: GROQ_CONFIG.MODEL_NAME,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0,
+            max_completion_tokens: 60,
+          }),
+        }),
+        "Groq complementaridade",
+        COMPLEMENT_TIMEOUT_MS,
+      );
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const value = parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary;
+        if (typeof value === "boolean") return value;
+      }
+    } catch {
+      // Fall through to the next provider.
+    }
+  }
+
+  const geminiKey = process.env["GEMINI_API_KEY"];
+  if (geminiKey) {
+    try {
+      const response = await withTimeout(
+        fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: {
+                maxOutputTokens: 60,
+                temperature: 0,
+                responseMimeType: "application/json",
+              },
+            }),
+          },
+        ),
+        "Gemini complementaridade",
+        COMPLEMENT_TIMEOUT_MS,
+      );
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        };
+        const value = parseModelJson(
+          payload.candidates?.[0]?.content?.parts?.[0]?.text || "{}",
+        ).complementary;
+        if (typeof value === "boolean") return value;
+      }
+    } catch {
+      // Fall through to the next provider.
+    }
+  }
 
   const openRouterKey = process.env["OPENROUTER_API_KEY"];
   if (openRouterKey) {
@@ -337,36 +566,13 @@ export async function areMessagesComplementary(previous: string, current: string
         const payload = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
         };
-        return Boolean(parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary);
+        const value = parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary;
+        if (typeof value === "boolean") return value;
       }
     } catch {
-      // Fall through to Groq.
+      // All providers failed.
     }
   }
 
-  const groqKey = process.env["GROQ_API_KEY"];
-  if (!groqKey) return false;
-  try {
-    const response = await withTimeout(
-      fetch(`${GROQ_CONFIG.API_URL}/chat/completions`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: GROQ_CONFIG.MODEL_NAME,
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0,
-          max_completion_tokens: 60,
-        }),
-      }),
-      "Groq complementaridade",
-      COMPLEMENT_TIMEOUT_MS,
-    );
-    if (!response.ok) return false;
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    return Boolean(parseModelJson(payload.choices?.[0]?.message?.content || "{}").complementary);
-  } catch {
-    return false;
-  }
+  return false;
 }
