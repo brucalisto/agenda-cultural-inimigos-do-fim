@@ -2,58 +2,79 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { getAdminAccessStatus, reprocessWebhookEvent } from "@/lib/webhook.functions";
 import { Tables } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute("/logs")({
-  component: WebhookLogsPage,
-});
+export const Route = createFileRoute("/logs")({ component: WebhookLogsPage });
+
+const PAGE_SIZE = 50;
 
 function WebhookLogsPage() {
   const { user } = useAuth();
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
-  const {
-    data: logs,
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["webhook_logs"],
+  const { data: monitoredGroups = [], isLoading: groupsLoading } = useQuery({
+    queryKey: ["monitored-whatsapp-groups"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("webhook_events")
-        .select("*")
-        .order("received_at", { ascending: false })
-        .limit(100);
-
+        .from("whatsapp_groups")
+        .select("external_group_id,nome")
+        .eq("ativo", true)
+        .eq("autorizado", true)
+        .order("nome");
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
+
+  const groupIds = useMemo(() => monitoredGroups.map((group) => group.external_group_id), [monitoredGroups]);
+  const groupNames = useMemo(() => new Map(monitoredGroups.map((group) => [group.external_group_id, group.nome])), [monitoredGroups]);
+
+  const { data: logsResult, isLoading, refetch } = useQuery({
+    queryKey: ["webhook_logs_monitored", groupIds, page],
+    queryFn: async () => {
+      if (groupIds.length === 0) return { data: [], count: 0 };
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error, count } = await supabase
+        .from("webhook_events")
+        .select("*", { count: "exact" })
+        .in("payload->>groupId", groupIds)
+        .order("received_at", { ascending: false })
+        .range(from, to);
+      if (error) throw error;
+      return { data: data ?? [], count: count ?? 0 };
+    },
+    enabled: !groupsLoading,
+  });
+
+  const { data: ignoredCount = 0 } = useQuery({
+    queryKey: ["ignored-webhook-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("webhook_events")
+        .select("id", { count: "exact", head: true })
+        .eq("processing_status", "ignored");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const logs = logsResult?.data ?? [];
+  const total = logsResult?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: adminAccess } = useQuery({
     queryKey: ["admin-access", user?.id],
@@ -65,7 +86,6 @@ function WebhookLogsPage() {
     },
     enabled: !!user,
   });
-
   const isAdmin = adminAccess?.isAdmin === true;
 
   const reprocess = async (log: Tables<"webhook_events">) => {
@@ -84,18 +104,19 @@ function WebhookLogsPage() {
     }
   };
 
+  const getPayloadGroupId = (payload: unknown) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+    const value = (payload as Record<string, unknown>).groupId;
+    return typeof value === "string" ? value : null;
+  };
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case "processed":
-        return <Badge className="bg-green-500 text-white">Processado</Badge>;
-      case "received":
-        return <Badge className="bg-blue-500 text-white">Recebido</Badge>;
-      case "ignored":
-        return <Badge className="bg-yellow-500 text-white">Ignorado</Badge>;
-      case "error":
-        return <Badge variant="destructive">Erro</Badge>;
-      default:
-        return <Badge variant="outline">{status || "Desconhecido"}</Badge>;
+      case "processed": return <Badge className="bg-green-500 text-white">Processado</Badge>;
+      case "received": return <Badge className="bg-blue-500 text-white">Recebido</Badge>;
+      case "ignored": return <Badge className="bg-yellow-500 text-white">Ignorado</Badge>;
+      case "error": return <Badge variant="destructive">Erro</Badge>;
+      default: return <Badge variant="outline">{status || "Desconhecido"}</Badge>;
     }
   };
 
@@ -104,157 +125,84 @@ function WebhookLogsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Logs de Webhook</h1>
-          <p className="text-muted-foreground">
-            Monitore o recebimento de eventos da Evolution API
-          </p>
+          <p className="text-muted-foreground">Eventos dos grupos monitorados e autorizados.</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md border bg-card p-4">
+            <div className="text-2xl font-semibold">{monitoredGroups.length}</div>
+            <div className="text-sm text-muted-foreground">grupos monitorados ativos</div>
+          </div>
+          <div className="rounded-md border bg-card p-4">
+            <div className="text-2xl font-semibold">{total}</div>
+            <div className="text-sm text-muted-foreground">logs dos grupos monitorados</div>
+          </div>
+          <div className="rounded-md border bg-muted/30 p-4">
+            <div className="text-2xl font-semibold">{ignoredCount}</div>
+            <div className="text-sm text-muted-foreground">logs ignorados no histórico geral (ocultos desta visão)</div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {monitoredGroups.map((group) => <Badge key={group.external_group_id} variant="secondary">{group.nome}</Badge>)}
         </div>
 
         <div className="border rounded-md bg-card">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Provedor</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>HTTP</TableHead>
-                <TableHead>Duração</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow>
+              <TableHead>Data</TableHead><TableHead>Grupo</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead>HTTP</TableHead><TableHead>Duração</TableHead><TableHead className="text-right">Ações</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    Carregando logs...
+              {isLoading || groupsLoading ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando logs...</TableCell></TableRow>
+              ) : logs.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8">Nenhum log encontrado para os grupos monitorados.</TableCell></TableRow>
+              ) : logs.map((log) => {
+                const groupId = getPayloadGroupId(log.payload);
+                return <TableRow key={log.id}>
+                  <TableCell className="text-sm whitespace-nowrap">{log.received_at ? format(new Date(log.received_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }) : "-"}</TableCell>
+                  <TableCell className="font-medium">{groupId ? groupNames.get(groupId) ?? groupId : "-"}</TableCell>
+                  <TableCell className="font-mono text-xs">{log.event_type}</TableCell>
+                  <TableCell>{getStatusBadge(log.processing_status)}</TableCell>
+                  <TableCell><span className={log.http_status === 200 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>{log.http_status || "-"}</span></TableCell>
+                  <TableCell>{log.processing_duration_ms ? `${log.processing_duration_ms}ms` : "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <Dialog>
+                      <DialogTrigger asChild><Button variant="outline" size="sm">Ver Detalhes</Button></DialogTrigger>
+                      <DialogContent className="max-w-3xl max-h-[90vh]">
+                        <DialogHeader><DialogTitle>Detalhes do Evento</DialogTitle></DialogHeader>
+                        <ScrollArea className="h-[70vh] pr-4"><div className="space-y-6 pb-4">
+                          {log.error_message && <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg text-destructive text-sm font-medium"><strong>Erro:</strong> {log.error_message}</div>}
+                          {isAdmin && (log.processing_status === "received" || log.processing_status === "ignored" || log.processing_status === "error" || Boolean(log.error_message)) && (
+                            <div className="flex justify-end"><Button onClick={() => void reprocess(log)} disabled={reprocessingId === log.id}>
+                              {reprocessingId === log.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Reprocessar evento
+                            </Button></div>
+                          )}
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div><span className="text-muted-foreground block">ID Externo</span><span className="font-mono">{log.external_event_id || "N/A"}</span></div>
+                            <div className="text-right"><span className="text-muted-foreground block">Data Processamento</span><span>{log.processed_at ? format(new Date(log.processed_at), "dd/MM HH:mm:ss") : "-"}</span></div>
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm flex items-center justify-between">Payload Bruto{!isAdmin && <Badge variant="secondary" className="text-[10px]">Restrito</Badge>}</h4>
+                            {isAdmin ? <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg text-[11px] overflow-auto max-h-[400px] leading-relaxed">{JSON.stringify(log.payload, null, 2)}</pre> : <div className="bg-muted/30 border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground italic">A visualização do payload é restrita a administradores da aplicação.</div>}
+                          </div>
+                          <div className="space-y-2"><h4 className="font-semibold text-sm">Headers (Sanitizados)</h4><pre className="bg-muted p-4 rounded-lg text-[11px] overflow-auto max-h-[200px] leading-relaxed">{JSON.stringify(log.headers_sanitized, null, 2)}</pre></div>
+                        </div></ScrollArea>
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
-                </TableRow>
-              ) : logs?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    Nenhum log encontrado.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                logs?.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {log.received_at
-                        ? format(new Date(log.received_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="capitalize">{log.provider}</TableCell>
-                    <TableCell className="font-mono text-xs">{log.event_type}</TableCell>
-                    <TableCell>{getStatusBadge(log.processing_status)}</TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          log.http_status === 200
-                            ? "text-green-600 font-medium"
-                            : "text-red-600 font-medium"
-                        }
-                      >
-                        {log.http_status || "-"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {log.processing_duration_ms ? `${log.processing_duration_ms}ms` : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            Ver Detalhes
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[90vh]">
-                          <DialogHeader>
-                            <DialogTitle>Detalhes do Evento</DialogTitle>
-                          </DialogHeader>
-                          <ScrollArea className="h-[70vh] pr-4">
-                            <div className="space-y-6 pb-4">
-                              {log.error_message && (
-                                <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg text-destructive text-sm font-medium">
-                                  <strong>Erro:</strong> {log.error_message}
-                                </div>
-                              )}
-                              {isAdmin &&
-                                (log.processing_status === "received" ||
-                                  log.processing_status === "ignored" ||
-                                  log.processing_status === "error" ||
-                                  Boolean(log.error_message)) && (
-                                  <div className="flex justify-end">
-                                    <Button
-                                      onClick={() => void reprocess(log)}
-                                      disabled={reprocessingId === log.id}
-                                    >
-                                      {reprocessingId === log.id ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <RotateCcw className="mr-2 h-4 w-4" />
-                                      )}
-                                      Reprocessar evento
-                                    </Button>
-                                  </div>
-                                )}
-
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="space-y-1">
-                                  <span className="text-muted-foreground block">ID Externo</span>
-                                  <span className="font-mono">
-                                    {log.external_event_id || "N/A"}
-                                  </span>
-                                </div>
-                                <div className="space-y-1 text-right">
-                                  <span className="text-muted-foreground block">
-                                    Data Processamento
-                                  </span>
-                                  <span>
-                                    {log.processed_at
-                                      ? format(new Date(log.processed_at), "dd/MM HH:mm:ss")
-                                      : "-"}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-sm flex items-center justify-between">
-                                  Payload Bruto
-                                  {!isAdmin && (
-                                    <Badge variant="secondary" className="text-[10px]">
-                                      Restrito
-                                    </Badge>
-                                  )}
-                                </h4>
-                                {isAdmin ? (
-                                  <div className="relative group">
-                                    <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg text-[11px] overflow-auto max-h-[400px] leading-relaxed">
-                                      {JSON.stringify(log.payload, null, 2)}
-                                    </pre>
-                                  </div>
-                                ) : (
-                                  <div className="bg-muted/30 border border-dashed rounded-lg p-8 text-center text-sm text-muted-foreground italic">
-                                    A visualização do payload é restrita a administradores da aplicação.
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-sm">Headers (Sanitizados)</h4>
-                                <pre className="bg-muted p-4 rounded-lg text-[11px] overflow-auto max-h-[200px] leading-relaxed">
-                                  {JSON.stringify(log.headers_sanitized, null, 2)}
-                                </pre>
-                              </div>
-                            </div>
-                          </ScrollArea>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+                </TableRow>;
+              })}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">Página {page + 1} de {totalPages} · {total} registros</div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setPage((value) => Math.max(0, value - 1))} disabled={page === 0}><ChevronLeft className="mr-1 h-4 w-4" />Mais recentes</Button>
+            <Button variant="outline" onClick={() => setPage((value) => value + 1)} disabled={page + 1 >= totalPages}>Mais antigos<ChevronRight className="ml-1 h-4 w-4" /></Button>
+          </div>
         </div>
       </div>
     </DashboardLayout>
