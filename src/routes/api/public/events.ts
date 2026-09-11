@@ -16,7 +16,9 @@ export const Route = createFileRoute("/api/public/events")({
           .order("event_date", { ascending: true })
           .limit(2000);
 
-        let events = curated.data;
+        let events: Array<Record<string, unknown>> | null = (curated.data || null) as
+          | Array<Record<string, unknown>>
+          | null;
         if (curated.error) {
           const fallback = await supabaseAdmin
             .from("interpreted_contents")
