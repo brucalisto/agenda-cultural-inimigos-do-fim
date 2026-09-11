@@ -38,10 +38,14 @@ export const Route = createFileRoute("/api/public/events")({
             featured_priority: 0,
             featured_starts_at: null,
             featured_ends_at: null,
-            latitude: null,
-            longitude: null,
           }));
         }
+
+        events = (events || []).map((event) => ({
+          latitude: null,
+          longitude: null,
+          ...event,
+        }));
 
         return Response.json(
           { events: events || [] },
