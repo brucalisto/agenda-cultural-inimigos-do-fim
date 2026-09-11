@@ -38,7 +38,6 @@ export type FeedSourceRecord = {
 
 const NOTION_URL =
   "https://tide-candy-1f5.notion.site/68ee129b62a5465197a1f0d7b47afcda?v=94c86de6ba024fac98c266b5c68bcbb8&source=copy_link";
-const FUNDACC_INSTAGRAM_URL = "https://www.instagram.com/fundacc/";
 const FEED_PROVIDER = "feed_source";
 
 function metadata(value: unknown): FeedMetadata {
@@ -162,13 +161,6 @@ async function ensureDefaultSources() {
     trusted: true,
     autoPublish: true,
   });
-  await ensureSource({
-    name: "FUNDACC — Instagram",
-    url: FUNDACC_INSTAGRAM_URL,
-    type: "instagram",
-    trusted: false,
-    autoPublish: false,
-  });
 }
 
 export async function listFeedSourcesForAdmin(accessToken: string) {
@@ -281,9 +273,6 @@ export async function removeFeedSourceForAdmin(accessToken: string, id: string) 
   const meta = metadata(source.field_mapping);
   if (meta.sourceType === "notion" && source.endpoint_url === NOTION_URL) {
     throw new Error("A fonte principal do Notion não pode ser removida. Você pode pausá-la.");
-  }
-  if (meta.sourceType === "instagram" && source.endpoint_url === FUNDACC_INSTAGRAM_URL) {
-    throw new Error("A fonte principal da FUNDACC não pode ser removida. Você pode pausá-la.");
   }
 
   const { error } = await supabaseAdmin
