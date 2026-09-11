@@ -314,8 +314,8 @@ async function ingestInstagramSource(source: FeedSource) {
           instagramShortcode: post.shortcode,
           importedAt: now,
           imageCount: post.imageUrls.length,
-          ...(item.extracted_data && typeof item.extracted_data === "object"
-            ? item.extracted_data
+          ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
+            ? (item as { extracted_data?: unknown }).extracted_data
             : {}),
         },
         model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
@@ -389,8 +389,8 @@ export async function ingestFeedSource(source: FeedSource) {
         feedSourceUrl: source.url,
         trustedSource: source.trusted,
         importedAt: now,
-        ...(item.extracted_data && typeof item.extracted_data === "object"
-          ? item.extracted_data
+        ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
+          ? (item as { extracted_data?: unknown }).extracted_data
           : {}),
       },
       model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
