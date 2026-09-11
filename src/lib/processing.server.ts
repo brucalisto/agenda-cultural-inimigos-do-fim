@@ -2,6 +2,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { BaileysWebhookSchema, type BaileysWebhook } from "@/lib/adapters/baileys.server";
 import { areMessagesComplementary, processWithAI } from "@/lib/gemini/service.server";
+import {
+  assessInterpretationQuality,
+  formatWhatsAppContext,
+  isLikelyCorrectionOrContinuation,
+} from "@/lib/interpretation-quality.server";
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
 import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
 
@@ -62,9 +67,16 @@ function hasUsefulText(payload: BaileysWebhook) {
   return Boolean(payload.text?.trim() || payload.caption?.trim() || payload.links.length);
 }
 
+function hasLikelyEventSignal(payload: BaileysWebhook) {
+  const text = [payload.text, payload.caption].filter(Boolean).join(" ").trim();
+  return hasMedia(payload) || payload.links.length > 0 || text.length >= 24;
+}
+
 function isDeterministicComplement(previous: BaileysWebhook, current: BaileysWebhook) {
   return (
-    (hasMedia(previous) && hasUsefulText(current)) || (hasMedia(current) && hasUsefulText(previous))
+    (hasMedia(previous) && hasUsefulText(current)) ||
+    (hasMedia(current) && hasUsefulText(previous)) ||
+    (isLikelyCorrectionOrContinuation(current) && hasLikelyEventSignal(previous))
   );
 }
 
@@ -128,7 +140,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         .filter((content) => content.image_url)
         .map((content) => [content.event_sequence, content.image_url as string]),
     );
-    const cutoff = new Date(new Date(occurred).getTime() - 5 * 60_000).toISOString();
+    const cutoff = new Date(new Date(occurred).getTime() - 8 * 60_000).toISOString();
     const { data: previousMessages } = await db
       .from("whatsapp_messages")
       .select("id, raw_payload, occurred_at")
@@ -140,7 +152,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       .gte("occurred_at", cutoff)
       .lte("occurred_at", occurred)
       .order("occurred_at", { ascending: false })
-      .limit(8);
+      .limit(12);
 
     const payloads = [payload];
     const bundledMessageIds: string[] = [];
@@ -201,9 +213,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
       }
     };
     for (const [index, item] of payloads.entries()) {
-      contexts.push(
-        `MENSAGEM ${index + 1}\n${[item.text, item.caption].filter(Boolean).join("\n")}`,
-      );
+      contexts.push(formatWhatsAppContext(item, index));
       if (item.linkPreview?.title || item.linkPreview?.description) {
         contexts.push(
           `PRÉVIA DO LINK NO WHATSAPP\n${item.linkPreview.title || ""}\n${item.linkPreview.description || ""}`,
@@ -283,10 +293,14 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     }
 
     const interpreted = await processWithAI(context || "Analise a mídia anexada.", mediaFiles);
+    const assessedItems = interpreted.items.map((item) => assessInterpretationQuality(item, payloads));
     let originalImageUrl: string | null = null;
     if (eventImageCandidate) {
       try {
-        originalImageUrl = await storeOriginalEventImage(message.id, (eventImageCandidate as { media: any }).media);
+        originalImageUrl = await storeOriginalEventImage(
+          message.id,
+          (eventImageCandidate as { media: LoadedMedia }).media,
+        );
       } catch (cause) {
         extraWarnings.push(
           cause instanceof Error
@@ -295,17 +309,23 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
         );
       }
     }
-    const baseRows = interpreted.items.map((item, eventSequence) => {
+    const baseRows = assessedItems.map(({ item, quality }, eventSequence) => {
+      const inferredCity = inferCity(item.city, item.location);
+      const missingFields = item.missing_fields.filter(
+        (field) => field !== "city" || !inferredCity,
+      );
       const reviewStatus =
-        item.confidence_score >= 0.75 && item.missing_fields.length === 0
-          ? "pendente"
-          : "necessita_revisao";
+        quality.reviewRecommended ||
+        missingFields.some((field) => quality.criticalMissingFields.includes(field))
+          ? "necessita_revisao"
+          : "pendente";
       return {
         message_id: message.id,
         event_sequence: eventSequence,
         ...item,
         image_url: existingImages.get(eventSequence) || originalImageUrl,
-        city: inferCity(item.city, item.location),
+        city: inferredCity,
+        missing_fields: missingFields,
         price: item.price == null ? null : String(item.price),
         warnings: [...item.warnings, ...extraWarnings],
         extracted_data: {
@@ -314,7 +334,10 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           bundledMessageId: bundledMessageIds.at(-1) || null,
           bundledMessageIds,
           eventSequence,
-          eventCount: interpreted.items.length,
+          eventCount: assessedItems.length,
+          sourceType: "whatsapp",
+          sourceReliability: "unstructured",
+          interpretationQuality: quality,
           messages: payloads.map((source) => ({
             messageId: source.messageId,
             contentType: source.contentType,
@@ -326,7 +349,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
           })),
         },
         model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
-        prompt_version: "1.6.0",
+        prompt_version: "2.0.0",
         review_status: reviewStatus,
         updated_at: new Date().toISOString(),
       };
