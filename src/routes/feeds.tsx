@@ -323,7 +323,7 @@ function FeedsPage() {
           <CardHeader>
             <div className="flex items-center gap-2"><Plus className="h-5 w-5" /><CardTitle>Adicionar portal ou página</CardTitle></div>
             <CardDescription>
-              Para Instagram, prefira a URL do perfil, por exemplo https://www.instagram.com/fundacc/. Posts e reels diretos também podem ser usados como importação pontual. Conteúdo do Instagram sempre entra em revisão manual.
+              Para Instagram, use a URL do perfil profissional, por exemplo https://www.instagram.com/fundacc/. Perfis Business/Creator são consultados pela API oficial da Meta e sempre entram em revisão manual.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -337,7 +337,7 @@ function FeedsPage() {
             </div>
             {newSourceIsInstagram ? (
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Instagram usa leitura pública best-effort, sem API oficial. Se a plataforma bloquear a leitura, a tentativa fica registrada e será repetida depois. Auto-publicação fica desativada.
+                O perfil será monitorado pela API oficial da Meta (Business Discovery). A fonte pode ser pausada ou removida a qualquer momento e a auto-publicação permanece desativada.
               </p>
             ) : null}
             <div className="flex flex-wrap gap-5 text-sm">
@@ -388,7 +388,7 @@ function FeedsPage() {
                       <Button variant="outline" size="sm" onClick={() => void sync(source)} disabled={!source.active || syncingId === source.id}>
                         {syncingId === source.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Sincronizar
                       </Button>
-                      {source.source_type !== "notion" && !/instagram\.com\/fundacc\/?$/i.test(source.url) && <Button variant="outline" size="sm" className="text-destructive" onClick={() => void remove(source)}><Trash2 className="mr-2 h-4 w-4" />Remover</Button>}
+                      {source.source_type !== "notion" && <Button variant="outline" size="sm" className="text-destructive" onClick={() => void remove(source)}><Trash2 className="mr-2 h-4 w-4" />Remover</Button>}
                     </div>
                   </div>
                   {!instagram ? (
@@ -398,7 +398,7 @@ function FeedsPage() {
                     </div>
                   ) : (
                     <p className="border-t pt-3 text-sm text-muted-foreground">
-                      A leitura do Instagram é pública e best-effort. Novas publicações detectadas são interpretadas pela IA e enviadas para Revisão; nunca são publicadas automaticamente nesta fase.
+                      A leitura de perfis do Instagram usa a API oficial da Meta. Novas publicações detectadas são interpretadas pela IA, passam pela verificação de duplicidade e seguem para Revisão; nunca são publicadas automaticamente nesta fase.
                     </p>
                   )}
                 </CardContent>
