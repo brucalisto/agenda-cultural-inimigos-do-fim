@@ -314,8 +314,8 @@ async function ingestInstagramSource(source: FeedSource) {
           instagramShortcode: post.shortcode,
           importedAt: now,
           imageCount: post.imageUrls.length,
-          ...(item.extracted_data && typeof item.extracted_data === "object"
-            ? item.extracted_data
+          ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
+            ? ((item as { extracted_data?: Record<string, unknown> }).extracted_data as Record<string, unknown>)
             : {}),
         },
         model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
@@ -389,8 +389,8 @@ export async function ingestFeedSource(source: FeedSource) {
         feedSourceUrl: source.url,
         trustedSource: source.trusted,
         importedAt: now,
-        ...(item.extracted_data && typeof item.extracted_data === "object"
-          ? item.extracted_data
+        ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
+          ? ((item as { extracted_data?: Record<string, unknown> }).extracted_data as Record<string, unknown>)
           : {}),
       },
       model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
@@ -629,7 +629,7 @@ async function adoptLegacyNotionRows(
 
   const legacyGroups = new Map<string, typeof data>();
   for (const row of data) {
-    const key = feedEventIdentity(row);
+    const key = feedEventIdentity(row as never);
     const group = legacyGroups.get(key) || [];
     group.push(row);
     legacyGroups.set(key, group);

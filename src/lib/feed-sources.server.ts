@@ -31,7 +31,7 @@ export type FeedSourceRecord = {
   auto_publish: boolean;
   last_synced_at: string | null;
   last_sync_status: string | null;
-  last_sync_result: unknown;
+  last_sync_result: any;
   created_at: string;
   updated_at: string;
 };
@@ -121,7 +121,7 @@ async function ensureSource(input: {
           sourceType: input.type,
           trusted: input.trusted,
           autoPublish: input.type === "instagram" ? false : input.autoPublish,
-        },
+        } as never,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
@@ -225,7 +225,7 @@ export async function saveFeedSourceForAdmin(
           sourceType: detectedSourceType,
           trusted: input.trusted,
           autoPublish: safeAutoPublish,
-        },
+        } as never,
         updated_at: now,
       })
       .eq("id", input.id)

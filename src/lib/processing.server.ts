@@ -286,7 +286,7 @@ export async function processBaileysMessage(payload: BaileysWebhook, groupId: st
     let originalImageUrl: string | null = null;
     if (eventImageCandidate) {
       try {
-        originalImageUrl = await storeOriginalEventImage(message.id, eventImageCandidate.media);
+        originalImageUrl = await storeOriginalEventImage(message.id, (eventImageCandidate as { media: any }).media);
       } catch (cause) {
         extraWarnings.push(
           cause instanceof Error

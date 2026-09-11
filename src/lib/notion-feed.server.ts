@@ -138,7 +138,7 @@ function fileUrl(candidate?: NotionProperty | NotionPage["cover"]) {
     const first = candidate.files?.[0];
     return first?.file?.url || first?.external?.url || null;
   }
-  return candidate.file?.url || candidate.external?.url || null;
+  return (candidate as { file?: { url?: string }; external?: { url?: string } }).file?.url || (candidate as { file?: { url?: string }; external?: { url?: string } }).external?.url || null;
 }
 
 function databaseIdFromUrl(url: string) {

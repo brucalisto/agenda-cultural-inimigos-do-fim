@@ -7,7 +7,7 @@ export const Route = createFileRoute("/api/public/events")({
       GET: async () => {
         const baseColumns =
           "id,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at";
-        const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
+        const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at`;
         const curated = await supabaseAdmin
           .from("interpreted_contents")
           .select(curatedColumns)
@@ -16,7 +16,9 @@ export const Route = createFileRoute("/api/public/events")({
           .order("event_date", { ascending: true })
           .limit(2000);
 
-        let events = curated.data;
+        let events: Array<Record<string, unknown>> | null = (curated.data || null) as
+          | Array<Record<string, unknown>>
+          | null;
         if (curated.error) {
           const fallback = await supabaseAdmin
             .from("interpreted_contents")
@@ -36,10 +38,14 @@ export const Route = createFileRoute("/api/public/events")({
             featured_priority: 0,
             featured_starts_at: null,
             featured_ends_at: null,
-            latitude: null,
-            longitude: null,
           }));
         }
+
+        events = (events || []).map((event) => ({
+          latitude: null,
+          longitude: null,
+          ...event,
+        }));
 
         return Response.json(
           { events: events || [] },
