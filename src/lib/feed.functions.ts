@@ -17,10 +17,10 @@ export const syncDefaultFeeds = createServerFn({ method: "POST" })
 export const importLegacyNotionAgenda = createServerFn({ method: "POST" })
   .inputValidator((value) => authSchema.parse(value))
   .handler(async ({ data }) => {
-    const [{ requireAdminAccess }, { ingestLegacyNotionExport }] = await Promise.all([
+    const [{ requireAdminAccess }, { ingestCurrentNotionExport }] = await Promise.all([
       import("@/lib/feed-sources.server"),
-      import("@/lib/feeds.server"),
+      import("@/lib/legacy-notion-current.server"),
     ]);
     await requireAdminAccess(data.accessToken);
-    return ingestLegacyNotionExport();
+    return ingestCurrentNotionExport();
   });
