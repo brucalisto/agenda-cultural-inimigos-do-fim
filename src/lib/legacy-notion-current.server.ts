@@ -153,7 +153,7 @@ async function upsert(item: LegacyNotionRow, eventSequence: number, importedAt: 
     return { id: existing.id, duplicate, status: row.review_status || "pendente", updated: true };
   }
 
-  const { data, error } = await supabaseAdmin.from("interpreted_contents").insert(row).select("id").single();
+  const { data, error } = await supabaseAdmin.from("interpreted_contents").insert(row as never).select("id").single();
   if (error) throw error;
   return { id: data.id, duplicate, status: row.review_status || "pendente", updated: false };
 }

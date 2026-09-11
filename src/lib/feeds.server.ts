@@ -629,7 +629,7 @@ async function adoptLegacyNotionRows(
 
   const legacyGroups = new Map<string, typeof data>();
   for (const row of data) {
-    const key = feedEventIdentity(row);
+    const key = feedEventIdentity(row as never);
     const group = legacyGroups.get(key) || [];
     group.push(row);
     legacyGroups.set(key, group);

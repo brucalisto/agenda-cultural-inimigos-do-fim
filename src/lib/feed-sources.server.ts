@@ -31,7 +31,7 @@ export type FeedSourceRecord = {
   auto_publish: boolean;
   last_synced_at: string | null;
   last_sync_status: string | null;
-  last_sync_result: unknown;
+  last_sync_result: any;
   created_at: string;
   updated_at: string;
 };

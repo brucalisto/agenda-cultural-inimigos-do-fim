@@ -17,7 +17,7 @@ export const reprocessMessage = createServerFn({ method: "POST" })
       .select("role")
       .eq("id", auth.user.id)
       .single();
-    if (!profile || !["admin", "revisor"].includes(profile.role))
+    if (!profile || !["admin", "revisor"].includes(profile.role ?? ""))
       throw new Error("Você não possui permissão para reprocessar mensagens.");
 
     const { data: message, error } = await supabaseAdmin
@@ -50,7 +50,7 @@ export const reprocessMessages = createServerFn({ method: "POST" })
       .select("role")
       .eq("id", auth.user.id)
       .single();
-    if (!profile || !["admin", "revisor"].includes(profile.role)) {
+    if (!profile || !["admin", "revisor"].includes(profile.role ?? "")) {
       throw new Error("Você não possui permissão para reprocessar mensagens.");
     }
 
