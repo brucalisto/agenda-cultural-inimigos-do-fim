@@ -7,7 +7,7 @@ export const Route = createFileRoute("/api/public/events")({
       GET: async () => {
         const baseColumns =
           "id,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at";
-        const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
+        const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at`;
         const curated = await supabaseAdmin
           .from("interpreted_contents")
           .select(curatedColumns)
