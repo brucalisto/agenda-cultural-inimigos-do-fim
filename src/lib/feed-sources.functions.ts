@@ -43,6 +43,6 @@ export const syncFeedSource = createServerFn({ method: "POST" })
 export const legacyNotionImportStatus = createServerFn({ method: "POST" })
   .inputValidator((value) => authSchema.parse(value))
   .handler(async ({ data }) => {
-    const { getLegacyNotionStatus } = await import("@/lib/feed-sources.server");
-    return getLegacyNotionStatus(data.accessToken);
+    const { getCurrentNotionStatus } = await import("@/lib/legacy-notion-current.server");
+    return getCurrentNotionStatus(data.accessToken);
   });
