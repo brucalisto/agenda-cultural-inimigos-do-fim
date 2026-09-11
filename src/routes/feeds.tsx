@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Database, ExternalLink, Loader2, Plus, RefreshCw, Rss, Trash2 } from "lucide-react";
+import { Clock3, Database, ExternalLink, Loader2, Plus, RefreshCw, Rss, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -33,12 +33,66 @@ type FeedSource = {
   last_sync_result: unknown;
 };
 
-type LegacyStatus = { total: number; published: number; review: number };
+type ImportHistoryEntry = {
+  processedAt: string;
+  loadVersion: string;
+  loadTotal: number;
+  imported: number;
+  updated: number;
+  published: number;
+  duplicates: number;
+  status: "sucesso" | "erro";
+  error?: string;
+};
+
+type LegacyStatus = {
+  available: number;
+  total: number;
+  published: number;
+  review: number;
+  loadVersion: string;
+  loadStart: string;
+  lastProcessedAt: string | null;
+  lastStatus: string | null;
+  history: ImportHistoryEntry[];
+  historicalTotal: number;
+};
+
+const emptyLegacyStatus: LegacyStatus = {
+  available: 0,
+  total: 0,
+  published: 0,
+  review: 0,
+  loadVersion: "",
+  loadStart: "2026-09-11",
+  lastProcessedAt: null,
+  lastStatus: null,
+  history: [],
+  historicalTotal: 0,
+};
 
 async function accessToken() {
   const { data } = await supabase.auth.getSession();
   if (!data.session?.access_token) throw new Error("Sua sessão expirou. Entre novamente.");
   return data.session.access_token;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "ainda não executado";
+  return new Date(value).toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatLoadStart(value: string) {
+  const [year, month, day] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
 function syncDetail(result: unknown) {
@@ -56,7 +110,7 @@ function syncDetail(result: unknown) {
 
 function FeedsPage() {
   const [sources, setSources] = useState<FeedSource[]>([]);
-  const [status, setStatus] = useState<LegacyStatus>({ total: 0, published: 0, review: 0 });
+  const [status, setStatus] = useState<LegacyStatus>(emptyLegacyStatus);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -88,11 +142,12 @@ function FeedsPage() {
       const token = await accessToken();
       const result = await importLegacyNotionAgenda({ data: { accessToken: token } });
       toast.success(
-        `Notion processado: ${result.published} publicados e ${result.duplicates} possíveis duplicidades.`,
+        `Carga ${result.loadVersion} processada: ${result.imported} novos, ${result.updated} atualizados, ${result.published} publicados e ${result.duplicates} possíveis duplicidades.`,
       );
       await refresh();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Falha ao importar a agenda do Notion.");
+      await refresh();
     } finally {
       setImporting(false);
     }
@@ -176,6 +231,7 @@ function FeedsPage() {
   }
 
   const newSourceIsInstagram = /instagram\.com/i.test(url);
+  const lastRun = status.history[0];
 
   return (
     <DashboardLayout>
@@ -190,27 +246,76 @@ function FeedsPage() {
         <Card className="border-primary/20">
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Database className="h-5 w-5 text-primary" />
                   <CardTitle>Base exportada do Notion</CardTitle>
+                  {status.loadVersion ? <Badge variant="outline">{status.loadVersion}</Badge> : null}
                 </div>
                 <CardDescription>
-                  Carga inicial revisada da Agenda Cultural Inimigos do Fim. Registros sem duplicidade são publicados automaticamente.
+                  Carga atual considera eventos com vigência a partir de {formatLoadStart(status.loadStart)}. Registros antigos permanecem no histórico, mas não entram novamente nesta carga.
                 </CardDescription>
               </div>
-              <Button onClick={() => void importNotion()} disabled={importing}>
+              <Button onClick={() => void importNotion()} disabled={importing || status.available === 0}>
                 {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                {status.total ? "Reprocessar importação" : "Importar 93 eventos"}
+                {status.total ? `Reprocessar carga atual (${status.available})` : `Processar carga atual (${status.available})`}
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border p-4"><p className="text-2xl font-bold">{status.total}</p><p className="text-sm text-muted-foreground">registros importados</p></div>
-              <div className="rounded-lg border p-4"><p className="text-2xl font-bold text-emerald-600">{status.published}</p><p className="text-sm text-muted-foreground">publicados</p></div>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-4"><p className="text-2xl font-bold">{status.available}</p><p className="text-sm text-muted-foreground">registros disponíveis nesta carga</p></div>
+              <div className="rounded-lg border p-4"><p className="text-2xl font-bold">{status.total}</p><p className="text-sm text-muted-foreground">registros desta carga já processados</p></div>
+              <div className="rounded-lg border p-4"><p className="text-2xl font-bold text-emerald-600">{status.published}</p><p className="text-sm text-muted-foreground">publicados nesta carga</p></div>
               <div className="rounded-lg border p-4"><p className="text-2xl font-bold text-amber-600">{status.review}</p><p className="text-sm text-muted-foreground">em revisão por duplicidade</p></div>
             </div>
+
+            <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-medium"><Clock3 className="h-4 w-4" />Último processamento</div>
+                <Badge variant={status.lastStatus === "erro" ? "destructive" : "secondary"}>{status.lastStatus || "sem execução registrada"}</Badge>
+              </div>
+              <p className="mt-2 text-muted-foreground">{formatDateTime(status.lastProcessedAt)}</p>
+              {lastRun ? (
+                <p className="mt-1 text-muted-foreground">
+                  Carga: {lastRun.loadTotal} · novos: {lastRun.imported} · atualizados: {lastRun.updated} · publicados: {lastRun.published} · duplicidades: {lastRun.duplicates}
+                </p>
+              ) : (
+                <p className="mt-1 text-muted-foreground">O próximo processamento passará a registrar aqui exatamente o que aconteceu em cada execução.</p>
+              )}
+              {lastRun?.error ? <p className="mt-2 text-destructive">Erro: {lastRun.error}</p> : null}
+              {status.historicalTotal > status.total ? (
+                <p className="mt-2 text-xs text-muted-foreground">Há {status.historicalTotal} registros históricos da antiga carga no banco; eles não são confundidos com a carga atual.</p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5" />Histórico de processamentos do Notion</CardTitle>
+            <CardDescription>Cada clique de processamento fica registrado com data, hora e resultado da carga.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {status.history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum processamento da nova carga registrado ainda.</p>
+            ) : (
+              <div className="space-y-2">
+                {status.history.slice(0, 10).map((entry, index) => (
+                  <div key={`${entry.processedAt}-${index}`} className="flex flex-col gap-2 rounded-lg border p-3 text-sm lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{formatDateTime(entry.processedAt)}</span>
+                        <Badge variant={entry.status === "erro" ? "destructive" : "secondary"}>{entry.status}</Badge>
+                        <Badge variant="outline">{entry.loadVersion}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">Carga {entry.loadTotal} · novos {entry.imported} · atualizados {entry.updated} · publicados {entry.published} · duplicidades {entry.duplicates}</p>
+                      {entry.error ? <p className="mt-1 text-xs text-destructive">{entry.error}</p> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
