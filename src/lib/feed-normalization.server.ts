@@ -1,3 +1,6 @@
+import { expandRecurringItems } from "@/lib/recurrence.server";
+import type { InterpretedContentResponse } from "@/lib/gemini/schema";
+
 export type FeedEventLike = {
   title?: string | null;
   category?: string | null;
@@ -11,6 +14,10 @@ export type FeedEventLike = {
   contact_name?: string | null;
   contact_phone?: string | null;
   contact_instagram?: string | null;
+  keywords?: string[] | null;
+  missing_fields?: string[] | null;
+  warnings?: string[] | null;
+  confidence_score?: number | null;
   extracted_data?: Record<string, unknown> | null;
 };
 
@@ -43,7 +50,23 @@ function first<T>(...values: Array<T | null | undefined>) {
   return values.find((value) => value !== null && value !== undefined && value !== "") ?? null;
 }
 
-export function consolidateFeedEvents<T extends FeedEventLike>(items: T[]) {
+function supportsRecurrenceExpansion(item: FeedEventLike): item is FeedEventLike & InterpretedContentResponse {
+  return (
+    Array.isArray(item.keywords) &&
+    Array.isArray(item.missing_fields) &&
+    Array.isArray(item.warnings) &&
+    typeof item.confidence_score === "number" &&
+    Object.prototype.hasOwnProperty.call(item, "price")
+  );
+}
+
+function expandRecurrenceWhenApplicable<T extends FeedEventLike>(items: T[]) {
+  if (!items.length || !items.every(supportsRecurrenceExpansion)) return items;
+  return expandRecurringItems(items as unknown as InterpretedContentResponse[]) as unknown as T[];
+}
+
+export function consolidateFeedEvents<T extends FeedEventLike>(inputItems: T[]) {
+  const items = expandRecurrenceWhenApplicable(inputItems);
   const groups = new Map<string, T[]>();
   for (const item of items) {
     const key = feedEventIdentity(item);

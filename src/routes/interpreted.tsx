@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BrainCircuit, Eye, RotateCcw, Search, Trash2, CopyCheck } from "lucide-react";
+import {
+  BrainCircuit,
+  CopyCheck,
+  ExternalLink,
+  Eye,
+  RotateCcw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { InterpretedDetails } from "@/components/interpreted/InterpretedDetails";
@@ -47,9 +55,17 @@ import { getInterpretedContents, type InterpretedContent } from "@/lib/interpret
 
 export const Route = createFileRoute("/interpreted")({ component: ReviewWorkspace });
 
+const INIMIGOS_COMMUNITY_URL = "https://chat.whatsapp.com/GiE4WfxQk4O4aPDOzHM8eJ";
+
+function extractedRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function duplicateInfo(extractedData: unknown) {
-  if (!extractedData || typeof extractedData !== "object" || Array.isArray(extractedData)) return null;
-  const value = (extractedData as { possibleDuplicate?: unknown }).possibleDuplicate;
+  const record = extractedRecord(extractedData);
+  const value = record.possibleDuplicate;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const duplicate = value as { id?: string; title?: string | null; score?: number; reasons?: string[] };
   if (!duplicate.id) return null;
@@ -58,9 +74,65 @@ function duplicateInfo(extractedData: unknown) {
 
 function sourceKind(item: InterpretedContent) {
   if (item.whatsapp_messages) return "whatsapp";
-  if (item.source_url?.includes("notion")) return "notion";
-  if (item.source_url) return "feed";
+  const extracted = extractedRecord(item.extracted_data);
+  const sourceType = typeof extracted.sourceType === "string" ? extracted.sourceType : "";
+  if (sourceType === "notion" || sourceType === "notion_export" || item.source_url?.includes("notion")) return "notion";
+  if (sourceType || item.source_url) return "feed";
   return "unknown";
+}
+
+function sourcePresentation(item: InterpretedContent) {
+  const extracted = extractedRecord(item.extracted_data);
+  const kind = sourceKind(item);
+  const feedName = typeof extracted.feedSourceName === "string" ? extracted.feedSourceName : null;
+  const sourceType = typeof extracted.sourceType === "string" ? extracted.sourceType : null;
+  const instagramPostUrl = typeof extracted.instagramPostUrl === "string" ? extracted.instagramPostUrl : null;
+  const feedSourceUrl = typeof extracted.feedSourceUrl === "string" ? extracted.feedSourceUrl : null;
+
+  if (kind === "whatsapp") {
+    const groupName = item.whatsapp_messages?.whatsapp_groups?.nome || null;
+    const isInimigos = /inimigos do fim/i.test(groupName || "");
+    return {
+      kind,
+      label: "Grupo",
+      name: groupName || item.whatsapp_messages?.sender_name || "WhatsApp",
+      url: isInimigos ? INIMIGOS_COMMUNITY_URL : null,
+      linkLabel: isInimigos ? "Comunidade" : null,
+    };
+  }
+
+  if (sourceType === "instagram" || /instagram\.com/i.test(feedSourceUrl || item.source_url || "")) {
+    return {
+      kind: "feed",
+      label: "Instagram",
+      name: feedName || "Instagram",
+      url: instagramPostUrl || item.source_url || feedSourceUrl,
+      linkLabel: "Ver postagem",
+    };
+  }
+
+  if (kind === "notion") {
+    return {
+      kind,
+      label: "Notion",
+      name: feedName || "Agenda Cultural Inimigos do Fim",
+      url: item.source_url || feedSourceUrl,
+      linkLabel: "Ver fonte",
+    };
+  }
+
+  if (kind === "feed") {
+    const label = sourceType === "rss" ? "RSS" : sourceType === "web" ? "Site" : "Fonte externa";
+    return {
+      kind,
+      label,
+      name: feedName || "Fonte externa",
+      url: item.source_url || feedSourceUrl,
+      linkLabel: "Ver fonte",
+    };
+  }
+
+  return { kind, label: "Desconhecida", name: "", url: null, linkLabel: null };
 }
 
 function isLikelyEvent(item: InterpretedContent) {
@@ -107,6 +179,7 @@ export function ReviewWorkspace() {
       data.filter((item) => {
         const term = search.toLowerCase();
         const itemSource = sourceKind(item);
+        const source = sourcePresentation(item);
         return (
           !["publicado", "aprovado"].includes(item.review_status) &&
           (showNonEvents || isLikelyEvent(item)) &&
@@ -115,7 +188,8 @@ export function ReviewWorkspace() {
           (status === "all" || item.review_status === status) &&
           (!term ||
             item.title?.toLowerCase().includes(term) ||
-            item.whatsapp_messages?.text_content?.toLowerCase().includes(term))
+            item.whatsapp_messages?.text_content?.toLowerCase().includes(term) ||
+            source.name.toLowerCase().includes(term))
         );
       }),
     [category, data, origin, search, showNonEvents, status],
@@ -200,7 +274,7 @@ export function ReviewWorkspace() {
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por título ou mensagem..."
+              placeholder="Buscar por título, mensagem ou fonte..."
             />
           </div>
           <Select value={category} onValueChange={setCategory}>
@@ -214,9 +288,9 @@ export function ReviewWorkspace() {
             <SelectTrigger><SelectValue placeholder="Origem" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as origens</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+              <SelectItem value="whatsapp">Grupos WhatsApp</SelectItem>
               <SelectItem value="notion">Notion</SelectItem>
-              <SelectItem value="feed">Feed externo</SelectItem>
+              <SelectItem value="feed">Instagram / sites / feeds</SelectItem>
               <SelectItem value="unknown">Desconhecida</SelectItem>
             </SelectContent>
           </Select>
@@ -260,7 +334,7 @@ export function ReviewWorkspace() {
                 <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Selecionar conteúdos filtrados" /></TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead>Origem</TableHead>
+                <TableHead>Origem / fonte</TableHead>
                 <TableHead>Recebido em</TableHead>
                 <TableHead>Data do evento</TableHead>
                 <TableHead>Confiança</TableHead>
@@ -276,8 +350,7 @@ export function ReviewWorkspace() {
               ) : (
                 filtered.map((item) => {
                   const duplicate = duplicateInfo(item.extracted_data);
-                  const kind = sourceKind(item);
-                  const sourceLabel = kind === "whatsapp" ? "WhatsApp" : kind === "notion" ? "Notion" : kind === "feed" ? "Feed externo" : "Desconhecida";
+                  const source = sourcePresentation(item);
                   return (
                     <TableRow key={item.id} className={duplicate ? "bg-amber-50/50 dark:bg-amber-950/10" : undefined}>
                       <TableCell><Checkbox checked={selected.has(item.id)} onCheckedChange={() => setSelected((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} aria-label={`Selecionar ${item.title || "conteúdo"}`} /></TableCell>
@@ -293,8 +366,21 @@ export function ReviewWorkspace() {
                       </TableCell>
                       <TableCell><Badge variant="outline">{item.category || "N/A"}</Badge></TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{sourceLabel}</Badge>
-                        <div className="mt-1 text-xs text-muted-foreground">{item.whatsapp_messages?.whatsapp_groups?.nome || item.whatsapp_messages?.sender_name || ""}</div>
+                        <div className="flex max-w-[220px] flex-col items-start gap-1">
+                          <Badge variant="secondary">{source.label}</Badge>
+                          {source.name ? <span className="text-xs font-medium text-foreground">{source.name}</span> : null}
+                          {source.url && source.linkLabel ? (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                            >
+                              {source.linkLabel} <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>{formatDateTime(item.created_at)}</TableCell>
                       <TableCell>{item.event_date ? new Date(item.event_date).toLocaleDateString("pt-BR") : "Não informada"}</TableCell>
@@ -325,7 +411,7 @@ export function ReviewWorkspace() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirm === "category" ? `Os ${filtered.length} conteúdos visíveis da categoria “${category}” serão excluídos.` : `${selected.size} conteúdo(s) serão excluídos.`} Esta ação não pode ser desfeita.
+              {confirm === "category" ? `Os ${filtered.length} conteúdos visíveis da categoria “${category}” serão excluídos.` : `${selected.size} conteúdo(s) serão excluído(s).`} Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
