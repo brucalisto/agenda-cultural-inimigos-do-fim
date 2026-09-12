@@ -16,9 +16,7 @@ type ExpandOptions = {
 };
 
 export type RecurringExpandedItem = InterpretedContentResponse & {
-  recurrenceMeta?: RecurrenceMeta;
-  recurrenceIndex?: number;
-  recurrenceDate?: string;
+  extracted_data?: Record<string, unknown>;
 };
 
 const RECURRENCE_PREFIXES = ["recurrence:", "weekdays:", "time:", "start:", "end:"];
@@ -117,6 +115,20 @@ function recurringActivityItem(item: InterpretedContentResponse) {
   );
 }
 
+function withRecurrenceData(
+  item: InterpretedContentResponse,
+  recurrence: RecurrenceMeta,
+  extra: Record<string, unknown> = {},
+): RecurringExpandedItem {
+  return {
+    ...item,
+    extracted_data: {
+      recurrence,
+      ...extra,
+    },
+  };
+}
+
 export function expandRecurringItems(
   items: InterpretedContentResponse[],
   options: ExpandOptions = {},
@@ -157,24 +169,29 @@ export function expandRecurringItems(
     }
 
     if (!endDate) {
-      expanded.push({
-        ...item,
-        keywords: cleanKeywords,
-        missing_fields: [...new Set([...(item.missing_fields || []), "recurrence_end_date"])],
-        warnings: [
-          ...(item.warnings || []),
-          "Recorrência semanal confirmada, mas a fonte não informa término; mantida para revisão sem expansão automática.",
-        ].slice(0, 4),
-        confidence_score: Math.min(item.confidence_score, 0.82),
-        recurrenceMeta: {
-          frequency: "weekly",
-          weekdays: recurrence.weekdays,
-          time: recurrence.time,
-          startDate,
-          endDate: null,
-          endDateSource: null,
-        },
-      });
+      const recurrenceMeta: RecurrenceMeta = {
+        frequency: "weekly",
+        weekdays: recurrence.weekdays,
+        time: recurrence.time,
+        startDate,
+        endDate: null,
+        endDateSource: null,
+      };
+      expanded.push(
+        withRecurrenceData(
+          {
+            ...item,
+            keywords: cleanKeywords,
+            missing_fields: [...new Set([...(item.missing_fields || []), "recurrence_end_date"])],
+            warnings: [
+              ...(item.warnings || []),
+              "Recorrência semanal confirmada, mas a fonte não informa término; mantida para revisão sem expansão automática.",
+            ].slice(0, 4),
+            confidence_score: Math.min(item.confidence_score, 0.82),
+          },
+          recurrenceMeta,
+        ),
+      );
       continue;
     }
 
@@ -202,29 +219,39 @@ export function expandRecurringItems(
     while (cursor <= endDate && occurrence < 100) {
       if (recurrence.weekdays.includes(weekday(cursor)) && cursor >= today) {
         const recurrenceDate = toEventIso(cursor, recurrence.time);
-        expanded.push({
-          ...item,
-          event_date: recurrenceDate,
-          keywords: cleanKeywords,
-          missing_fields: (item.missing_fields || []).filter(
-            (field) => !["event_date", "recurrence_schedule", "recurrence_end_date"].includes(field),
+        expanded.push(
+          withRecurrenceData(
+            {
+              ...item,
+              event_date: recurrenceDate,
+              keywords: cleanKeywords,
+              missing_fields: (item.missing_fields || []).filter(
+                (field) => !["event_date", "recurrence_schedule", "recurrence_end_date"].includes(field),
+              ),
+            },
+            recurrenceMeta,
+            { recurrenceIndex: occurrence, recurrenceDate },
           ),
-          recurrenceMeta,
-          recurrenceIndex: occurrence,
-          recurrenceDate,
-        });
+        );
         occurrence += 1;
       }
       cursor = addDays(cursor, 1);
     }
 
     if (occurrence === 0) {
-      expanded.push({
-        ...item,
-        keywords: cleanKeywords,
-        warnings: [...(item.warnings || []), "A recorrência informada não possui ocorrências futuras dentro do período detectado."].slice(0, 4),
-        recurrenceMeta,
-      });
+      expanded.push(
+        withRecurrenceData(
+          {
+            ...item,
+            keywords: cleanKeywords,
+            warnings: [
+              ...(item.warnings || []),
+              "A recorrência informada não possui ocorrências futuras dentro do período detectado.",
+            ].slice(0, 4),
+          },
+          recurrenceMeta,
+        ),
+      );
     }
   }
 
