@@ -216,7 +216,9 @@ export type Database = {
           image_url: string | null
           is_featured: boolean
           keywords: string[] | null
+          latitude: number | null
           location: string | null
+          longitude: number | null
           message_id: string | null
           missing_fields: string[] | null
           model_used: string | null
@@ -250,7 +252,9 @@ export type Database = {
           image_url?: string | null
           is_featured?: boolean
           keywords?: string[] | null
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
           message_id?: string | null
           missing_fields?: string[] | null
           model_used?: string | null
@@ -284,7 +288,9 @@ export type Database = {
           image_url?: string | null
           is_featured?: boolean
           keywords?: string[] | null
+          latitude?: number | null
           location?: string | null
+          longitude?: number | null
           message_id?: string | null
           missing_fields?: string[] | null
           model_used?: string | null

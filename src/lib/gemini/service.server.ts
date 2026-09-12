@@ -574,3 +574,24 @@ export async function complementaryJson(prompt: string) {
   }
   throw new Error(errors.join(". "));
 }
+
+export async function areMessagesComplementary(previous: string, current: string) {
+  const prompt = [
+    "Você analisa mensagens de WhatsApp sobre eventos culturais.",
+    "Responda APENAS com JSON no formato {\"complementary\": true|false}.",
+    "complementary = true quando as duas mensagens se referem ao MESMO evento (complemento, correção ou continuação).",
+    "",
+    "MENSAGEM ANTERIOR:",
+    previous,
+    "",
+    "MENSAGEM ATUAL:",
+    current,
+  ].join("\n");
+
+  try {
+    const result = (await complementaryJson(prompt)) as { complementary?: unknown };
+    return result?.complementary === true || result?.complementary === "true";
+  } catch {
+    return false;
+  }
+}
