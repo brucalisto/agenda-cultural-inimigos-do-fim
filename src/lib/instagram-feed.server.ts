@@ -1,7 +1,8 @@
 import { extractPublicPage, loadPublicImage } from "@/lib/links.server";
 
 const INSTAGRAM_HOST = /(^|\.)instagram\.com$/i;
-const MAX_POSTS = 12;
+const MAX_POSTS = 50;
+const MAX_CAROUSEL_IMAGES = 12;
 const DEFAULT_GRAPH_API_VERSION = "v26.0";
 
 export type InstagramPublicPost = {
@@ -11,6 +12,7 @@ export type InstagramPublicPost = {
   description: string | null;
   text: string;
   imageUrls: string[];
+  publishedAt: string | null;
 };
 
 type MetaConfig = {
@@ -121,7 +123,7 @@ function metaImageUrls(media: MetaMedia) {
     })
     .filter((value): value is string => Boolean(value));
 
-  if (childImages.length) return uniq(childImages).slice(0, 10);
+  if (childImages.length) return uniq(childImages).slice(0, MAX_CAROUSEL_IMAGES);
   if (media.media_type === "VIDEO") {
     return media.thumbnail_url ? [media.thumbnail_url] : [];
   }
@@ -136,20 +138,19 @@ function metaPost(media: MetaMedia, username: string): InstagramPublicPost | nul
   if (!shortcode) return null;
 
   const caption = media.caption?.trim() || null;
-  const timestamp = media.timestamp ? new Date(media.timestamp) : null;
-  const timestampLabel =
-    timestamp && !Number.isNaN(timestamp.getTime())
-      ? timestamp.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+  const publishedAt =
+    media.timestamp && !Number.isNaN(new Date(media.timestamp).getTime())
+      ? new Date(media.timestamp).toISOString()
       : null;
-  const title = [username ? `@${username}` : null, timestampLabel].filter(Boolean).join(" · ") || null;
 
   return {
     shortcode,
     url: normalized,
-    title,
+    title: username ? `@${username}` : null,
     description: caption,
     text: caption || `Publicação do Instagram ${normalized}`,
     imageUrls: metaImageUrls(media),
+    publishedAt,
   };
 }
 
@@ -286,10 +287,10 @@ function imageUrlsFromHtml(html: string) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(html))) {
       if (match[1]) urls.push(decodeJsonString(match[1]));
-      if (urls.length >= 10) break;
+      if (urls.length >= MAX_CAROUSEL_IMAGES) break;
     }
   }
-  return uniq(urls.filter((value) => /^https?:\/\//i.test(value))).slice(0, 10);
+  return uniq(urls.filter((value) => /^https?:\/\//i.test(value))).slice(0, MAX_CAROUSEL_IMAGES);
 }
 
 export async function discoverInstagramPosts(sourceUrl: string) {
@@ -363,12 +364,13 @@ export async function extractInstagramPublicPost(postUrl: string): Promise<Insta
     description,
     text: text || `Publicação do Instagram ${normalized}`,
     imageUrls,
+    publishedAt: null,
   };
 }
 
 export async function loadInstagramImages(imageUrls: string[]) {
   const media: Array<{ mimeType: string; data: string }> = [];
-  for (const imageUrl of imageUrls.slice(0, 6)) {
+  for (const imageUrl of imageUrls.slice(0, MAX_CAROUSEL_IMAGES)) {
     try {
       media.push(await loadPublicImage(imageUrl));
     } catch {
