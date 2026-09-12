@@ -10,8 +10,8 @@ type RecurrenceMeta = {
 };
 
 type ExpandOptions = {
-  sourceName: string;
-  sourceUrl: string;
+  sourceName?: string;
+  sourceUrl?: string;
   now?: Date;
 };
 
@@ -106,8 +106,9 @@ export function hasUsableRecurrence(item: InterpretedContentResponse) {
   return Boolean(recurrence?.weekdays.length && recurrence.time);
 }
 
-function isFundacc(options: ExpandOptions) {
-  return /fundacc/i.test(`${options.sourceName} ${options.sourceUrl}`);
+function isFundacc(options: ExpandOptions, item: InterpretedContentResponse) {
+  const itemEvidence = `${item.title || ""} ${item.summary || ""} ${item.full_description || ""} ${item.contact_instagram || ""}`;
+  return /fundacc/i.test(`${options.sourceName || ""} ${options.sourceUrl || ""} ${itemEvidence}`);
 }
 
 function recurringActivityItem(item: InterpretedContentResponse) {
@@ -118,7 +119,7 @@ function recurringActivityItem(item: InterpretedContentResponse) {
 
 export function expandRecurringItems(
   items: InterpretedContentResponse[],
-  options: ExpandOptions,
+  options: ExpandOptions = {},
 ): RecurringExpandedItem[] {
   const today = dateInSaoPaulo(options.now || new Date());
   const expanded: RecurringExpandedItem[] = [];
@@ -150,7 +151,7 @@ export function expandRecurringItems(
     let endDate = recurrence.endDate;
     let endDateSource: RecurrenceMeta["endDateSource"] = endDate ? "source" : null;
 
-    if (!endDate && isFundacc(options) && recurringActivityItem(item)) {
+    if (!endDate && isFundacc(options, item) && recurringActivityItem(item)) {
       endDate = endOfSemester(startDate);
       endDateSource = "fundacc-semester";
     }
