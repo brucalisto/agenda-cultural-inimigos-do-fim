@@ -18,6 +18,7 @@ export type AIResult = InterpretedContentsResponse & {
 
 const MAX_CONTENT_CHARS = 12_000;
 const MAX_TRANSCRIPT_CHARS = 3_000;
+const MAX_VISUAL_IMAGES = 10;
 const TEXT_TIMEOUT_MS = 12_000;
 const VISION_TIMEOUT_MS = 18_000;
 const OPENROUTER_TIMEOUT_MS = 15_000;
@@ -165,7 +166,7 @@ function getDateContext() {
 }
 
 function visualMedia(mediaFiles: MediaFile[]) {
-  return mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, 3);
+  return mediaFiles.filter((file) => file.mimeType.startsWith("image/")).slice(0, MAX_VISUAL_IMAGES);
 }
 
 function audibleMedia(mediaFiles: MediaFile[]) {
@@ -186,9 +187,19 @@ function textLooksSufficientForExtraction(content: string) {
   return hasDate && hasEventCue && (hasTime || hasPlace);
 }
 
+function shouldForceVision(content: string, mediaFiles: MediaFile[]) {
+  if (!visualMedia(mediaFiles).length) return false;
+  if (/\bFORCE_VISION\s*=\s*1\b/i.test(content)) return true;
+  if (visualMedia(mediaFiles).length <= 1) return false;
+  return /\b(?:carrossel|programação|programacao|agenda completa|confira a programação|oficinas?|grade|cronograma|mostra|festival)\b/i.test(
+    content,
+  );
+}
+
 function shouldUseVision(content: string, mediaFiles: MediaFile[]) {
   const images = visualMedia(mediaFiles);
   if (!images.length) return false;
+  if (shouldForceVision(content, mediaFiles)) return true;
   return !textLooksSufficientForExtraction(content);
 }
 
@@ -389,7 +400,7 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
   if (!apiKey) throw new Error("GEMINI_API_KEY não está configurada.");
   const parts: Array<Record<string, unknown>> = [
     { text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content)}` },
-    ...mediaFiles.slice(0, 4).map((file) => ({
+    ...mediaFiles.slice(0, MAX_VISUAL_IMAGES).map((file) => ({
       inlineData: { mimeType: file.mimeType, data: file.data },
     })),
   ];
@@ -519,9 +530,11 @@ async function complementaryWithMistral(prompt: string) {
       max_tokens: 80,
     }),
   });
-  if (!response.ok) throw new Error("Mistral indisponível");
+  if (!response.ok) throw new Error(`Mistral complementar falhou (${response.status}).`);
   const payload = (await response.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
-  return parseModelJson(extractMessageText(payload.choices?.[0]?.message?.content) || "{}").complementary;
+  const text = extractMessageText(payload.choices?.[0]?.message?.content);
+  if (!text) throw new Error("Mistral complementar vazia.");
+  return parseModelJson(text);
 }
 
 async function complementaryWithGroq(prompt: string) {
@@ -539,45 +552,25 @@ async function complementaryWithGroq(prompt: string) {
       max_completion_tokens: 80,
     }),
   });
-  if (!response.ok) throw new Error("Groq indisponível");
+  if (!response.ok) throw new Error(`Groq complementar falhou (${response.status}).`);
   const payload = (await response.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
-  return parseModelJson(extractMessageText(payload.choices?.[0]?.message?.content) || "{}").complementary;
+  const text = extractMessageText(payload.choices?.[0]?.message?.content);
+  if (!text) throw new Error("Groq complementar vazia.");
+  return parseModelJson(text);
 }
 
-async function complementaryWithGemini(prompt: string) {
-  const apiKey = process.env["GEMINI_API_KEY"];
-  if (!apiKey) throw new Error("sem Gemini");
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 80, temperature: 0, responseMimeType: "application/json" },
-      }),
-    },
-  );
-  if (!response.ok) throw new Error("Gemini indisponível");
-  const payload = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n") || "{}";
-  return parseModelJson(text).complementary;
-}
-
-export async function areMessagesComplementary(previous: string, current: string) {
-  const prompt = `Determine se a segunda mensagem complementa a primeira sobre o MESMO evento. Responda somente JSON {"complementary":true|false}.\nMENSAGEM 1:\n${compactText(previous, 4000)}\nMENSAGEM 2:\n${compactText(current, 4000)}`;
+export async function complementaryJson(prompt: string) {
   const attempts = [
-    () => complementaryWithMistral(prompt),
-    () => complementaryWithGroq(prompt),
-    () => complementaryWithGemini(prompt),
+    { label: "Mistral", run: () => complementaryWithMistral(prompt) },
+    { label: "Groq", run: () => complementaryWithGroq(prompt) },
   ];
-  for (const run of attempts) {
+  const errors: string[] = [];
+  for (const attempt of attempts) {
     try {
-      const value = await withTimeout(run(), "Complementaridade", COMPLEMENT_TIMEOUT_MS);
-      if (typeof value === "boolean") return value;
-    } catch {
-      // Tenta o próximo provedor gratuito.
+      return await withTimeout(attempt.run(), attempt.label, COMPLEMENT_TIMEOUT_MS);
+    } catch (error) {
+      errors.push(`${attempt.label}: ${error instanceof Error ? error.message : "falha"}`);
     }
   }
-  return false;
+  throw new Error(errors.join(". "));
 }
