@@ -1,4 +1,4 @@
-import { expandRecurringItems } from "@/lib/recurrence.server";
+import { prepareRecurringItemsForReview } from "@/lib/recurrence.server";
 import type { InterpretedContentResponse } from "@/lib/gemini/schema";
 
 export type FeedEventLike = {
@@ -19,6 +19,11 @@ export type FeedEventLike = {
   warnings?: string[] | null;
   confidence_score?: number | null;
   extracted_data?: Record<string, unknown> | null;
+};
+
+type ConsolidationOptions = {
+  sourceName?: string;
+  sourceUrl?: string;
 };
 
 function normalize(value?: string | null) {
@@ -50,7 +55,7 @@ function first<T>(...values: Array<T | null | undefined>) {
   return values.find((value) => value !== null && value !== undefined && value !== "") ?? null;
 }
 
-function supportsRecurrenceExpansion(item: FeedEventLike): item is FeedEventLike & InterpretedContentResponse {
+function supportsRecurrencePreparation(item: FeedEventLike): item is FeedEventLike & InterpretedContentResponse {
   return (
     Array.isArray(item.keywords) &&
     Array.isArray(item.missing_fields) &&
@@ -60,13 +65,27 @@ function supportsRecurrenceExpansion(item: FeedEventLike): item is FeedEventLike
   );
 }
 
-function expandRecurrenceWhenApplicable<T extends FeedEventLike>(items: T[]) {
-  if (!items.length || !items.every(supportsRecurrenceExpansion)) return items;
-  return expandRecurringItems(items as unknown as InterpretedContentResponse[]) as unknown as T[];
+function prepareRecurrenceWhenApplicable<T extends FeedEventLike>(
+  items: T[],
+  options: ConsolidationOptions,
+) {
+  if (!items.length || !items.every(supportsRecurrencePreparation)) return items;
+  return prepareRecurringItemsForReview(
+    items as unknown as InterpretedContentResponse[],
+    options,
+  ) as unknown as T[];
 }
 
-export function consolidateFeedEvents<T extends FeedEventLike>(inputItems: T[]) {
-  const items = expandRecurrenceWhenApplicable(inputItems);
+/**
+ * Consolida duplicidades do mesmo evento dentro de uma única fonte, mas mantém
+ * recorrências como UM registro-base durante a revisão. A expansão semanal acontece
+ * somente quando a agenda pública é consultada, depois da aprovação editorial.
+ */
+export function consolidateFeedEvents<T extends FeedEventLike>(
+  inputItems: T[],
+  options: ConsolidationOptions = {},
+) {
+  const items = prepareRecurrenceWhenApplicable(inputItems, options);
   const groups = new Map<string, T[]>();
   for (const item of items) {
     const key = feedEventIdentity(item);
