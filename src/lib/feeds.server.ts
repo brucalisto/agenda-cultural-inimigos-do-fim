@@ -253,84 +253,97 @@ async function ingestInstagramSource(source: FeedSource) {
     duplicate: boolean;
     postUrl: string;
     skipped?: boolean;
+    failed?: boolean;
+    error?: string;
   }> = [];
 
   for (const postUrl of postUrls) {
-    const post = await extractInstagramPublicPost(postUrl);
-    const postKey = `instagram:${source.id}:${post.shortcode}`;
+    try {
+      const post = await extractInstagramPublicPost(postUrl);
+      const postKey = `instagram:${source.id}:${post.shortcode}`;
 
-    const { data: alreadySeen, error: seenError } = await supabaseAdmin
-      .from("interpreted_contents")
-      .select("id")
-      .contains("extracted_data", { instagramPostKey: postKey })
-      .limit(1);
-    if (seenError) throw seenError;
-    if (alreadySeen?.length) {
+      const { data: alreadySeen, error: seenError } = await supabaseAdmin
+        .from("interpreted_contents")
+        .select("id")
+        .contains("extracted_data", { instagramPostKey: postKey })
+        .limit(1);
+      if (seenError) throw seenError;
+      if (alreadySeen?.length) {
+        results.push({
+          title: post.title,
+          status: "ja_processado",
+          duplicate: false,
+          postUrl: post.url,
+          skipped: true,
+        });
+        continue;
+      }
+
+      const media = await loadInstagramImages(post.imageUrls);
+      const context = [
+        `FONTE: ${source.name}`,
+        `PERFIL/FONTE MONITORADA: ${source.url}`,
+        `PUBLICAÇÃO: ${post.url}`,
+        post.title && `TÍTULO/METADADO: ${post.title}`,
+        post.description && `LEGENDA/DESCRIÇÃO: ${post.description}`,
+        post.text,
+        "Esta publicação pode ser carrossel, imagem, reel ou vídeo e pode conter programação de vários dias.",
+        "Extraia CADA evento separadamente quando houver mais de um. Não invente dados ausentes.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const interpreted = await processWithAI(context, media);
+      const now = new Date().toISOString();
+      const consolidatedItems = consolidateFeedEvents(interpreted.items);
+
+      for (const [eventSequence, item] of consolidatedItems.entries()) {
+        const externalKey = `${postKey}:${eventSequence}`;
+        const baseRow = {
+          message_id: null,
+          event_sequence: eventSequence,
+          ...item,
+          city: inferCity(item.city, item.location),
+          price: item.price == null ? null : String(item.price),
+          source_url: post.url,
+          ...(post.imageUrls[0] ? { image_url: post.imageUrls[0] } : {}),
+          extracted_data: {
+            sourceType: "instagram",
+            feedSourceId: source.id,
+            feedSourceName: source.name,
+            feedSourceUrl: source.url,
+            instagramPostKey: postKey,
+            instagramPostUrl: post.url,
+            instagramShortcode: post.shortcode,
+            importedAt: now,
+            imageCount: post.imageUrls.length,
+            ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
+              ? ((item as { extracted_data?: Record<string, unknown> }).extracted_data as Record<string, unknown>)
+              : {}),
+          },
+          model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
+          prompt_version: "instagram-meta-ai-router-2.0.0",
+          review_status: "necessita_revisao",
+          reviewed_at: null,
+          updated_at: now,
+        };
+
+        const saved = await upsertFeedRow(baseRow, externalKey, false);
+        results.push({
+          title: baseRow.title,
+          status: saved.status,
+          duplicate: saved.duplicate,
+          postUrl: post.url,
+        });
+      }
+    } catch (cause) {
       results.push({
-        title: post.title,
-        status: "ja_processado",
+        title: null,
+        status: "erro_processamento",
         duplicate: false,
-        postUrl: post.url,
-        skipped: true,
-      });
-      continue;
-    }
-
-    const media = await loadInstagramImages(post.imageUrls);
-    const context = [
-      `FONTE: ${source.name}`,
-      `PERFIL/FONTE MONITORADA: ${source.url}`,
-      `PUBLICAÇÃO: ${post.url}`,
-      post.title && `TÍTULO/METADADO: ${post.title}`,
-      post.description && `LEGENDA/DESCRIÇÃO: ${post.description}`,
-      post.text,
-      "Esta publicação pode ser carrossel, imagem, reel ou vídeo e pode conter programação de vários dias.",
-      "Extraia CADA evento separadamente quando houver mais de um. Não invente dados ausentes.",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    const interpreted = await processWithAI(context, media);
-    const now = new Date().toISOString();
-    const consolidatedItems = consolidateFeedEvents(interpreted.items);
-
-    for (const [eventSequence, item] of consolidatedItems.entries()) {
-      const externalKey = `${postKey}:${eventSequence}`;
-      const baseRow = {
-        message_id: null,
-        event_sequence: eventSequence,
-        ...item,
-        city: inferCity(item.city, item.location),
-        price: item.price == null ? null : String(item.price),
-        source_url: post.url,
-        ...(post.imageUrls[0] ? { image_url: post.imageUrls[0] } : {}),
-        extracted_data: {
-          sourceType: "instagram",
-          feedSourceId: source.id,
-          feedSourceName: source.name,
-          feedSourceUrl: source.url,
-          instagramPostKey: postKey,
-          instagramPostUrl: post.url,
-          instagramShortcode: post.shortcode,
-          importedAt: now,
-          imageCount: post.imageUrls.length,
-          ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
-            ? ((item as { extracted_data?: Record<string, unknown> }).extracted_data as Record<string, unknown>)
-            : {}),
-        },
-        model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
-        prompt_version: "instagram-public-1.0.0",
-        review_status: "necessita_revisao",
-        reviewed_at: null,
-        updated_at: now,
-      };
-
-      const saved = await upsertFeedRow(baseRow, externalKey, false);
-      results.push({
-        title: baseRow.title,
-        status: saved.status,
-        duplicate: saved.duplicate,
-        postUrl: post.url,
+        postUrl,
+        failed: true,
+        error: cause instanceof Error ? cause.message : "Falha ao interpretar publicação.",
       });
     }
   }
@@ -338,8 +351,9 @@ async function ingestInstagramSource(source: FeedSource) {
   return {
     source: source.name,
     checkedPosts: postUrls.length,
-    imported: results.filter((item) => !item.skipped).length,
+    imported: results.filter((item) => !item.skipped && !item.failed).length,
     skipped: results.filter((item) => item.skipped).length,
+    failed: results.filter((item) => item.failed).length,
     published: 0,
     review: results.filter((item) => item.status === "necessita_revisao").length,
     duplicates: results.filter((item) => item.duplicate).length,
