@@ -6,9 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    next: typeof search.next === "string" ? search.next : "",
-  }),
   component: AuthPage,
 });
 
@@ -30,8 +27,12 @@ function safeNextPath(next: string) {
   return next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
 
+function requestedNextPath() {
+  if (typeof window === "undefined") return "/";
+  return safeNextPath(new URLSearchParams(window.location.search).get("next") ?? "");
+}
+
 function AuthPage() {
-  const { next } = Route.useSearch();
   const [mode, setMode] = useState<AuthMode>(getInitialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +61,7 @@ function AuthPage() {
         password,
       });
       if (error) throw error;
-      window.location.href = safeNextPath(next);
+      window.location.href = requestedNextPath();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Não foi possível entrar. Verifique seus dados."));
     } finally {
