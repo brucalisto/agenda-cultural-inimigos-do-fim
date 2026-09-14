@@ -20,13 +20,13 @@ function JoinPage() {
     event.preventDefault(); setLoading(true);
     try {
       if(mode==="register") {
-        const { error }=await supabase.auth.signUp({email,password,options:{emailRedirectTo:`${window.location.origin}/community`}});
+        const { error }=await supabase.auth.signUp({email,password,options:{emailRedirectTo:`${window.location.origin}/my-profile`}});
         if(error) throw error;
         toast.success("Cadastro iniciado! Confira seu e-mail para confirmar o acesso.");
       } else {
         const { error }=await supabase.auth.signInWithPassword({email,password});
         if(error) throw error;
-        window.location.href="/community";
+        window.location.href="/my-profile";
       }
     } catch(error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível continuar.");
