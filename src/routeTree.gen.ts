@@ -12,16 +12,24 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as FeedsRouteImport } from './routes/feeds'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as InterpretedRouteImport } from './routes/interpreted'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as LogsRouteImport } from './routes/logs'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
+import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
+import { Route as MyProfileRouteImport } from './routes/my-profile'
+import { Route as PeopleRouteImport } from './routes/people'
 import { Route as PublishedRouteImport } from './routes/published'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SubmitEventRouteImport } from './routes/submit-event'
+import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicSyncFeedsRouteImport } from './routes/api/public/sync-feeds'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
@@ -39,6 +47,11 @@ const AgendaRoute = AgendaRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedsRoute = FeedsRouteImport.update({
@@ -66,9 +79,34 @@ const InterpretedRoute = InterpretedRouteImport.update({
   path: '/interpreted',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LogsRoute = LogsRouteImport.update({
   id: '/logs',
   path: '/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceNewRoute = MarketplaceNewRouteImport.update({
+  id: '/marketplace-new',
+  path: '/marketplace-new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyProfileRoute = MyProfileRouteImport.update({
+  id: '/my-profile',
+  path: '/my-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PeopleRoute = PeopleRouteImport.update({
+  id: '/people',
+  path: '/people',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublishedRoute = PublishedRouteImport.update({
@@ -89,6 +127,16 @@ const RulesRoute = RulesRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubmitEventRoute = SubmitEventRouteImport.update({
+  id: '/submit-event',
+  path: '/submit-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
@@ -112,16 +160,24 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/community': typeof CommunityRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
+  '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/marketplace-new': typeof MarketplaceNewRoute
+  '/my-profile': typeof MyProfileRoute
+  '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
+  '/submit-event': typeof SubmitEventRoute
+  '/tools': typeof ToolsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -130,16 +186,24 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/community': typeof CommunityRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
+  '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/marketplace-new': typeof MarketplaceNewRoute
+  '/my-profile': typeof MyProfileRoute
+  '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
+  '/submit-event': typeof SubmitEventRoute
+  '/tools': typeof ToolsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -149,16 +213,24 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/community': typeof CommunityRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
+  '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/marketplace-new': typeof MarketplaceNewRoute
+  '/my-profile': typeof MyProfileRoute
+  '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
+  '/submit-event': typeof SubmitEventRoute
+  '/tools': typeof ToolsRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -169,16 +241,24 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/community'
     | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
+    | '/join'
     | '/logs'
+    | '/marketplace'
+    | '/marketplace-new'
+    | '/my-profile'
+    | '/people'
     | '/published'
     | '/review'
     | '/rules'
     | '/settings'
+    | '/submit-event'
+    | '/tools'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -187,16 +267,24 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/community'
     | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
+    | '/join'
     | '/logs'
+    | '/marketplace'
+    | '/marketplace-new'
+    | '/my-profile'
+    | '/people'
     | '/published'
     | '/review'
     | '/rules'
     | '/settings'
+    | '/submit-event'
+    | '/tools'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -205,16 +293,24 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/community'
     | '/feeds'
     | '/groups'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
+    | '/join'
     | '/logs'
+    | '/marketplace'
+    | '/marketplace-new'
+    | '/my-profile'
+    | '/people'
     | '/published'
     | '/review'
     | '/rules'
     | '/settings'
+    | '/submit-event'
+    | '/tools'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -224,16 +320,24 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
+  CommunityRoute: typeof CommunityRoute
   FeedsRoute: typeof FeedsRoute
   GroupsRoute: typeof GroupsRoute
   InboxRoute: typeof InboxRoute
   IntegrationsRoute: typeof IntegrationsRoute
   InterpretedRoute: typeof InterpretedRoute
+  JoinRoute: typeof JoinRoute
   LogsRoute: typeof LogsRoute
+  MarketplaceRoute: typeof MarketplaceRoute
+  MarketplaceNewRoute: typeof MarketplaceNewRoute
+  MyProfileRoute: typeof MyProfileRoute
+  PeopleRoute: typeof PeopleRoute
   PublishedRoute: typeof PublishedRoute
   ReviewRoute: typeof ReviewRoute
   RulesRoute: typeof RulesRoute
   SettingsRoute: typeof SettingsRoute
+  SubmitEventRoute: typeof SubmitEventRoute
+  ToolsRoute: typeof ToolsRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicSyncFeedsRoute: typeof ApiPublicSyncFeedsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
@@ -260,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feeds': {
@@ -297,11 +408,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InterpretedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/logs': {
       id: '/logs'
       path: '/logs'
       fullPath: '/logs'
       preLoaderRoute: typeof LogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace-new': {
+      id: '/marketplace-new'
+      path: '/marketplace-new'
+      fullPath: '/marketplace-new'
+      preLoaderRoute: typeof MarketplaceNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-profile': {
+      id: '/my-profile'
+      path: '/my-profile'
+      fullPath: '/my-profile'
+      preLoaderRoute: typeof MyProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/people': {
+      id: '/people'
+      path: '/people'
+      fullPath: '/people'
+      preLoaderRoute: typeof PeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/published': {
@@ -332,6 +478,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/submit-event': {
+      id: '/submit-event'
+      path: '/submit-event'
+      fullPath: '/submit-event'
+      preLoaderRoute: typeof SubmitEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/events': {
       id: '/api/public/events'
       path: '/api/public/events'
@@ -360,16 +520,24 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
+  CommunityRoute: CommunityRoute,
   FeedsRoute: FeedsRoute,
   GroupsRoute: GroupsRoute,
   InboxRoute: InboxRoute,
   IntegrationsRoute: IntegrationsRoute,
   InterpretedRoute: InterpretedRoute,
+  JoinRoute: JoinRoute,
   LogsRoute: LogsRoute,
+  MarketplaceRoute: MarketplaceRoute,
+  MarketplaceNewRoute: MarketplaceNewRoute,
+  MyProfileRoute: MyProfileRoute,
+  PeopleRoute: PeopleRoute,
   PublishedRoute: PublishedRoute,
   ReviewRoute: ReviewRoute,
   RulesRoute: RulesRoute,
   SettingsRoute: SettingsRoute,
+  SubmitEventRoute: SubmitEventRoute,
+  ToolsRoute: ToolsRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicSyncFeedsRoute: ApiPublicSyncFeedsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
