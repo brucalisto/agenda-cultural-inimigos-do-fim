@@ -36,6 +36,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { categoryIllustration } from "@/lib/category-illustrations";
+import {
+  eventDateKey,
+  formatEventDate,
+  formatEventDateTime,
+  formatEventTime,
+  todayEventDateKey,
+} from "@/lib/event-datetime";
 
 export const Route = createFileRoute("/agenda")({ component: PublicAgenda });
 
@@ -81,7 +88,7 @@ type MapApi = {
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-const todayKey = () => dateKey(new Date());
+const todayKey = () => todayEventDateKey();
 const normalize = (value: string | null | undefined) => (value || "").trim().toLowerCase();
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -153,7 +160,6 @@ function ViewSelector({ view, onView }: { view: ViewMode; onView: (view: ViewMod
 }
 
 function EventCard({ event, onSelect }: { event: EventItem; onSelect: (event: EventItem) => void }) {
-  const date = new Date(event.event_date);
   const kind = priceKind(event.price);
   return (
     <button
@@ -172,9 +178,11 @@ function EventCard({ event, onSelect }: { event: EventItem; onSelect: (event: Ev
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="rounded-2xl border border-[#e5d8c4] bg-[#fffaf0] px-3 py-2 text-center">
             <span className="block text-[10px] font-bold uppercase tracking-widest text-[#a43a28]">
-              {date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+              {formatEventDate(event.event_date, { month: "short" }).replace(".", "")}
             </span>
-            <span className="block text-2xl font-black leading-none">{date.getDate()}</span>
+            <span className="block text-2xl font-black leading-none">
+              {formatEventDate(event.event_date, { day: "2-digit" })}
+            </span>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <span className="rounded-full bg-[#f1eadf] px-2 py-1 text-[11px] text-[#665b4d]">
@@ -199,7 +207,7 @@ function EventCard({ event, onSelect }: { event: EventItem; onSelect: (event: Ev
         <div className="mt-4 space-y-2 border-t border-[#eee4d6] pt-4 text-xs text-[#5f574d]">
           <p className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-amber-400" />
-            {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            {formatEventTime(event.event_date)}
           </p>
           <p className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
@@ -215,7 +223,6 @@ function EventCard({ event, onSelect }: { event: EventItem; onSelect: (event: Ev
 }
 
 function EventRow({ event, onSelect }: { event: EventItem; onSelect: (event: EventItem) => void }) {
-  const date = new Date(event.event_date);
   const kind = priceKind(event.price);
   return (
     <button
@@ -225,10 +232,8 @@ function EventRow({ event, onSelect }: { event: EventItem; onSelect: (event: Eve
       className="group grid w-full gap-3 rounded-2xl border border-[#e2d7c8] bg-white p-4 text-left shadow-[0_7px_22px_rgba(74,52,31,.05)] transition hover:border-[#c78a35] hover:shadow-[0_10px_28px_rgba(133,76,32,.10)] md:grid-cols-[90px_1fr_170px_150px_auto] md:items-center"
     >
       <div>
-        <p className="text-lg font-black text-[#292620]">
-          {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-        </p>
-        <p className="text-xs text-[#776b5c]">{date.toLocaleDateString("pt-BR")}</p>
+        <p className="text-lg font-black text-[#292620]">{formatEventTime(event.event_date)}</p>
+        <p className="text-xs text-[#776b5c]">{formatEventDate(event.event_date)}</p>
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -282,7 +287,7 @@ function FeaturedEvents({ events, onSelect }: { events: EventItem[]; onSelect: (
         </div>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="space-y-2 text-sm">
-            <p className="flex gap-2"><CalendarDays className="h-4 w-4 text-[#e5b64a]" />{new Date(event.event_date).toLocaleString("pt-BR")}</p>
+            <p className="flex gap-2"><CalendarDays className="h-4 w-4 text-[#e5b64a]" />{formatEventDateTime(event.event_date)}</p>
             <p className="flex gap-2"><MapPin className="h-4 w-4 text-[#e5b64a]" />{event.location || eventCity(event)}</p>
           </div>
           <Button onClick={() => onSelect(event)} className="rounded-full bg-[#fff7df] px-6 text-[#442b1e] hover:bg-white">
@@ -325,7 +330,7 @@ function MonthCalendar({
   start.setDate(first.getDate() - first.getDay());
   const counts = new Map<string, number>();
   events.forEach((event) => {
-    const key = dateKey(new Date(event.event_date));
+    const key = eventDateKey(event.event_date);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
   const days = Array.from({ length: 42 }, (_, index) => {
@@ -384,7 +389,7 @@ function EventsMap({ events }: { events: EventItem[] }) {
         const title = (event.title || "Evento cultural").replace(/[<>]/g, "");
         const local = (event.location || eventCity(event)).replace(/[<>]/g, "");
         const marker = leaflet.marker([event.latitude as number, event.longitude as number]);
-        marker.addTo(map).bindPopup(`<strong>${title}</strong><br>${new Date(event.event_date).toLocaleString("pt-BR")}<br>${local}<br><a href="#evento-${event.id}">Ver evento</a>`);
+        marker.addTo(map).bindPopup(`<strong>${title}</strong><br>${formatEventDateTime(event.event_date)}<br>${local}<br><a href="#evento-${event.id}">Ver evento</a>`);
         return marker;
       });
       if (layers.length) map.fitBounds(leaflet.featureGroup(layers).getBounds(), { padding: [40, 40], maxZoom: 13 });
@@ -451,7 +456,11 @@ function PublicAgenda() {
   const [appliedTo, setAppliedTo] = useState("");
   const [includePast, setIncludePast] = useState(false);
   const [view, setView] = useState<ViewMode>("list");
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [month, setMonth] = useState(() => {
+    const today = todayEventDateKey();
+    const date = new Date(`${today}T12:00:00`);
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  });
   const geocoding = useRef(new Set<string>());
 
   useEffect(() => {
@@ -554,7 +563,7 @@ function PublicAgenda() {
     const effectiveFrom = appliedFrom || defaultFrom;
     return events.filter((event) => {
       const haystack = normalize(`${event.title} ${event.category} ${event.location} ${event.city} ${event.summary}`);
-      const key = dateKey(new Date(event.event_date));
+      const key = eventDateKey(event.event_date);
       return (
         haystack.includes(normalize(query)) &&
         (city === "all" || eventCity(event) === city) &&
@@ -568,7 +577,7 @@ function PublicAgenda() {
 
   const grouped = useMemo(
     () => Object.entries(filtered.reduce<Record<string, EventItem[]>>((groups, event) => {
-      const key = dateKey(new Date(event.event_date));
+      const key = eventDateKey(event.event_date);
       (groups[key] ??= []).push(event);
       return groups;
     }, {})).sort(([a], [b]) => a.localeCompare(b)),
@@ -605,7 +614,7 @@ function PublicAgenda() {
       setIncludePast(true);
       return;
     }
-    const start = new Date();
+    const start = new Date(`${todayEventDateKey()}T12:00:00`);
     const end = new Date(start);
     if (period === "tomorrow") {
       start.setDate(start.getDate() + 1);
@@ -772,7 +781,7 @@ function PublicAgenda() {
                 <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-600">{priceLabel(selected)}</span>
               </div>
               <div className="grid gap-3 rounded-2xl border border-[#e1d5c5] bg-white p-4 sm:grid-cols-2">
-                <p className="flex gap-2"><Clock className="h-5 w-5 text-amber-500" />{new Date(selected.event_date).toLocaleString("pt-BR")}</p>
+                <p className="flex gap-2"><Clock className="h-5 w-5 text-amber-500" />{formatEventDateTime(selected.event_date)}</p>
                 <p className="flex gap-2"><MapPin className="h-5 w-5 text-amber-500" />{selected.location || eventCity(selected)}</p>
               </div>
               <p className="whitespace-pre-wrap leading-7 text-[#5f574d]">{selected.full_description || selected.summary}</p>
