@@ -6,6 +6,7 @@ import { enrichWithDuplicateWarning } from "@/lib/duplicates.server";
 import { consolidateFeedEvents, feedEventIdentity } from "@/lib/feed-normalization.server";
 import { fetchNotionEvents } from "@/lib/notion-feed.server";
 import { extractRssFeed } from "@/lib/rss-feed.server";
+import { needsEventImagePersistence, persistEventImage } from "@/lib/event-images.server";
 import {
   discoverInstagramPosts,
   extractInstagramPublicPost,
@@ -264,11 +265,32 @@ async function ingestInstagramSource(source: FeedSource) {
 
       const { data: alreadySeen, error: seenError } = await supabaseAdmin
         .from("interpreted_contents")
-        .select("id")
-        .contains("extracted_data", { instagramPostKey: postKey })
-        .limit(1);
+        .select("id,image_url")
+        .contains("extracted_data", { instagramPostKey: postKey });
       if (seenError) throw seenError;
+
       if (alreadySeen?.length) {
+        const needsRepair = alreadySeen.some((row) => needsEventImagePersistence(row.image_url));
+        if (needsRepair && post.imageUrls[0]) {
+          try {
+            const persistentImageUrl = await persistEventImage(post.imageUrls[0], {
+              source: `instagram-${source.id}`,
+              externalId: post.shortcode,
+            });
+            if (persistentImageUrl) {
+              await supabaseAdmin
+                .from("interpreted_contents")
+                .update({ image_url: persistentImageUrl, updated_at: new Date().toISOString() })
+                .contains("extracted_data", { instagramPostKey: postKey });
+            }
+          } catch (imageError) {
+            console.warn(
+              `[feeds] Não foi possível persistir a imagem já processada ${post.url}:`,
+              imageError,
+            );
+          }
+        }
+
         results.push({
           title: post.title,
           status: "ja_processado",
@@ -277,6 +299,18 @@ async function ingestInstagramSource(source: FeedSource) {
           skipped: true,
         });
         continue;
+      }
+
+      let persistentImageUrl: string | null = null;
+      if (post.imageUrls[0]) {
+        try {
+          persistentImageUrl = await persistEventImage(post.imageUrls[0], {
+            source: `instagram-${source.id}`,
+            externalId: post.shortcode,
+          });
+        } catch (imageError) {
+          console.warn(`[feeds] Falha ao persistir capa de ${post.url}:`, imageError);
+        }
       }
 
       const media = await loadInstagramImages(post.imageUrls);
@@ -306,7 +340,9 @@ async function ingestInstagramSource(source: FeedSource) {
           city: inferCity(item.city, item.location),
           price: item.price == null ? null : String(item.price),
           source_url: post.url,
-          ...(post.imageUrls[0] ? { image_url: post.imageUrls[0] } : {}),
+          ...(persistentImageUrl || post.imageUrls[0]
+            ? { image_url: persistentImageUrl || post.imageUrls[0] }
+            : {}),
           extracted_data: {
             sourceType: "instagram",
             feedSourceId: source.id,
@@ -317,12 +353,13 @@ async function ingestInstagramSource(source: FeedSource) {
             instagramShortcode: post.shortcode,
             importedAt: now,
             imageCount: post.imageUrls.length,
+            imagePersistence: persistentImageUrl ? "storage" : post.imageUrls[0] ? "external_fallback" : "none",
             ...((item as { extracted_data?: unknown }).extracted_data && typeof (item as { extracted_data?: unknown }).extracted_data === "object"
               ? ((item as { extracted_data?: Record<string, unknown> }).extracted_data as Record<string, unknown>)
               : {}),
           },
           model_used: `${interpreted.provider}:${interpreted.modelUsed}`,
-          prompt_version: "instagram-meta-ai-router-2.0.0",
+          prompt_version: "instagram-meta-ai-router-2.1.0",
           review_status: "necessita_revisao",
           reviewed_at: null,
           updated_at: now,
