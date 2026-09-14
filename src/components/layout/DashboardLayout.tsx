@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   ClipboardCheck,
+  ShieldCheck,
   Send,
   ListTree,
   Users,
@@ -31,6 +32,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { label: "Visão geral", icon: LayoutDashboard, to: "/" },
     { label: "Revisão", icon: ClipboardCheck, to: "/review" },
     { label: "Publicados", icon: Send, to: "/published" },
+    { label: "Moderação da comunidade", icon: ShieldCheck, to: "/community-moderation" },
     { label: "Fontes / Feeds", icon: Rss, to: "/feeds" },
     { label: "Regras", icon: ListTree, to: "/rules" },
     { label: "Grupos", icon: Users, to: "/groups" },
