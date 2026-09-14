@@ -22,6 +22,7 @@ import { Route as JoinRouteImport } from './routes/join'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as PublishedRouteImport } from './routes/published'
@@ -30,6 +31,8 @@ import { Route as RulesRouteImport } from './routes/rules'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SubmitEventRouteImport } from './routes/submit-event'
 import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicSyncFeedsRouteImport } from './routes/api/public/sync-feeds'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
@@ -99,6 +102,11 @@ const MarketplaceNewRoute = MarketplaceNewRouteImport.update({
   path: '/marketplace-new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyProfileRoute = MyProfileRouteImport.update({
   id: '/my-profile',
   path: '/my-profile',
@@ -139,6 +147,17 @@ const ToolsRoute = ToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
   id: '/api/public/events',
   path: '/api/public/events',
@@ -170,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/logs': typeof LogsRoute
   '/marketplace': typeof MarketplaceRoute
   '/marketplace-new': typeof MarketplaceNewRoute
+  '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
   '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
@@ -178,6 +198,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tools': typeof ToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -196,6 +218,7 @@ export interface FileRoutesByTo {
   '/logs': typeof LogsRoute
   '/marketplace': typeof MarketplaceRoute
   '/marketplace-new': typeof MarketplaceNewRoute
+  '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
   '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
@@ -204,6 +227,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tools': typeof ToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -223,6 +248,7 @@ export interface FileRoutesById {
   '/logs': typeof LogsRoute
   '/marketplace': typeof MarketplaceRoute
   '/marketplace-new': typeof MarketplaceNewRoute
+  '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
   '/people': typeof PeopleRoute
   '/published': typeof PublishedRoute
@@ -231,6 +257,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tools': typeof ToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -251,6 +279,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/marketplace'
     | '/marketplace-new'
+    | '/mcp'
     | '/my-profile'
     | '/people'
     | '/published'
@@ -259,6 +288,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/submit-event'
     | '/tools'
+    | '/.well-known/oauth-protected-resource'
+    | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -277,6 +308,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/marketplace'
     | '/marketplace-new'
+    | '/mcp'
     | '/my-profile'
     | '/people'
     | '/published'
@@ -285,6 +317,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/submit-event'
     | '/tools'
+    | '/.well-known/oauth-protected-resource'
+    | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -303,6 +337,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/marketplace'
     | '/marketplace-new'
+    | '/mcp'
     | '/my-profile'
     | '/people'
     | '/published'
@@ -311,6 +346,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/submit-event'
     | '/tools'
+    | '/.well-known/oauth-protected-resource'
+    | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
@@ -330,6 +367,7 @@ export interface RootRouteChildren {
   LogsRoute: typeof LogsRoute
   MarketplaceRoute: typeof MarketplaceRoute
   MarketplaceNewRoute: typeof MarketplaceNewRoute
+  McpRoute: typeof McpRoute
   MyProfileRoute: typeof MyProfileRoute
   PeopleRoute: typeof PeopleRoute
   PublishedRoute: typeof PublishedRoute
@@ -338,6 +376,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SubmitEventRoute: typeof SubmitEventRoute
   ToolsRoute: typeof ToolsRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicSyncFeedsRoute: typeof ApiPublicSyncFeedsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
@@ -436,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketplaceNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-profile': {
       id: '/my-profile'
       path: '/my-profile'
@@ -492,6 +539,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/events': {
       id: '/api/public/events'
       path: '/api/public/events'
@@ -530,6 +591,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogsRoute: LogsRoute,
   MarketplaceRoute: MarketplaceRoute,
   MarketplaceNewRoute: MarketplaceNewRoute,
+  McpRoute: McpRoute,
   MyProfileRoute: MyProfileRoute,
   PeopleRoute: PeopleRoute,
   PublishedRoute: PublishedRoute,
@@ -538,6 +600,9 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SubmitEventRoute: SubmitEventRoute,
   ToolsRoute: ToolsRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicSyncFeedsRoute: ApiPublicSyncFeedsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
