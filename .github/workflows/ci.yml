@@ -1,0 +1,54 @@
+name: Validar aplicação
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: bun run lint 2>&1 | tee lint.log
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: bun run build 2>&1 | tee build.log
+
+      - name: Salvar diagnóstico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: |
+            lint.log
+            build.log
+          retention-days: 7
+
+      - name: Falhar se houver erro
+        if: always()
+        run: |
+          if [ "${{ steps.lint.outcome }}" != "success" ] || [ "${{ steps.build.outcome }}" != "success" ]; then
+            echo "Lint ou build falhou. Consulte o artefato ci-diagnostics."
+            exit 1
+          fi
