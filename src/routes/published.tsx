@@ -41,6 +41,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { legacyNotionImportStatus } from "@/lib/feed-sources.functions";
 import { importLegacyNotionAgenda } from "@/lib/feed.functions";
 import { categoryIllustration } from "@/lib/category-illustrations";
+import {
+  eventDateKey,
+  eventDateTimeInputToIso,
+  eventDateTimeInputValue,
+  formatEventDateTime,
+  todayEventDateKey,
+} from "@/lib/event-datetime";
 
 const WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
@@ -82,7 +89,7 @@ const BASE_COLUMNS =
   "id,message_id,title,category,event_date,location,city,price,summary,full_description,contact_phone,contact_instagram,source_url,extracted_data";
 const CURATION_COLUMNS = `${BASE_COLUMNS},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at`;
 export const Route = createFileRoute("/published")({ component: PublishedPage });
-const dateKey = (value: string | null) => (value ? value.slice(0, 10) : "");
+const dateKey = (value: string | null) => (value ? eventDateKey(value) : "");
 const normalize = (value?: string | null) =>
   (value || "")
     .normalize("NFD")
@@ -330,7 +337,7 @@ function PublishedPage() {
       }),
     [groups, query, date],
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayEventDateKey();
   const upcoming = filtered.filter((group) => groupIsUpcoming(group, today));
   const past = filtered.filter((group) => !groupIsUpcoming(group, today)).reverse();
 
@@ -435,7 +442,7 @@ function PublishedPage() {
                       </div>
                       <Button variant="outline" size="sm" onClick={() => setEditing({ ...item })}><Edit className="mr-2 h-4 w-4" /> Editar</Button>
                     </div>
-                    <p className="text-sm"><strong>Quando:</strong> {recurrenceLabel(item) || (item.event_date ? new Date(item.event_date).toLocaleString("pt-BR") : "Sem data")}</p>
+                    <p className="text-sm"><strong>Quando:</strong> {recurrenceLabel(item) || (item.event_date ? formatEventDateTime(item.event_date) : "Sem data")}</p>
                     <p className="text-sm"><strong>Onde:</strong> {item.location || item.city || "Local a confirmar"}</p>
                     {item.summary ? <p className="text-sm text-muted-foreground">{item.summary}</p> : null}
                   </CardContent>
@@ -453,7 +460,11 @@ function PublishedPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <Input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder="Título" />
               <Input value={editing.category || ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} placeholder="Categoria" />
-              <Input type="datetime-local" value={editing.event_date?.slice(0, 16) || ""} onChange={(e) => setEditing({ ...editing, event_date: e.target.value ? new Date(e.target.value).toISOString() : null })} />
+              <Input
+                type="datetime-local"
+                value={eventDateTimeInputValue(editing.event_date)}
+                onChange={(e) => setEditing({ ...editing, event_date: eventDateTimeInputToIso(e.target.value) })}
+              />
               <Input value={editing.price || ""} onChange={(e) => setEditing({ ...editing, price: e.target.value })} placeholder="Preço" />
               <Input value={editing.location || ""} onChange={(e) => setEditing({ ...editing, location: e.target.value })} placeholder="Local/endereço" />
               <Input value={editing.city || ""} onChange={(e) => setEditing({ ...editing, city: e.target.value })} placeholder="Cidade" />
