@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { eventDateKey } from "@/lib/event-datetime";
 
 type Candidate = {
   id: string;
@@ -40,7 +41,9 @@ function tokenSimilarity(a?: string | null, b?: string | null) {
 
 function sameDay(a?: string | null, b?: string | null) {
   if (!a || !b) return false;
-  return a.slice(0, 10) === b.slice(0, 10);
+  const left = eventDateKey(a);
+  const right = eventDateKey(b);
+  return Boolean(left && right && left === right);
 }
 
 function feedSourceId(value: unknown) {
