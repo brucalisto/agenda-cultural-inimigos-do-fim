@@ -3,11 +3,12 @@ import {
   Outlet,
   createRootRouteWithContext,
   HeadContent,
+  Link,
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Sparkles } from "lucide-react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
@@ -26,10 +27,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
@@ -40,14 +38,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Toaster position="top-right" />
-        <Scripts />
-      </body>
+      <head><HeadContent /></head>
+      <body>{children}<Toaster position="top-right" /><Scripts /></body>
     </html>
   );
 }
@@ -55,29 +47,32 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const showCommunityCta = pathname === "/agenda";
+  const showAgendaCtas = pathname === "/agenda";
 
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      {showCommunityCta ? (
-        <a
-          href={INIMIGOS_COMMUNITY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fixed bottom-5 right-5 z-50 flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-2xl border border-emerald-700/20 bg-emerald-600 px-4 py-3 text-white shadow-2xl transition hover:-translate-y-0.5 hover:bg-emerald-700 sm:max-w-sm"
-          aria-label="Participar da Comunidade Inimigos do Fim no WhatsApp"
-        >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15">
-            <MessageCircle className="h-5 w-5" />
-          </span>
-          <span className="min-w-0">
-            <strong className="block text-sm leading-tight">Fique por dentro também</strong>
-            <span className="mt-0.5 block text-xs leading-snug text-emerald-50">
-              Participe da Comunidade Inimigos do Fim no WhatsApp
-            </span>
-          </span>
-        </a>
+      {showAgendaCtas ? (
+        <div className="fixed bottom-5 right-5 z-50 flex max-w-[calc(100vw-2.5rem)] flex-col items-end gap-2">
+          <Link
+            to="/community"
+            className="flex items-center gap-3 rounded-2xl border border-[#8d321f]/20 bg-[#fffaf3] px-4 py-3 text-[#5b291d] shadow-2xl transition hover:-translate-y-0.5"
+            aria-label="Conhecer a Comunidade Inimigos do Fim"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#f4e6d7] text-[#9f3d25]"><Sparkles className="h-5 w-5" /></span>
+            <span><strong className="block text-sm leading-tight">Conheça a nova comunidade</strong><span className="mt-0.5 block text-xs text-[#8a5c4d]">Perfis, marketplace e publicação de eventos</span></span>
+          </Link>
+          <a
+            href={INIMIGOS_COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-2xl border border-emerald-700/20 bg-emerald-600 px-4 py-3 text-white shadow-2xl transition hover:-translate-y-0.5 hover:bg-emerald-700"
+            aria-label="Participar da Comunidade Inimigos do Fim no WhatsApp"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15"><MessageCircle className="h-5 w-5" /></span>
+            <span><strong className="block text-sm leading-tight">Comunidade no WhatsApp</strong><span className="mt-0.5 block text-xs text-emerald-50">Continue acompanhando o grupo atual</span></span>
+          </a>
+        </div>
       ) : null}
     </QueryClientProvider>
   );
