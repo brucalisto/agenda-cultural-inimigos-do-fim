@@ -1,5 +1,6 @@
 import { prepareRecurringItemsForReview } from "@/lib/recurrence.server";
 import type { InterpretedContentResponse } from "@/lib/gemini/schema";
+import { formatEventTime } from "@/lib/event-datetime";
 
 export type FeedEventLike = {
   title?: string | null;
@@ -45,10 +46,9 @@ export function feedEventIdentity(item: FeedEventLike) {
 }
 
 function time(value?: string | null) {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(11, 16);
+  if (!value || Number.isNaN(new Date(value).getTime())) return null;
+  const formatted = formatEventTime(value);
+  return /^\d{2}:\d{2}$/.test(formatted) ? formatted : null;
 }
 
 function first<T>(...values: Array<T | null | undefined>) {
