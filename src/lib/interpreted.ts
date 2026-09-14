@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { eventDateKey, todayEventDateKey } from "@/lib/event-datetime";
 
 export type InterpretedContent = {
   id: string;
@@ -49,22 +50,15 @@ export type InterpretedContent = {
   } | null;
 };
 
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function interpretedEventDateKey(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return eventDateKey(value);
 }
 
 function isCurrentFutureOrUndated(item: InterpretedContent) {
   if (!item.event_date) return true;
-
-  const eventDateKey = item.event_date.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-  if (eventDateKey) return eventDateKey >= localDateKey(new Date());
-
-  const parsed = new Date(item.event_date);
-  if (Number.isNaN(parsed.getTime())) return true;
-  return localDateKey(parsed) >= localDateKey(new Date());
+  const key = interpretedEventDateKey(item.event_date);
+  return !key || key >= todayEventDateKey();
 }
 
 export async function getInterpretedContents() {
