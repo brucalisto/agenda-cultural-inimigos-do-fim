@@ -40,7 +40,7 @@ begin
         moderation_notes = 'Possível duplicidade: já existe um evento com mesmo título, data e cidade.',
         updated_at = now()
     where id = submission_id;
-    raise exception 'Possível evento duplicado';
+    return null;
   end if;
 
   insert into public.interpreted_contents (
