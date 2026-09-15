@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { eventDateKey } from "@/lib/event-datetime";
+import { eventPriceFilterKind, formatEventPrice } from "@/lib/event-price";
 import { expandPublishedRecurringRows } from "@/lib/recurrence.server";
 
 const baseColumns =
@@ -24,6 +25,8 @@ function publicEvents(rows: Array<Record<string, unknown>>) {
       const eventDate = typeof row.event_date === "string" ? row.event_date : null;
       const publicEventDate =
         eventDate && timeWasInformed(row) === false ? eventDateKey(eventDate) : eventDate;
+      const rawPrice =
+        typeof row.price === "string" || typeof row.price === "number" ? row.price : null;
 
       return {
         ...row,
@@ -35,6 +38,10 @@ function publicEvents(rows: Array<Record<string, unknown>>) {
         source_url: typeof row.source_url === "string" ? row.source_url : null,
         location: typeof row.location === "string" ? row.location : null,
         keywords: Array.isArray(row.keywords) ? (row.keywords as string[]) : null,
+        // Mantemos `price` por compatibilidade e oferecemos também os campos
+        // canônicos para clientes novos e para a futura Saúde da Agenda.
+        price_kind: eventPriceFilterKind(rawPrice),
+        price_label: formatEventPrice(rawPrice),
       };
     }),
   );
