@@ -49,7 +49,23 @@ export function normalizeEventPrice(input: string | number | null | undefined): 
   if (!raw || UNKNOWN_RE.test(raw)) {
     return { kind: "unknown", amount: null, label: "Valor não informado", raw: input };
   }
-  if (FREE_RE.test(raw) || /^(?:r\$\s*)?0(?:[.,]00)?$/i.test(raw)) {
+
+  const values = monetaryNumbers(raw);
+  const positiveValues = values.filter((value) => value > 0);
+  const hasFreeCue = FREE_RE.test(raw) || /^(?:r\$\s*)?0(?:[.,]00)?$/i.test(raw);
+
+  // Ex.: "gratuito para crianças / R$ 20 adultos" não é um evento totalmente
+  // gratuito. Mantemos a condição original e classificamos como preço variável.
+  if (hasFreeCue && positiveValues.length) {
+    return {
+      kind: "variable",
+      amount: Math.min(...positiveValues),
+      label: raw,
+      raw: input,
+    };
+  }
+
+  if (hasFreeCue) {
     return {
       kind: "free",
       amount: 0,
@@ -58,12 +74,11 @@ export function normalizeEventPrice(input: string | number | null | undefined): 
     };
   }
 
-  const values = monetaryNumbers(raw);
   const isVariable = VARIABLE_RE.test(raw) || values.length > 1;
   if (isVariable) {
     return {
       kind: "variable",
-      amount: values.length ? Math.min(...values.filter((value) => value > 0)) || null : null,
+      amount: positiveValues.length ? Math.min(...positiveValues) : null,
       label: raw,
       raw: input,
     };
