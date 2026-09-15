@@ -58,7 +58,9 @@ const InterpretedContentBaseSchema = z.object({
   time_was_informed: z.boolean().optional(),
   location: z.string().nullable(),
   city: z.string().nullable(),
-  price: z.number().nullable(),
+  // Um valor fixo pode ser numérico. Faixas, lotes, meia/inteira, contribuições
+  // ou condições precisam permanecer em texto para não perder informação.
+  price: z.union([z.number(), z.string()]).nullable(),
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),
   contact_instagram: z.string().nullable(),
