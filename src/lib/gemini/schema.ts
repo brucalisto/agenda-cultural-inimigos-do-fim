@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EVIDENCE_FIELDS, EVIDENCE_SOURCES } from "@/lib/field-evidence";
 
 /**
  * A agenda trabalha com o horário civil do evento em São Paulo/Caraguatatuba.
@@ -49,6 +50,13 @@ export function normalizeAiEventDate(value: string | null) {
   return input;
 }
 
+const FieldEvidenceSchema = z.object({
+  field: z.enum(EVIDENCE_FIELDS),
+  source: z.enum(EVIDENCE_SOURCES),
+  source_ref: z.string().min(1).max(100),
+  excerpt: z.string().max(180).nullable(),
+});
+
 const InterpretedContentBaseSchema = z.object({
   title: z.string().nullable(),
   category: z.string().nullable(),
@@ -66,6 +74,7 @@ const InterpretedContentBaseSchema = z.object({
   keywords: z.array(z.string()).default([]),
   missing_fields: z.array(z.string()).default([]),
   warnings: z.array(z.string()).default([]),
+  evidence: z.array(FieldEvidenceSchema).max(16).default([]),
   confidence_score: z.number().min(0).max(1),
 });
 
