@@ -1,4 +1,5 @@
 import type { BaileysWebhook } from "@/lib/adapters/baileys.server";
+import { evidenceFromExtractedData, type FieldEvidence } from "@/lib/field-evidence";
 import type { InterpretedContentResponse } from "@/lib/gemini/schema";
 
 const ALLOWED_CATEGORIES = new Map([
@@ -115,6 +116,7 @@ export type InterpretationQuality = {
     hasText: boolean;
     hasMedia: boolean;
     hasLinks: boolean;
+    fieldEvidence: FieldEvidence[];
   };
 };
 
@@ -233,6 +235,7 @@ export function assessInterpretationQuality(
         Boolean(payload.media || payload.linkPreview?.jpegThumbnailBase64),
       ),
       hasLinks: payloads.some((payload) => payload.links.length > 0),
+      fieldEvidence: evidenceFromExtractedData(input.extracted_data),
     },
   };
 
