@@ -13,8 +13,9 @@ set search_path = public
 as $$
   select case
     when value is null or btrim(value) = '' then null
-    when lower(unaccent(btrim(value))) ~ '^(nao informado|sem informacao|a definir)$' then null
-    when lower(unaccent(btrim(value))) ~ '(gratis|gratuito|gratuita|entrada franca|^r?\$?[[:space:]]*0([,.]00)?$)' then '0'
+    when lower(btrim(value)) ~ '^(não informado|nao informado|sem informação|sem informacao|a definir)$' then null
+    when lower(btrim(value)) ~ '(grátis|gratis|gratuito|gratuita|entrada franca)'
+      or lower(btrim(value)) ~ '^(r[$][[:space:]]*)?0([,.]00)?$' then '0'
     else regexp_replace(btrim(value), '[[:space:]]+', ' ', 'g')
   end;
 $$;
