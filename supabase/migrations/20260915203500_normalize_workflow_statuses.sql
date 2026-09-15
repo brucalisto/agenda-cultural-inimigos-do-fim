@@ -25,9 +25,17 @@ declare
   target_message_id uuid;
   next_status public.processing_status;
 begin
-  target_message_id := coalesce(new.message_id, old.message_id);
+  if tg_op = 'DELETE' then
+    target_message_id := old.message_id;
+  else
+    target_message_id := new.message_id;
+  end if;
+
   if target_message_id is null then
-    return coalesce(new, old);
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
   end if;
 
   select
@@ -50,11 +58,14 @@ begin
 
   update public.whatsapp_messages
   set processing_status = next_status,
-      error_message = case when next_status = 'erro' then error_message else null end
+      error_message = null
   where id = target_message_id
     and processing_status is distinct from next_status;
 
-  return coalesce(new, old);
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $$;
 
