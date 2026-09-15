@@ -25,7 +25,7 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 
 - [x] Criar painel **Saúde da Agenda** com anomalias: evento sem data/local, imagem instável, duplicidade, baixa confiança, item preso, feed desatualizado e falha de IA.
 - [x] **Evidência por campo** — novas interpretações podem registrar a fonte de cada informação (`mensagem`, `legenda`, `imagem N`, `transcrição`, `link` ou metadado) com pequeno trecho de sustentação. A proveniência fica em `extracted_data` e aparece na tela de revisão; registros antigos permanecem compatíveis e ganham evidência quando forem reprocessados.
-- [ ] Consolidar estados de processamento/revisão em um contrato único.
+- [x] **Estados de processamento/revisão** — criado contrato canônico compartilhado; aliases legados (`revisao`, `reprocessar`, `aprovado`) são normalizados, escritas inválidas são bloqueadas na camada de dados e um trigger sincroniza automaticamente o status da mensagem do WhatsApp com o conjunto de eventos revisados/publicados.
 - [x] Adicionar testes automatizados iniciais de timezone, normalização da IA, preço, recorrência e duplicidade.
 - [x] Adicionar testes específicos da cadeia de retry/fallback das IAs.
 - [ ] Adicionar teste de publicação ponta a ponta.
