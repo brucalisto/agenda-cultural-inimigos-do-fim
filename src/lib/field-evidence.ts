@@ -43,6 +43,12 @@ function compact(value: unknown, max: number) {
   return cleaned ? cleaned.slice(0, max) : null;
 }
 
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export function normalizeFieldEvidence(value: unknown): FieldEvidence[] {
   if (!Array.isArray(value)) return [];
   const output: FieldEvidence[] = [];
@@ -72,8 +78,17 @@ export function normalizeFieldEvidence(value: unknown): FieldEvidence[] {
 }
 
 export function evidenceFromExtractedData(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return normalizeFieldEvidence((value as Record<string, unknown>).fieldEvidence);
+  const extracted = objectRecord(value);
+  if (!extracted) return [];
+
+  const direct = normalizeFieldEvidence(extracted.fieldEvidence);
+  if (direct.length) return direct;
+
+  // O fluxo do WhatsApp mantém o diagnóstico de qualidade dentro de
+  // interpretationQuality para preservar toda a trilha do pacote consolidado.
+  const quality = objectRecord(extracted.interpretationQuality);
+  const qualityEvidence = objectRecord(quality?.evidence);
+  return normalizeFieldEvidence(qualityEvidence?.fieldEvidence);
 }
 
 export function mergeFieldEvidence(...values: unknown[]) {
