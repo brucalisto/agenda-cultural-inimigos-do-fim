@@ -52,7 +52,7 @@ export function canonicalReviewStatus(value: string | null | undefined): ReviewS
 }
 
 export function normalizeReviewStatus(value: string | null | undefined): ReviewStatus {
-  return canonicalReviewStatus(value) ?? REVIEW_STATUS.PENDING;
+  return canonicalReviewStatus(value) ?? REVIEW_STATUS.NEEDS_REVIEW;
 }
 
 export function isPublishedReviewStatus(value: string | null | undefined) {
