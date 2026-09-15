@@ -33,8 +33,12 @@ const LEGACY_REVIEW_STATUS_ALIASES: Record<string, ReviewStatus> = {
 
 export const PUBLISHED_REVIEW_STATUSES = [REVIEW_STATUS.PUBLISHED, "aprovado"] as const;
 
-export function normalizeReviewStatus(value: string | null | undefined): ReviewStatus {
-  const normalized = value?.trim().toLowerCase() || "";
+function normalizedStatusText(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || "";
+}
+
+export function canonicalReviewStatus(value: string | null | undefined): ReviewStatus | null {
+  const normalized = normalizedStatusText(value);
   if (!normalized) return REVIEW_STATUS.PENDING;
 
   const alias = LEGACY_REVIEW_STATUS_ALIASES[normalized];
@@ -44,7 +48,11 @@ export function normalizeReviewStatus(value: string | null | undefined): ReviewS
     return normalized as ReviewStatus;
   }
 
-  return REVIEW_STATUS.PENDING;
+  return null;
+}
+
+export function normalizeReviewStatus(value: string | null | undefined): ReviewStatus {
+  return canonicalReviewStatus(value) ?? REVIEW_STATUS.PENDING;
 }
 
 export function isPublishedReviewStatus(value: string | null | undefined) {
