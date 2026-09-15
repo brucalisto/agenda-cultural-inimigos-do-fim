@@ -28,7 +28,7 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Estados de processamento/revisão** — criado contrato canônico compartilhado; aliases legados (`revisao`, `reprocessar`, `aprovado`) são normalizados, escritas inválidas são bloqueadas na camada de dados e um trigger sincroniza automaticamente o status da mensagem do WhatsApp com o conjunto de eventos revisados/publicados.
 - [x] Adicionar testes automatizados iniciais de timezone, normalização da IA, preço, recorrência e duplicidade.
 - [x] Adicionar testes específicos da cadeia de retry/fallback das IAs.
-- [ ] Adicionar teste de publicação ponta a ponta.
+- [x] **Teste ponta a ponta do contrato de publicação** — cobre interpretação em revisão → mudança para `publicado` → exposição na agenda, garantindo que itens ainda em revisão/ignorados/desativados não vazem, e valida também data sem horário e preço público sem tocar no banco de produção durante a CI.
 - [x] Adicionar CI com `lint` + testes + `build` em PRs e em `main`.
 
 ## Segurança da comunidade
