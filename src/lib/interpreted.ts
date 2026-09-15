@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { eventDateKey, todayEventDateKey } from "@/lib/event-datetime";
 import { eventPriceStorageValue } from "@/lib/event-price";
+import { canonicalReviewStatus, normalizeReviewStatus } from "@/lib/workflow-status";
 
 export type InterpretedContent = {
   id: string;
@@ -62,6 +63,10 @@ function isCurrentFutureOrUndated(item: InterpretedContent) {
   return !key || key >= todayEventDateKey();
 }
 
+function withCanonicalReviewStatus(item: InterpretedContent): InterpretedContent {
+  return { ...item, review_status: normalizeReviewStatus(item.review_status) };
+}
+
 export async function getInterpretedContents() {
   const { data, error } = await supabase
     .from("interpreted_contents")
@@ -81,7 +86,9 @@ export async function getInterpretedContents() {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data as InterpretedContent[]).filter(isCurrentFutureOrUndated);
+  return (data as InterpretedContent[])
+    .map(withCanonicalReviewStatus)
+    .filter(isCurrentFutureOrUndated);
 }
 
 export async function getInterpretedContentById(id: string) {
@@ -114,16 +121,22 @@ export async function getInterpretedContentById(id: string) {
     .single();
 
   if (error) throw error;
-  return data as InterpretedContent;
+  return withCanonicalReviewStatus(data as InterpretedContent);
 }
 
 export async function updateInterpretedContent(
   id: string,
   updates: Partial<Omit<InterpretedContent, "whatsapp_messages">>,
 ) {
-  const normalizedUpdates = Object.prototype.hasOwnProperty.call(updates, "price")
+  let normalizedUpdates = Object.prototype.hasOwnProperty.call(updates, "price")
     ? { ...updates, price: eventPriceStorageValue(updates.price) }
-    : updates;
+    : { ...updates };
+
+  if (Object.prototype.hasOwnProperty.call(updates, "review_status")) {
+    const canonicalStatus = canonicalReviewStatus(updates.review_status);
+    if (!canonicalStatus) throw new Error(`Status de revisão inválido: ${updates.review_status}`);
+    normalizedUpdates = { ...normalizedUpdates, review_status: canonicalStatus };
+  }
 
   const { data, error } = await supabase
     .from("interpreted_contents")
