@@ -44,10 +44,10 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Perfis verificados** — perfis verificados continuam editáveis pelo proprietário, mas o selo `verified` só pode ser alterado pela moderação.
 - [x] **Dados privados de perfil/contato** — e-mail e telefone deixam de ficar na linha pública de `community_profiles`; valores existentes são preservados em `community_profile_private`, protegidos por RLS para o próprio usuário e moderação. A listagem pública também passa a consultar somente os campos necessários para descoberta.
 - [x] **Spam/rate limit em posts, mensagens e envios de eventos** — limites são aplicados no banco para não depender da interface; rajadas concorrentes do mesmo usuário são serializadas, `created_at` de membros comuns é controlado pelo servidor e índices por autor/remetente mantêm as verificações eficientes.
+- [x] **Uploads e tipos/tamanhos de mídia** — buckets da comunidade passam a ter allowlist explícita de MIME, limites de tamanho e escrita restrita ao prefixo do próprio usuário. Imagens públicas aceitam somente JPEG/PNG/WebP até 8 MB; anexos privados aceitam imagens, PDF, áudio e vídeo em formatos definidos até 25 MB. SVG/HTML/executáveis ficam fora. O bucket interno `event-images` também tem o contrato de 8 MB reafirmado e a persistência de capas valida esse limite antes do upload.
 
 ### Ainda pendente
 
-- [ ] uploads e tipos/tamanhos de mídia;
 - [ ] moderação e trilha de auditoria mais detalhada para ações da comunidade.
 
 ## Ordem de execução
