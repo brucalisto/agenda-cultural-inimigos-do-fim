@@ -44,4 +44,30 @@ describe("normalização da IA", () => {
     expect(parsed.time_was_informed).toBe(true);
     expect(parsed.event_date).toBe("2026-09-27T19:00:00-03:00");
   });
+
+  test("move proveniência para extracted_data sem criar coluna top-level", () => {
+    const parsed = InterpretedContentSchema.parse({
+      ...baseItem("2026-09-27T19:00:00-03:00"),
+      evidence: [
+        {
+          field: "event_date",
+          source: "caption",
+          source_ref: "MENSAGEM 1 / Legenda",
+          excerpt: "27/09 às 19h",
+        },
+      ],
+    });
+
+    expect(parsed.extracted_data).toEqual({
+      fieldEvidence: [
+        {
+          field: "event_date",
+          source: "caption",
+          source_ref: "MENSAGEM 1 / Legenda",
+          excerpt: "27/09 às 19h",
+        },
+      ],
+    });
+    expect("evidence" in parsed).toBe(false);
+  });
 });

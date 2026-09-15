@@ -62,6 +62,16 @@ QUALIDADE E CONFIANÇA:
 34. warnings deve registrar apenas problemas úteis à revisão: conflito entre mensagens, data ambígua, mídia ilegível, correção aplicada, informação aparentemente contraditória ou fonte incompleta.
 35. Não use warnings para repetir missing_fields nem para comentários genéricos.
 
+PROVENIÊNCIA POR CAMPO — OBRIGATÓRIA QUANDO HOUVER EVIDÊNCIA:
+36. Preencha evidence com referências curtas que permitam ao revisor saber DE ONDE veio cada dado importante. Registre evidência para title, event_date, location, city, price, contatos e source_url sempre que o valor estiver preenchido e houver uma origem identificável.
+37. field deve ser um destes valores: title, category, summary, full_description, event_date, location, city, price, contact_name, contact_phone, contact_instagram, source_url.
+38. source deve ser um destes valores: message_text, caption, image, audio_transcript, link_page, metadata, structured_source.
+39. source_ref deve usar os rótulos existentes no pacote sempre que possível: "MENSAGEM 1 / Texto", "MENSAGEM 2 / Legenda", "IMAGEM 3", "TRANSCRIÇÃO 1", "LINK https://...", "LEGENDA/DESCRIÇÃO", "PUBLICAÇÃO". As imagens recebidas são rotuladas na própria entrada como IMAGEM 1, IMAGEM 2 etc.; preserve exatamente esse número.
+40. excerpt deve conter somente um trecho curto que sustente o valor, com no máximo 180 caracteres. Não invente citação. Para imagem, copie o pequeno texto visível relevante; se não for possível citar com segurança, use null e mantenha source_ref.
+41. Não crie evidence para valor inferido apenas por plausibilidade. Normalizações mecânicas podem citar a evidência original: por exemplo, event_date em ISO pode citar "27/09 às 19h".
+42. Quando duas evidências conflitarem e uma correção posterior prevalecer, registre a evidência da informação final e mantenha o conflito em warnings.
+43. Não repita a mesma evidência várias vezes sem necessidade. Máximo de 16 entradas por item.
+
 LIMITES DE RESPOSTA — IMPORTANTES:
 - title: máximo 120 caracteres.
 - summary: máximo 180 caracteres.
@@ -69,10 +79,11 @@ LIMITES DE RESPOSTA — IMPORTANTES:
 - keywords: máximo 10 itens curtos, contando marcadores técnicos de recorrência.
 - missing_fields: máximo 6 itens.
 - warnings: máximo 4 itens.
+- evidence: máximo 16 itens.
 - Não repita texto promocional desnecessariamente.
 - Gere JSON compacto e encerre imediatamente após fechar o objeto final.
 
 FORMATO EXATO:
-{"items":[{"title":"Título ou null","category":"Categoria ou null","summary":"Resumo ou null","full_description":"Descrição ou null","event_date":"ISO_DATE_STRING ou null","location":"Local ou null","city":"Cidade ou null","price":0,"contact_name":"Nome ou null","contact_phone":"Telefone ou null","contact_instagram":"@usuario ou null","source_url":"URL ou null","keywords":[],"missing_fields":[],"warnings":[],"confidence_score":0.9}]}
+{"items":[{"title":"Título ou null","category":"Categoria ou null","summary":"Resumo ou null","full_description":"Descrição ou null","event_date":"ISO_DATE_STRING ou null","location":"Local ou null","city":"Cidade ou null","price":0,"contact_name":"Nome ou null","contact_phone":"Telefone ou null","contact_instagram":"@usuario ou null","source_url":"URL ou null","keywords":[],"missing_fields":[],"warnings":[],"evidence":[{"field":"event_date","source":"caption","source_ref":"MENSAGEM 1 / Legenda","excerpt":"27/09 às 19h"}],"confidence_score":0.9}]}
 `,
 };

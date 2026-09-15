@@ -57,6 +57,12 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { FieldEvidencePanel } from "@/components/interpreted/FieldEvidencePanel";
+import {
+  eventDateTimeInputToIso,
+  eventDateTimeInputValue,
+  formatEventDateTime,
+} from "@/lib/event-datetime";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -207,24 +213,18 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                     {isEditing ? (
                       <Input
                         type="datetime-local"
-                        value={editForm.event_date ? editForm.event_date.slice(0, 16) : ""}
+                        value={eventDateTimeInputValue(editForm.event_date)}
                         onChange={(e) =>
                           setEditForm({
                             ...editForm,
-                            event_date: e.target.value
-                              ? new Date(e.target.value).toISOString()
-                              : null,
+                            event_date: eventDateTimeInputToIso(e.target.value),
                           })
                         }
                         className="mt-1"
                       />
                     ) : (
                       <p className="font-medium">
-                        {content.event_date
-                          ? format(new Date(content.event_date), "dd/MM/yyyy HH:mm", {
-                              locale: ptBR,
-                            })
-                          : "Não detectada"}
+                        {content.event_date ? formatEventDateTime(content.event_date) : "Não detectada"}
                       </p>
                     )}
                   </div>
@@ -584,6 +584,8 @@ export function InterpretedDetails({ id, onClose }: InterpretedDetailsProps) {
                   </div>
                 </div>
               </div>
+
+              <FieldEvidencePanel extractedData={content.extracted_data} />
 
               {/* Warnings and Missing Fields */}
               {(content.missing_fields?.length || 0) + (content.warnings?.length || 0) > 0 && (

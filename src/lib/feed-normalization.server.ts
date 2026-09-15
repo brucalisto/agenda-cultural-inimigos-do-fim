@@ -1,6 +1,7 @@
 import { prepareRecurringItemsForReview } from "@/lib/recurrence.server";
 import type { InterpretedContentResponse } from "@/lib/gemini/schema";
 import { formatEventTime } from "@/lib/event-datetime";
+import { mergeFieldEvidence } from "@/lib/field-evidence";
 
 export type FeedEventLike = {
   title?: string | null;
@@ -110,6 +111,9 @@ export function consolidateFeedEvents<T extends FeedEventLike>(
       ...new Set(sorted.map((item) => item.full_description?.trim()).filter(Boolean) as string[]),
     ];
     const primary = sorted[0];
+    const fieldEvidence = mergeFieldEvidence(
+      ...sorted.map((item) => item.extracted_data?.fieldEvidence),
+    );
     return {
       ...primary,
       category: first(...sorted.map((item) => item.category)),
@@ -129,6 +133,7 @@ export function consolidateFeedEvents<T extends FeedEventLike>(
       full_description: descriptions.join("\n\n"),
       extracted_data: {
         ...(primary.extracted_data || {}),
+        ...(fieldEvidence.length ? { fieldEvidence } : {}),
         eventTimes: times,
         consolidatedOccurrences: group.length,
       },
