@@ -1,22 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { eventDateKey } from "@/lib/event-datetime";
 import { expandPublishedRecurringRows } from "@/lib/recurrence.server";
 
 const baseColumns =
   "id,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
 const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
 
+function timeWasInformed(row: Record<string, unknown>) {
+  if (typeof row.time_was_informed === "boolean") return row.time_was_informed;
+  const extracted =
+    row.extracted_data && typeof row.extracted_data === "object" && !Array.isArray(row.extracted_data)
+      ? (row.extracted_data as Record<string, unknown>)
+      : null;
+  return typeof extracted?.time_was_informed === "boolean"
+    ? extracted.time_was_informed
+    : null;
+}
+
 function publicEvents(rows: Array<Record<string, unknown>>) {
   return expandPublishedRecurringRows(
-    rows.map((row) => ({
-      ...row,
-      id: String(row.id || ""),
-      title: typeof row.title === "string" ? row.title : null,
-      event_date: typeof row.event_date === "string" ? row.event_date : null,
-      source_url: typeof row.source_url === "string" ? row.source_url : null,
-      location: typeof row.location === "string" ? row.location : null,
-      keywords: Array.isArray(row.keywords) ? (row.keywords as string[]) : null,
-    })),
+    rows.map((row) => {
+      const eventDate = typeof row.event_date === "string" ? row.event_date : null;
+      const publicEventDate =
+        eventDate && timeWasInformed(row) === false ? eventDateKey(eventDate) : eventDate;
+
+      return {
+        ...row,
+        id: String(row.id || ""),
+        title: typeof row.title === "string" ? row.title : null,
+        // Para datas sem horário, a API pública devolve somente YYYY-MM-DD.
+        // O frontend passa a exibir "Horário não informado" em vez de 00:00.
+        event_date: publicEventDate,
+        source_url: typeof row.source_url === "string" ? row.source_url : null,
+        location: typeof row.location === "string" ? row.location : null,
+        keywords: Array.isArray(row.keywords) ? (row.keywords as string[]) : null,
+      };
+    }),
   );
 }
 

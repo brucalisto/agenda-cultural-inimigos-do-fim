@@ -17,7 +17,7 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Geocodificação em endpoint público** — `/api/public/events` agora é somente leitura; a geocodificação foi movida para manutenção protegida por `FEED_SYNC_SECRET`/`CRON_SECRET` e executada após a sincronização de feeds.
 - [ ] **Tipos Supabase desatualizados** — `src/integrations/supabase/types.ts` não representa ainda todas as tabelas mais novas de comunidade/marketplace. Regenerar para reduzir casts e erros silenciosos.
 - [ ] **Preço com contrato divergente** — IA trabalha com número; banco usa `text`. Definir contrato canônico com `price_amount`/`price_label` ou normalizador único.
-- [ ] **Evento sem horário** — `interpreted_contents.event_date` é `timestamptz`; envios da comunidade sem `start_time` preservam `time_was_informed=false`, mas a interface ainda precisa tratar isso de forma canônica e exibir “Horário não informado”.
+- [x] **Evento sem horário** — criado contrato canônico `time_was_informed`; datas sem horário são ancoradas no dia civil de `America/Sao_Paulo`, a API pública devolve somente `YYYY-MM-DD` nesses casos e a agenda exibe “Horário não informado” em vez de inventar `00:00`. Registros legados ambíguos permanecem `null` para não inferir informação inexistente.
 - [ ] **Limite fixo de 2.000 eventos na API pública** — suficiente agora, mas deve virar consulta paginada/por janela de datas antes de escalar.
 - [ ] **Observabilidade dos provedores de IA** — persistir tentativa/provedor/latência/erro por conteúdo para facilitar diagnóstico e cálculo de confiabilidade.
 

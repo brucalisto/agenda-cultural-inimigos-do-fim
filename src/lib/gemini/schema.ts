@@ -8,17 +8,29 @@ import { z } from "zod";
  * no navegador (UTC-3).
  *
  * O contrato da extração por IA é preservar o relógio que aparece na fonte e
- * associá-lo explicitamente ao fuso da agenda. Datas geradas depois pela
- * aplicação (como recorrências) não passam por este schema e continuam usando
- * instantes UTC normais.
+ * associá-lo explicitamente ao fuso da agenda. Quando a fonte informa somente
+ * a data, persistimos 00:00 no fuso da agenda apenas como representação técnica
+ * e carregamos `time_was_informed = false` para nunca exibir esse horário como
+ * se tivesse vindo da divulgação.
  */
 export const AGENDA_TIME_ZONE = "America/Sao_Paulo";
 export const AGENDA_UTC_OFFSET = "-03:00";
+
+function aiDateHasExplicitTime(value: string | null) {
+  return Boolean(value && /[T ]\d{2}:\d{2}/.test(value.trim()));
+}
 
 export function normalizeAiEventDate(value: string | null) {
   if (value == null) return null;
   const input = value.trim();
   if (!input) return null;
+
+  // Data sem horário: ancora o dia civil em São Paulo. Salvar apenas YYYY-MM-DD
+  // em uma coluna timestamptz faria o PostgreSQL interpretar meia-noite em UTC
+  // e poderia deslocar o evento para o dia anterior na agenda.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return `${input}T00:00:00${AGENDA_UTC_OFFSET}`;
+  }
 
   const match = input.match(
     /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2})(?:\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?$/i,
@@ -37,12 +49,13 @@ export function normalizeAiEventDate(value: string | null) {
   return input;
 }
 
-export const InterpretedContentSchema = z.object({
+const InterpretedContentBaseSchema = z.object({
   title: z.string().nullable(),
   category: z.string().nullable(),
   summary: z.string().nullable(),
   full_description: z.string().nullable(),
-  event_date: z.string().nullable().transform(normalizeAiEventDate),
+  event_date: z.string().nullable(),
+  time_was_informed: z.boolean().optional(),
   location: z.string().nullable(),
   city: z.string().nullable(),
   price: z.number().nullable(),
@@ -55,6 +68,14 @@ export const InterpretedContentSchema = z.object({
   warnings: z.array(z.string()).default([]),
   confidence_score: z.number().min(0).max(1),
 });
+
+export const InterpretedContentSchema = InterpretedContentBaseSchema.transform((value) => ({
+  ...value,
+  event_date: normalizeAiEventDate(value.event_date),
+  // Mantém compatibilidade com provedores que ainda não devolvem o novo campo:
+  // datetime explícito => havia horário; YYYY-MM-DD => somente data.
+  time_was_informed: value.time_was_informed ?? aiDateHasExplicitTime(value.event_date),
+}));
 
 export type InterpretedContentResponse = z.infer<typeof InterpretedContentSchema>;
 
