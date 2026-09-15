@@ -1,9 +1,16 @@
 export const EVENT_TIME_ZONE = "America/Sao_Paulo";
 export const EVENT_TIME_OFFSET = "-03:00";
 
+function isDateOnly(value: string | Date | null | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+}
+
 function asDate(value: string | Date | null | undefined) {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
+  // YYYY-MM-DD é interpretado pelo JS como UTC. Ancorar ao meio-dia no fuso da
+  // agenda evita que uma data sem horário apareça como o dia anterior no Brasil.
+  const normalized = isDateOnly(value) ? `${value}T12:00:00${EVENT_TIME_OFFSET}` : value;
+  const date = normalized instanceof Date ? normalized : new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -31,6 +38,7 @@ function parts(value: string | Date) {
 }
 
 export function eventDateKey(value: string | Date) {
+  if (isDateOnly(value)) return value;
   const valueParts = parts(value);
   if (!valueParts) return "";
   return `${valueParts.year}-${valueParts.month}-${valueParts.day}`;
@@ -41,6 +49,7 @@ export function todayEventDateKey() {
 }
 
 export function formatEventTime(value: string | Date) {
+  if (isDateOnly(value)) return "Horário não informado";
   const date = asDate(value);
   if (!date) return "Horário não informado";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -64,6 +73,7 @@ export function formatEventDate(
 }
 
 export function formatEventDateTime(value: string | Date) {
+  if (isDateOnly(value)) return `${formatEventDate(value)} · Horário não informado`;
   const date = asDate(value);
   if (!date) return "Data e horário não informados";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -79,6 +89,7 @@ export function formatEventDateTime(value: string | Date) {
 
 export function eventDateTimeInputValue(value: string | null | undefined) {
   if (!value) return "";
+  if (isDateOnly(value)) return `${value}T00:00`;
   const valueParts = parts(value);
   if (!valueParts) return "";
   return `${valueParts.year}-${valueParts.month}-${valueParts.day}T${valueParts.hour}:${valueParts.minute}`;
