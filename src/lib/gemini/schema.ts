@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { eventPriceStorageValue } from "@/lib/event-price";
 
 /**
  * A agenda trabalha com o horário civil do evento em São Paulo/Caraguatatuba.
@@ -74,6 +75,7 @@ const InterpretedContentBaseSchema = z.object({
 export const InterpretedContentSchema = InterpretedContentBaseSchema.transform((value) => ({
   ...value,
   event_date: normalizeAiEventDate(value.event_date),
+  price: eventPriceStorageValue(value.price),
   // Mantém compatibilidade com provedores que ainda não devolvem o novo campo:
   // datetime explícito => havia horário; YYYY-MM-DD => somente data.
   time_was_informed: value.time_was_informed ?? aiDateHasExplicitTime(value.event_date),
