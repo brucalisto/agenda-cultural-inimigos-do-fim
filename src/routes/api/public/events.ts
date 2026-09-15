@@ -1,11 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { eventDateKey } from "@/lib/event-datetime";
-import { eventPriceFilterKind, formatEventPrice } from "@/lib/event-price";
-import { expandPublishedRecurringRows } from "@/lib/recurrence.server";
+import { buildPublicAgendaEvents } from "@/lib/public-events";
 
 const baseColumns =
-  "id,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
+  "id,review_status,title,category,summary,full_description,event_date,time_was_informed,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
 const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
 const PUBLIC_PAGE_SIZE = 500;
 const PUBLIC_MAX_SOURCE_ROWS = 10_000;
@@ -41,45 +39,6 @@ async function fetchPublishedRows(columns: string): Promise<PublishedRowsResult>
   }
 
   return { data: rows, error: null, truncated: true };
-}
-
-function timeWasInformed(row: Record<string, unknown>) {
-  if (typeof row.time_was_informed === "boolean") return row.time_was_informed;
-  const extracted =
-    row.extracted_data && typeof row.extracted_data === "object" && !Array.isArray(row.extracted_data)
-      ? (row.extracted_data as Record<string, unknown>)
-      : null;
-  return typeof extracted?.time_was_informed === "boolean"
-    ? extracted.time_was_informed
-    : null;
-}
-
-function publicEvents(rows: Array<Record<string, unknown>>) {
-  return expandPublishedRecurringRows(
-    rows.map((row) => {
-      const eventDate = typeof row.event_date === "string" ? row.event_date : null;
-      const publicEventDate =
-        eventDate && timeWasInformed(row) === false ? eventDateKey(eventDate) : eventDate;
-      const rawPrice =
-        typeof row.price === "string" || typeof row.price === "number" ? row.price : null;
-
-      return {
-        ...row,
-        id: String(row.id || ""),
-        title: typeof row.title === "string" ? row.title : null,
-        // Para datas sem horário, a API pública devolve somente YYYY-MM-DD.
-        // O frontend passa a exibir "Horário não informado" em vez de 00:00.
-        event_date: publicEventDate,
-        source_url: typeof row.source_url === "string" ? row.source_url : null,
-        location: typeof row.location === "string" ? row.location : null,
-        keywords: Array.isArray(row.keywords) ? (row.keywords as string[]) : null,
-        // Mantemos `price` por compatibilidade e oferecemos também os campos
-        // canônicos para clientes novos e para a futura Saúde da Agenda.
-        price_kind: eventPriceFilterKind(rawPrice),
-        price_label: formatEventPrice(rawPrice),
-      };
-    }),
-  );
 }
 
 export const Route = createFileRoute("/api/public/events")({
@@ -133,7 +92,7 @@ export const Route = createFileRoute("/api/public/events")({
         }
 
         const sourceRows = events?.length || 0;
-        const expandedEvents = publicEvents(events || []);
+        const expandedEvents = buildPublicAgendaEvents(events || []);
 
         return Response.json(
           {
