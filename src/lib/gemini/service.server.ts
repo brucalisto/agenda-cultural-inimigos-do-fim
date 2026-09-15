@@ -53,6 +53,48 @@ const INTERPRETED_CONTENTS_JSON_SCHEMA = {
           keywords: { type: "array", items: { type: "string" } },
           missing_fields: { type: "array", items: { type: "string" } },
           warnings: { type: "array", items: { type: "string" } },
+          evidence: {
+            type: "array",
+            maxItems: 16,
+            items: {
+              type: "object",
+              properties: {
+                field: {
+                  type: "string",
+                  enum: [
+                    "title",
+                    "category",
+                    "summary",
+                    "full_description",
+                    "event_date",
+                    "location",
+                    "city",
+                    "price",
+                    "contact_name",
+                    "contact_phone",
+                    "contact_instagram",
+                    "source_url",
+                  ],
+                },
+                source: {
+                  type: "string",
+                  enum: [
+                    "message_text",
+                    "caption",
+                    "image",
+                    "audio_transcript",
+                    "link_page",
+                    "metadata",
+                    "structured_source",
+                  ],
+                },
+                source_ref: { type: "string", maxLength: 100 },
+                excerpt: { type: ["string", "null"], maxLength: 180 },
+              },
+              required: ["field", "source", "source_ref", "excerpt"],
+              additionalProperties: false,
+            },
+          },
           confidence_score: { type: "number", minimum: 0, maximum: 1 },
         },
         required: [
@@ -71,6 +113,7 @@ const INTERPRETED_CONTENTS_JSON_SCHEMA = {
           "keywords",
           "missing_fields",
           "warnings",
+          "evidence",
           "confidence_score",
         ],
         additionalProperties: false,
@@ -263,7 +306,7 @@ async function enrichWithTranscripts(content: string, mediaFiles: MediaFile[]) {
         contentChars: null,
         mediaCount: 1,
       });
-      if (transcript) transcripts.push(transcript);
+      if (transcript) transcripts.push(`TRANSCRIÇÃO ${index + 1}: ${transcript}`);
     } catch (error) {
       observations.push({
         correlationId,
@@ -295,10 +338,13 @@ function openAIUserContent(content: string, images: MediaFile[]) {
       type: "text",
       text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content)}\n\nRetorne somente JSON válido conforme o formato solicitado.`,
     },
-    ...images.map((file) => ({
-      type: "image_url",
-      image_url: { url: `data:${file.mimeType};base64,${file.data}` },
-    })),
+    ...images.flatMap((file, index) => [
+      { type: "text", text: `IMAGEM ${index + 1}` },
+      {
+        type: "image_url",
+        image_url: { url: `data:${file.mimeType};base64,${file.data}` },
+      },
+    ]),
   ];
 }
 
@@ -308,10 +354,13 @@ function mistralUserContent(content: string, images: MediaFile[]) {
       type: "text",
       text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content)}\n\nRetorne somente JSON válido conforme o formato solicitado.`,
     },
-    ...images.map((file) => ({
-      type: "image_url",
-      image_url: `data:${file.mimeType};base64,${file.data}`,
-    })),
+    ...images.flatMap((file, index) => [
+      { type: "text", text: `IMAGEM ${index + 1}` },
+      {
+        type: "image_url",
+        image_url: `data:${file.mimeType};base64,${file.data}`,
+      },
+    ]),
   ];
 }
 
@@ -441,9 +490,14 @@ async function processWithGemini(content: string, mediaFiles: MediaFile[]): Prom
   if (!apiKey) throw new Error("GEMINI_API_KEY não está configurada.");
   const parts: Array<Record<string, unknown>> = [
     { text: `${getDateContext()}\n\nConteúdo para análise:\n${compactText(content)}` },
-    ...mediaFiles.slice(0, MAX_VISUAL_IMAGES).map((file) => ({
-      inlineData: { mimeType: file.mimeType, data: file.data },
-    })),
+    ...mediaFiles.slice(0, MAX_VISUAL_IMAGES).flatMap((file, index) => [
+      {
+        text: file.mimeType.startsWith("image/")
+          ? `IMAGEM ${index + 1}`
+          : `MÍDIA AUDIOVISUAL ${index + 1}`,
+      },
+      { inlineData: { mimeType: file.mimeType, data: file.data } },
+    ]),
   ];
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.MODEL_NAME}:generateContent?key=${apiKey}`,
