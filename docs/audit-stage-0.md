@@ -9,7 +9,7 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Fuso horário canônico da agenda** — `America/Sao_Paulo` já foi centralizado para eventos vindos da IA e para a interface pública/admin.
 - [x] **Publicação de eventos da comunidade ainda usava o timezone da sessão do banco** — corrigido para converter `date + time` explicitamente de `America/Sao_Paulo` para `timestamptz`.
 - [x] **Comparação de duplicidades por data usava `YYYY-MM-DD` do ISO bruto** — corrigido para comparar o dia civil no fuso da agenda.
-- [x] **URLs temporárias de mídia externa** — capas do Instagram agora são espelhadas no bucket `event-images`; sincronizações também reparam registros antigos sem nova interpretação por IA.
+- [x] **URLs temporárias de mídia externa** — capas do Instagram agora são espelhadas no bucket `event-images`; sincronizações e manutenção protegida também reparam registros antigos em lotes pequenos sem nova interpretação por IA.
 - [x] **Arquivo `.env` e preview da Lovable** — a tentativa de removê-lo quebrou o preview por faltar `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`; o arquivo foi restaurado exatamente como estava. Não remover/rotacionar configuração existente durante esta auditoria sem migração planejada e validação prévia.
 
 ## 🟠 Importantes
@@ -18,16 +18,17 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Tipos Supabase desatualizados** — o snapshot gerado continua preservado em `types.ts`, enquanto `database.ts` amplia a tipagem com comunidade, marketplace, funções RPC e colunas recentes como `time_was_informed`. Os clientes Supabase passam a usar esse contrato e os casts manuais das telas novas foram removidos.
 - [x] **Preço com contrato divergente** — criado normalizador único: `null` = valor não informado, `0` = gratuito e texto preservado = valor fixo/faixa/condição. A API pública também deriva `price_kind` e `price_label`, sem quebrar o campo legado `price`.
 - [x] **Evento sem horário** — criado contrato canônico `time_was_informed`; datas sem horário são ancoradas no dia civil de `America/Sao_Paulo`, a API pública devolve somente `YYYY-MM-DD` nesses casos e a agenda exibe “Horário não informado” em vez de inventar `00:00`. Registros legados ambíguos permanecem `null` para não inferir informação inexistente.
-- [ ] **Limite fixo de 2.000 eventos na API pública** — suficiente agora, mas deve virar consulta paginada/por janela de datas antes de escalar.
+- [x] **Limite fixo de 2.000 eventos na API pública** — substituído por leitura paginada em blocos de 500, preservando compatibilidade com o frontend atual e emitindo metadados/alerta caso o teto de segurança de 10.000 registros-fonte seja atingido.
 - [x] **Observabilidade dos provedores de IA** — criada a trilha técnica `ai_provider_attempts`, registrando operação, modo, provedor/modelo, ordem da tentativa, sucesso/erro, latência, fallback e retry. O log não armazena prompt, conteúdo bruto, mídia ou chaves e uma falha na telemetria nunca bloqueia o processamento principal.
 
 ## 🟡 Melhorias estruturais
 
-- [ ] Criar painel **Saúde da Agenda** com anomalias: evento sem data/local, horário suspeito, imagem quebrada, duplicidade, item preso, feed desatualizado e falha de IA.
+- [x] Criar painel **Saúde da Agenda** com anomalias: evento sem data/local, imagem instável, duplicidade, baixa confiança, item preso, feed desatualizado e falha de IA.
 - [ ] Criar evidência por campo (“data veio da legenda”, “horário veio da imagem 3 do carrossel”).
 - [ ] Consolidar estados de processamento/revisão em um contrato único.
-- [ ] Adicionar testes automatizados de timezone, recorrência, duplicidade, publicação e fallbacks de IA.
-- [x] Adicionar CI mínimo com `lint` + `build` em PRs e em `main`.
+- [x] Adicionar testes automatizados iniciais de timezone, normalização da IA, preço, recorrência e duplicidade.
+- [ ] Adicionar testes específicos da cadeia de retry/fallback das IAs e de publicação ponta a ponta.
+- [x] Adicionar CI com `lint` + testes + `build` em PRs e em `main`.
 
 ## Segurança da comunidade
 

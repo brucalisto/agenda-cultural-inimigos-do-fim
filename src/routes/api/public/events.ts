@@ -7,6 +7,41 @@ import { expandPublishedRecurringRows } from "@/lib/recurrence.server";
 const baseColumns =
   "id,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
 const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
+const PUBLIC_PAGE_SIZE = 500;
+const PUBLIC_MAX_SOURCE_ROWS = 10_000;
+
+type PublishedRowsResult = {
+  data: Array<Record<string, unknown>> | null;
+  error: { message: string } | null;
+  truncated: boolean;
+};
+
+async function fetchPublishedRows(columns: string): Promise<PublishedRowsResult> {
+  const rows: Array<Record<string, unknown>> = [];
+
+  for (let from = 0; from < PUBLIC_MAX_SOURCE_ROWS; from += PUBLIC_PAGE_SIZE) {
+    const to = Math.min(from + PUBLIC_PAGE_SIZE - 1, PUBLIC_MAX_SOURCE_ROWS - 1);
+    const page = await supabaseAdmin
+      .from("interpreted_contents")
+      .select(columns)
+      .eq("review_status", "publicado")
+      .order("event_date", { ascending: true, nullsFirst: false })
+      .range(from, to);
+
+    if (page.error) {
+      return { data: null, error: { message: page.error.message }, truncated: false };
+    }
+
+    const pageRows = (page.data || []) as Array<Record<string, unknown>>;
+    rows.push(...pageRows);
+
+    if (pageRows.length < PUBLIC_PAGE_SIZE) {
+      return { data: rows, error: null, truncated: false };
+    }
+  }
+
+  return { data: rows, error: null, truncated: true };
+}
 
 function timeWasInformed(row: Record<string, unknown>) {
   if (typeof row.time_was_informed === "boolean") return row.time_was_informed;
@@ -51,33 +86,21 @@ export const Route = createFileRoute("/api/public/events")({
   server: {
     handlers: {
       GET: async () => {
-        const curated = await supabaseAdmin
-          .from("interpreted_contents")
-          .select(curatedColumns)
-          .eq("review_status", "publicado")
-          .order("event_date", { ascending: true, nullsFirst: false })
-          .limit(2000);
-
-        let events: Array<Record<string, unknown>> | null = (curated.data || null) as
-          | Array<Record<string, unknown>>
-          | null;
+        const curated = await fetchPublishedRows(curatedColumns);
+        let events = curated.data;
+        let truncated = curated.truncated;
+        let schemaMode: "curated" | "fallback" | "minimal" = "curated";
 
         if (curated.error) {
           const fallbackColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at`;
-          const fallback = await supabaseAdmin
-            .from("interpreted_contents")
-            .select(fallbackColumns)
-            .eq("review_status", "publicado")
-            .order("event_date", { ascending: true, nullsFirst: false })
-            .limit(2000);
+          const fallback = await fetchPublishedRows(fallbackColumns);
+          schemaMode = "fallback";
+          truncated = fallback.truncated;
 
           if (fallback.error) {
-            const minimal = await supabaseAdmin
-              .from("interpreted_contents")
-              .select(baseColumns)
-              .eq("review_status", "publicado")
-              .order("event_date", { ascending: true, nullsFirst: false })
-              .limit(2000);
+            const minimal = await fetchPublishedRows(baseColumns);
+            schemaMode = "minimal";
+            truncated = minimal.truncated;
 
             if (minimal.error) {
               console.error("Falha ao carregar agenda pública:", minimal.error);
@@ -103,8 +126,25 @@ export const Route = createFileRoute("/api/public/events")({
           }
         }
 
+        if (truncated) {
+          console.warn(
+            `[agenda-publica] A consulta atingiu o teto de ${PUBLIC_MAX_SOURCE_ROWS} registros publicados.`,
+          );
+        }
+
+        const sourceRows = events?.length || 0;
+        const expandedEvents = publicEvents(events || []);
+
         return Response.json(
-          { events: publicEvents(events || []) },
+          {
+            events: expandedEvents,
+            meta: {
+              sourceRows,
+              returnedEvents: expandedEvents.length,
+              truncated,
+              schemaMode,
+            },
+          },
           { headers: { "cache-control": "public, max-age=15, stale-while-revalidate=60" } },
         );
       },
