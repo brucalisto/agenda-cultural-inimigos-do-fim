@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadPublicImage } from "@/lib/links.server";
 
 const EVENT_IMAGES_BUCKET = "event-images";
+const EVENT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const IMAGE_REPAIR_SCAN_LIMIT = 300;
 const IMAGE_REPAIR_BATCH_LIMIT = 20;
 const MIME_EXTENSION: Record<string, string> = {
@@ -54,6 +55,9 @@ export async function persistEventImage(
     `${safeSegment(key.role || "cover")}.${extension}`,
   ].join("/");
   const buffer = Buffer.from(image.data, "base64");
+  if (buffer.length > EVENT_IMAGE_MAX_BYTES) {
+    throw new Error("Imagem remota excede o limite de 8 MB para capas de eventos.");
+  }
 
   const { error } = await supabaseAdmin.storage.from(EVENT_IMAGES_BUCKET).upload(path, buffer, {
     contentType: image.mimeType,
