@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { eventDateKey, todayEventDateKey } from "@/lib/event-datetime";
+import { eventPriceStorageValue } from "@/lib/event-price";
 
 export type InterpretedContent = {
   id: string;
@@ -120,9 +121,13 @@ export async function updateInterpretedContent(
   id: string,
   updates: Partial<Omit<InterpretedContent, "whatsapp_messages">>,
 ) {
+  const normalizedUpdates = Object.prototype.hasOwnProperty.call(updates, "price")
+    ? { ...updates, price: eventPriceStorageValue(updates.price) }
+    : updates;
+
   const { data, error } = await supabase
     .from("interpreted_contents")
-    .update(updates)
+    .update(normalizedUpdates)
     .eq("id", id)
     .select()
     .single();
