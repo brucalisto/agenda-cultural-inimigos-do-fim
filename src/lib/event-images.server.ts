@@ -2,6 +2,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadPublicImage } from "@/lib/links.server";
 
 const EVENT_IMAGES_BUCKET = "event-images";
+const IMAGE_REPAIR_SCAN_LIMIT = 300;
+const IMAGE_REPAIR_BATCH_LIMIT = 20;
 const MIME_EXTENSION: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -20,6 +22,12 @@ function safeSegment(value: string) {
 function isOwnEventImageUrl(value: string | null | undefined) {
   if (!value) return false;
   return value.includes(`/storage/v1/object/public/${EVENT_IMAGES_BUCKET}/`);
+}
+
+function jsonObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 /**
@@ -60,4 +68,58 @@ export async function persistEventImage(
 
 export function needsEventImagePersistence(value: string | null | undefined) {
   return Boolean(value && !isOwnEventImageUrl(value));
+}
+
+export async function repairUnstableEventImages(limit = IMAGE_REPAIR_BATCH_LIMIT) {
+  const safeLimit = Math.max(1, Math.min(limit, IMAGE_REPAIR_BATCH_LIMIT));
+  const { data, error } = await supabaseAdmin
+    .from("interpreted_contents")
+    .select("id,title,image_url,extracted_data,review_status,updated_at")
+    .not("image_url", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(IMAGE_REPAIR_SCAN_LIMIT);
+
+  if (error) throw new Error(`Falha ao localizar imagens instáveis: ${error.message}`);
+
+  const candidates = (data ?? [])
+    .filter((row) => row.review_status !== "ignorado" && row.review_status !== "desativado")
+    .filter((row) => needsEventImagePersistence(row.image_url))
+    .slice(0, safeLimit);
+
+  const failures: Array<{ id: string; title: string | null; reason: string }> = [];
+  let repaired = 0;
+
+  for (const row of candidates) {
+    try {
+      const extracted = jsonObject(row.extracted_data);
+      const source = typeof extracted?.sourceType === "string" ? extracted.sourceType : "event";
+      const externalId =
+        (typeof extracted?.instagramShortcode === "string" && extracted.instagramShortcode) ||
+        (typeof extracted?.feedExternalKey === "string" && extracted.feedExternalKey) ||
+        row.id;
+      const imageUrl = await persistEventImage(row.image_url, { source, externalId });
+      if (!imageUrl || imageUrl === row.image_url) continue;
+
+      const { error: updateError } = await supabaseAdmin
+        .from("interpreted_contents")
+        .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+      repaired += 1;
+    } catch (cause) {
+      failures.push({
+        id: row.id,
+        title: row.title,
+        reason: cause instanceof Error ? cause.message.slice(0, 300) : "Falha desconhecida.",
+      });
+    }
+  }
+
+  return {
+    scanned: data?.length ?? 0,
+    candidates: candidates.length,
+    repaired,
+    failed: failures.length,
+    failures,
+  };
 }

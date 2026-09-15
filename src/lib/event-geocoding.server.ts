@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { repairUnstableEventImages } from "@/lib/event-images.server";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const REQUEST_INTERVAL_MS = 1100;
@@ -122,6 +123,15 @@ export async function geocodePublishedEvents(options: { limit?: number } = {}) {
     if (index === candidates.length - 1) break;
   }
 
+  let imageRepairs: Awaited<ReturnType<typeof repairUnstableEventImages>> | null = null;
+  let imageRepairError: string | null = null;
+  try {
+    imageRepairs = await repairUnstableEventImages();
+  } catch (cause) {
+    imageRepairError = cause instanceof Error ? cause.message : "Falha desconhecida no reparo de imagens.";
+    console.warn("[agenda-maintenance] Reparo automático de imagens falhou:", cause);
+  }
+
   return {
     inspected: rows.length,
     candidates: candidates.length,
@@ -129,5 +139,7 @@ export async function geocodePublishedEvents(options: { limit?: number } = {}) {
     notFound,
     externalRequests,
     failures,
+    imageRepairs,
+    imageRepairError,
   };
 }
