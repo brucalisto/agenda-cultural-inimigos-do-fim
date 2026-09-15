@@ -78,13 +78,17 @@ const InterpretedContentBaseSchema = z.object({
   confidence_score: z.number().min(0).max(1),
 });
 
-export const InterpretedContentSchema = InterpretedContentBaseSchema.transform((value) => ({
-  ...value,
-  event_date: normalizeAiEventDate(value.event_date),
-  // Mantém compatibilidade com provedores que ainda não devolvem o novo campo:
-  // datetime explícito => havia horário; YYYY-MM-DD => somente data.
-  time_was_informed: value.time_was_informed ?? aiDateHasExplicitTime(value.event_date),
-}));
+export const InterpretedContentSchema = InterpretedContentBaseSchema.transform((value) => {
+  const { evidence, ...item } = value;
+  return {
+    ...item,
+    event_date: normalizeAiEventDate(value.event_date),
+    // Mantém compatibilidade com provedores que ainda não devolvem o novo campo:
+    // datetime explícito => havia horário; YYYY-MM-DD => somente data.
+    time_was_informed: value.time_was_informed ?? aiDateHasExplicitTime(value.event_date),
+    extracted_data: evidence.length ? { fieldEvidence: evidence } : {},
+  };
+});
 
 export type InterpretedContentResponse = z.infer<typeof InterpretedContentSchema>;
 
