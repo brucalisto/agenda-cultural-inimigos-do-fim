@@ -38,7 +38,7 @@ export function normalizeEventPrice(input: string | number | null | undefined): 
   }
 
   if (typeof input === "number") {
-    if (!Number.isFinite(input)) {
+    if (!Number.isFinite(input) || input < 0) {
       return { kind: "unknown", amount: null, label: "Valor não informado", raw: input };
     }
     if (input === 0) return { kind: "free", amount: 0, label: "Gratuito", raw: input };
@@ -46,7 +46,7 @@ export function normalizeEventPrice(input: string | number | null | undefined): 
   }
 
   const raw = input.trim().replace(/\s+/g, " ");
-  if (!raw || UNKNOWN_RE.test(raw)) {
+  if (!raw || UNKNOWN_RE.test(raw) || /-\s*(?:r\$\s*)?\d/i.test(raw)) {
     return { kind: "unknown", amount: null, label: "Valor não informado", raw: input };
   }
 
