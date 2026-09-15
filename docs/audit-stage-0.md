@@ -6,7 +6,7 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 
 ## 🔴 Críticos
 
-- [x] **Fuso horário canônico da agenda** — `America/Sao_Paulo` já foi centralizado para eventos vindos da IA e para a interface pública/admin.
+- [x] **Fuso horário canônico da agenda** — `America/Sao_Paulo` já foi centralizado para eventos vindos da IA e para a interface pública/admin, incluindo o editor detalhado da revisão.
 - [x] **Publicação de eventos da comunidade ainda usava o timezone da sessão do banco** — corrigido para converter `date + time` explicitamente de `America/Sao_Paulo` para `timestamptz`.
 - [x] **Comparação de duplicidades por data usava `YYYY-MM-DD` do ISO bruto** — corrigido para comparar o dia civil no fuso da agenda.
 - [x] **URLs temporárias de mídia externa** — capas do Instagram agora são espelhadas no bucket `event-images`; sincronizações e manutenção protegida também reparam registros antigos em lotes pequenos sem nova interpretação por IA.
@@ -24,10 +24,11 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 ## 🟡 Melhorias estruturais
 
 - [x] Criar painel **Saúde da Agenda** com anomalias: evento sem data/local, imagem instável, duplicidade, baixa confiança, item preso, feed desatualizado e falha de IA.
-- [ ] Criar evidência por campo (“data veio da legenda”, “horário veio da imagem 3 do carrossel”).
+- [x] **Evidência por campo** — novas interpretações podem registrar a fonte de cada informação (`mensagem`, `legenda`, `imagem N`, `transcrição`, `link` ou metadado) com pequeno trecho de sustentação. A proveniência fica em `extracted_data` e aparece na tela de revisão; registros antigos permanecem compatíveis e ganham evidência quando forem reprocessados.
 - [ ] Consolidar estados de processamento/revisão em um contrato único.
 - [x] Adicionar testes automatizados iniciais de timezone, normalização da IA, preço, recorrência e duplicidade.
-- [ ] Adicionar testes específicos da cadeia de retry/fallback das IAs e de publicação ponta a ponta.
+- [x] Adicionar testes específicos da cadeia de retry/fallback das IAs.
+- [ ] Adicionar teste de publicação ponta a ponta.
 - [x] Adicionar CI com `lint` + testes + `build` em PRs e em `main`.
 
 ## Segurança da comunidade
