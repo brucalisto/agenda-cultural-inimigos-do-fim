@@ -42,12 +42,12 @@ Objetivo: estabilizar o fluxo `fontes → interpretação → revisão → publi
 - [x] **Visibilidade de espaços/posts de membros** — conteúdo de espaços `members` exige autenticação e não vaza pela policy pública de posts.
 - [x] **Fixação de posts** — autores comuns não podem alterar `pinned`; somente moderação.
 - [x] **Perfis verificados** — perfis verificados continuam editáveis pelo proprietário, mas o selo `verified` só pode ser alterado pela moderação.
+- [x] **Dados privados de perfil/contato** — e-mail e telefone deixam de ficar na linha pública de `community_profiles`; valores existentes são preservados em `community_profile_private`, protegidos por RLS para o próprio usuário e moderação. A listagem pública também passa a consultar somente os campos necessários para descoberta.
 
 ### Ainda pendente
 
 - [ ] uploads e tipos/tamanhos de mídia;
 - [ ] spam/rate limit em posts, mensagens e envios de eventos;
-- [ ] política explícita para dados privados de perfil/contato;
 - [ ] moderação e trilha de auditoria mais detalhada para ações da comunidade.
 
 ## Ordem de execução
