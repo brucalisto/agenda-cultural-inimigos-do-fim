@@ -21,8 +21,7 @@ function ProfileOnboarding(){
   const bio=useMemo(()=>[answers.story.trim(),answers.goals.trim()?("Tenho interesse em "+answers.goals.trim()+"."):""].filter(Boolean).join(" "),[answers]);
   async function finish(){
     setSaving(true);
-    const db=supabase as unknown as {from:(table:string)=>{upsert:(data:Record<string,unknown>)=>Promise<{error:{message:string}|null}>}};
-    const {error}=await db.from("community_profiles").upsert({id:userId,display_name:answers.display_name.trim(),full_bio:bio,city:answers.city.trim(),collaboration_interests:answers.goals.split(",").map(x=>x.trim()).filter(Boolean),onboarding_status:"complete",visibility:"public",updated_at:new Date().toISOString()});
+    const {error}=await supabase.from("community_profiles").upsert({id:userId,display_name:answers.display_name.trim(),full_bio:bio,city:answers.city.trim(),collaboration_interests:answers.goals.split(",").map(x=>x.trim()).filter(Boolean),onboarding_status:"complete",visibility:"public",updated_at:new Date().toISOString()});
     setSaving(false);if(error){toast.error(error.message);return;}toast.success("Seu perfil foi salvo!");window.location.href="/people";
   }
   const question=questions[step],value=answers[question.key];
