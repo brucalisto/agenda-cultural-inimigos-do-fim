@@ -7,6 +7,11 @@ import {
 } from "./config.server";
 import { SYSTEM_PROMPTS } from "./prompts.server";
 import { InterpretedContentsSchema, type InterpretedContentsResponse } from "./schema";
+import {
+  createAiCorrelationId,
+  persistAiProviderAttempts,
+  type AiProviderAttempt,
+} from "@/lib/ai-observability.server";
 
 type MediaFile = { mimeType: string; data: string };
 type Provider = "mistral" | "groq" | "cloudflare" | "gemini" | "openrouter";
@@ -134,11 +139,12 @@ function retryableError(error: unknown) {
   return /\b(?:429|500|502|503|504)\b|temporar|rate.?limit|overloaded/i.test(message);
 }
 
-async function runWithOneRetry<T>(run: () => Promise<T>) {
+async function runWithOneRetry<T>(run: () => Promise<T>, onRetry?: () => void) {
   try {
     return await run();
   } catch (error) {
     if (!retryableError(error)) throw error;
+    onRetry?.();
     await new Promise((resolve) => setTimeout(resolve, 800));
     return run();
   }
@@ -235,15 +241,50 @@ async function enrichWithTranscripts(content: string, mediaFiles: MediaFile[]) {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!audible.length || !apiKey) return content;
 
+  const correlationId = createAiCorrelationId();
+  const observations: AiProviderAttempt[] = [];
   const transcripts: string[] = [];
-  for (const file of audible.slice(0, 3)) {
+  for (const [index, file] of audible.slice(0, 3).entries()) {
+    const startedAt = Date.now();
     try {
       const transcript = await withTimeout(transcribeWithGroq(file, apiKey), "Transcrição Groq", 10_000);
+      observations.push({
+        correlationId,
+        operation: "transcription",
+        sourceMode: "audio",
+        provider: "groq",
+        model: GROQ_CONFIG.AUDIO_MODEL_NAME,
+        label: "Transcrição Groq",
+        attemptOrder: index + 1,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: false,
+        retryUsed: false,
+        contentChars: null,
+        mediaCount: 1,
+      });
       if (transcript) transcripts.push(transcript);
-    } catch {
+    } catch (error) {
+      observations.push({
+        correlationId,
+        operation: "transcription",
+        sourceMode: "audio",
+        provider: "groq",
+        model: GROQ_CONFIG.AUDIO_MODEL_NAME,
+        label: "Transcrição Groq",
+        attemptOrder: index + 1,
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: false,
+        retryUsed: false,
+        errorMessage: error instanceof Error ? error.message : "Falha na transcrição Groq",
+        contentChars: null,
+        mediaCount: 1,
+      });
       // Se a transcrição falhar, o Gemini ainda poderá receber a mídia original como contingência.
     }
   }
+  await persistAiProviderAttempts(observations);
   const joined = compactText(transcripts.join("\n\n"), MAX_TRANSCRIPT_CHARS);
   return joined ? `${content}\n\nTRANSCRIÇÕES DE ÁUDIO/VÍDEO:\n${joined}` : content;
 }
@@ -475,6 +516,8 @@ async function processWithOpenRouter(content: string, mediaFiles: MediaFile[]): 
 
 type Attempt = {
   label: string;
+  provider: Provider;
+  model: string;
   timeoutMs: number;
   run: () => Promise<AIResult>;
 };
@@ -489,30 +532,75 @@ export async function processWithAI(content: string, mediaFiles: MediaFile[] = [
 
   const attempts: Attempt[] = useVision
     ? [
-        { label: "Groq Qwen 3.8 Vision", timeoutMs: VISION_TIMEOUT_MS, run: () => processWithGroq(enrichedContent, images) },
-        { label: "Cloudflare Qwen 3.8 Vision", timeoutMs: VISION_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, images, CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME) },
-        { label: "Cloudflare Llama 4 Scout", timeoutMs: VISION_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, images, CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME) },
-        { label: "Mistral Vision", timeoutMs: VISION_TIMEOUT_MS, run: () => processWithMistral(enrichedContent, images) },
-        { label: "Gemini Flash-Lite Vision", timeoutMs: VISION_TIMEOUT_MS, run: () => processWithGemini(enrichedContent, geminiMedia) },
-        { label: "OpenRouter Free", timeoutMs: OPENROUTER_TIMEOUT_MS, run: () => processWithOpenRouter(enrichedContent, images) },
+        { label: "Groq Qwen 3.8 Vision", provider: "groq", model: GROQ_CONFIG.MODEL_NAME, timeoutMs: VISION_TIMEOUT_MS, run: () => processWithGroq(enrichedContent, images) },
+        { label: "Cloudflare Qwen 3.8 Vision", provider: "cloudflare", model: CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME, timeoutMs: VISION_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, images, CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME) },
+        { label: "Cloudflare Llama 4 Scout", provider: "cloudflare", model: CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME, timeoutMs: VISION_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, images, CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME) },
+        { label: "Mistral Vision", provider: "mistral", model: MISTRAL_CONFIG.MODEL_NAME, timeoutMs: VISION_TIMEOUT_MS, run: () => processWithMistral(enrichedContent, images) },
+        { label: "Gemini Flash-Lite Vision", provider: "gemini", model: GEMINI_CONFIG.MODEL_NAME, timeoutMs: VISION_TIMEOUT_MS, run: () => processWithGemini(enrichedContent, geminiMedia) },
+        { label: "OpenRouter Free", provider: "openrouter", model: OPENROUTER_CONFIG.MODEL_NAME, timeoutMs: OPENROUTER_TIMEOUT_MS, run: () => processWithOpenRouter(enrichedContent, images) },
       ]
     : [
-        { label: "Mistral", timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithMistral(enrichedContent, []) },
-        { label: "Groq Qwen 3.8", timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithGroq(enrichedContent, []) },
-        { label: "Gemini Flash-Lite", timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithGemini(enrichedContent, geminiMedia) },
-        { label: "Cloudflare Qwen 3.8", timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, [], CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME) },
-        { label: "Cloudflare Llama 4 Scout", timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, [], CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME) },
-        { label: "OpenRouter Free", timeoutMs: OPENROUTER_TIMEOUT_MS, run: () => processWithOpenRouter(enrichedContent, []) },
+        { label: "Mistral", provider: "mistral", model: MISTRAL_CONFIG.MODEL_NAME, timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithMistral(enrichedContent, []) },
+        { label: "Groq Qwen 3.8", provider: "groq", model: GROQ_CONFIG.MODEL_NAME, timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithGroq(enrichedContent, []) },
+        { label: "Gemini Flash-Lite", provider: "gemini", model: GEMINI_CONFIG.MODEL_NAME, timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithGemini(enrichedContent, geminiMedia) },
+        { label: "Cloudflare Qwen 3.8", provider: "cloudflare", model: CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME, timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, [], CLOUDFLARE_CONFIG.PRIMARY_MODEL_NAME) },
+        { label: "Cloudflare Llama 4 Scout", provider: "cloudflare", model: CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME, timeoutMs: TEXT_TIMEOUT_MS, run: () => processWithCloudflareModel(enrichedContent, [], CLOUDFLARE_CONFIG.FALLBACK_MODEL_NAME) },
+        { label: "OpenRouter Free", provider: "openrouter", model: OPENROUTER_CONFIG.MODEL_NAME, timeoutMs: OPENROUTER_TIMEOUT_MS, run: () => processWithOpenRouter(enrichedContent, []) },
       ];
 
+  const correlationId = createAiCorrelationId();
+  const observations: AiProviderAttempt[] = [];
   const errors: string[] = [];
-  for (const attempt of attempts) {
+  for (const [index, attempt] of attempts.entries()) {
+    const startedAt = Date.now();
+    let retryUsed = false;
     try {
-      return await withTimeout(runWithOneRetry(attempt.run), attempt.label, attempt.timeoutMs);
+      const result = await withTimeout(
+        runWithOneRetry(attempt.run, () => {
+          retryUsed = true;
+        }),
+        attempt.label,
+        attempt.timeoutMs,
+      );
+      observations.push({
+        correlationId,
+        operation: "interpretation",
+        sourceMode: useVision ? "vision" : "text",
+        provider: result.provider,
+        model: result.modelUsed || attempt.model,
+        label: attempt.label,
+        attemptOrder: index + 1,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: index > 0,
+        retryUsed,
+        contentChars: enrichedContent.length,
+        mediaCount: useVision ? images.length : 0,
+      });
+      await persistAiProviderAttempts(observations);
+      return result;
     } catch (error) {
-      errors.push(`${attempt.label}: ${error instanceof Error ? error.message : "falha"}`);
+      const message = error instanceof Error ? error.message : "falha";
+      observations.push({
+        correlationId,
+        operation: "interpretation",
+        sourceMode: useVision ? "vision" : "text",
+        provider: attempt.provider,
+        model: attempt.model,
+        label: attempt.label,
+        attemptOrder: index + 1,
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: index > 0,
+        retryUsed,
+        errorMessage: message,
+        contentChars: enrichedContent.length,
+        mediaCount: useVision ? images.length : 0,
+      });
+      errors.push(`${attempt.label}: ${message}`);
     }
   }
+  await persistAiProviderAttempts(observations);
   throw new Error(errors.join(". "));
 }
 
@@ -561,17 +649,55 @@ async function complementaryWithGroq(prompt: string) {
 
 export async function complementaryJson(prompt: string) {
   const attempts = [
-    { label: "Mistral", run: () => complementaryWithMistral(prompt) },
-    { label: "Groq", run: () => complementaryWithGroq(prompt) },
-  ];
+    { label: "Mistral", provider: "mistral", model: MISTRAL_CONFIG.MODEL_NAME, run: () => complementaryWithMistral(prompt) },
+    { label: "Groq", provider: "groq", model: GROQ_CONFIG.MODEL_NAME, run: () => complementaryWithGroq(prompt) },
+  ] as const;
+  const correlationId = createAiCorrelationId();
+  const observations: AiProviderAttempt[] = [];
   const errors: string[] = [];
-  for (const attempt of attempts) {
+  for (const [index, attempt] of attempts.entries()) {
+    const startedAt = Date.now();
     try {
-      return await withTimeout(attempt.run(), attempt.label, COMPLEMENT_TIMEOUT_MS);
+      const result = await withTimeout(attempt.run(), attempt.label, COMPLEMENT_TIMEOUT_MS);
+      observations.push({
+        correlationId,
+        operation: "complementary",
+        sourceMode: "text",
+        provider: attempt.provider,
+        model: attempt.model,
+        label: attempt.label,
+        attemptOrder: index + 1,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: index > 0,
+        retryUsed: false,
+        contentChars: prompt.length,
+        mediaCount: 0,
+      });
+      await persistAiProviderAttempts(observations);
+      return result;
     } catch (error) {
-      errors.push(`${attempt.label}: ${error instanceof Error ? error.message : "falha"}`);
+      const message = error instanceof Error ? error.message : "falha";
+      observations.push({
+        correlationId,
+        operation: "complementary",
+        sourceMode: "text",
+        provider: attempt.provider,
+        model: attempt.model,
+        label: attempt.label,
+        attemptOrder: index + 1,
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        fallbackUsed: index > 0,
+        retryUsed: false,
+        errorMessage: message,
+        contentChars: prompt.length,
+        mediaCount: 0,
+      });
+      errors.push(`${attempt.label}: ${message}`);
     }
   }
+  await persistAiProviderAttempts(observations);
   throw new Error(errors.join(". "));
 }
 
