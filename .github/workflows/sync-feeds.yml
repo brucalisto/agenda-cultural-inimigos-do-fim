@@ -17,7 +17,7 @@ jobs:
           curl --fail-with-body --retry 2 --max-time 240 \
             -X POST \
             -H "Authorization: Bearer $FEED_SYNC_SECRET" \
-            "https://agenda-cultural-inimigos-do-fim.lovable.app/api/public/sync-feeds"
+            "https://inimigosdofim.app/api/public/sync-feeds"
 
       - name: Atualizar coordenadas pendentes da agenda
         env:
@@ -26,4 +26,4 @@ jobs:
           curl --fail-with-body --retry 2 --max-time 90 \
             -X POST \
             -H "Authorization: Bearer $FEED_SYNC_SECRET" \
-            "https://agenda-cultural-inimigos-do-fim.lovable.app/api/public/maintenance"
+            "https://inimigosdofim.app/api/public/maintenance"
