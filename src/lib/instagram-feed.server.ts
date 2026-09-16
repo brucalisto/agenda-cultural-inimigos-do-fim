@@ -293,23 +293,49 @@ function imageUrlsFromHtml(html: string) {
   return uniq(urls.filter((value) => /^https?:\/\//i.test(value))).slice(0, MAX_CAROUSEL_IMAGES);
 }
 
+async function discoverInstagramPostsWithBrowser(sourceUrl: string) {
+  const html = await fetchInstagramHtml(sourceUrl);
+  const discovered = discoverPostUrlsFromHtml(html);
+  if (!discovered.length) {
+    throw new Error("O Instagram não expôs publicamente os posts recentes desta fonte pelo navegador.");
+  }
+  return discovered;
+}
+
 export async function discoverInstagramPosts(sourceUrl: string) {
   const direct = normalizePostUrl(sourceUrl);
   if (direct) return [direct];
 
-  const config = metaConfig();
-  if (config) return discoverInstagramPostsWithMeta(sourceUrl, config);
-
-  // Compatibilidade temporária: enquanto os secrets da Meta não forem configurados,
-  // mantém a leitura pública anterior. Assim a publicação do código não derruba o fluxo atual.
-  const html = await fetchInstagramHtml(sourceUrl);
-  const discovered = discoverPostUrlsFromHtml(html);
-  if (!discovered.length) {
-    throw new Error(
-      "O Instagram não expôs publicamente os posts recentes desta fonte. Configure META_INSTAGRAM_ACCESS_TOKEN e META_INSTAGRAM_ACCOUNT_ID para usar a API oficial da Meta.",
-    );
+  let config: MetaConfig | null = null;
+  try {
+    config = metaConfig();
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Configuração da Meta inválida.";
+    console.warn(`[instagram-feed] ${message} Tentando leitura pública como fallback.`);
   }
-  return discovered;
+
+  if (config) {
+    try {
+      return await discoverInstagramPostsWithMeta(sourceUrl, config);
+    } catch (metaError) {
+      const metaMessage =
+        metaError instanceof Error ? metaError.message : "Falha desconhecida na API da Meta.";
+      console.warn(
+        `[instagram-feed] API da Meta indisponível para ${sourceUrl}. Tentando navegador como fallback: ${metaMessage}`,
+      );
+      try {
+        return await discoverInstagramPostsWithBrowser(sourceUrl);
+      } catch (browserError) {
+        const browserMessage =
+          browserError instanceof Error ? browserError.message : "Falha desconhecida no navegador.";
+        throw new Error(
+          `${metaMessage} O fallback pelo navegador também falhou: ${browserMessage}`,
+        );
+      }
+    }
+  }
+
+  return discoverInstagramPostsWithBrowser(sourceUrl);
 }
 
 export async function extractInstagramPublicPost(postUrl: string): Promise<InstagramPublicPost> {
