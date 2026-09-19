@@ -16,7 +16,14 @@ export const Route = createFileRoute("/api/public/sync-feeds")({
           return Response.json({ error: "Não autorizado" }, { status: 401 });
         }
         const result = await syncAllConfiguredFeedSources();
-        return Response.json({ ok: true, result });
+        const successful = result.filter((source) => source.ok).length;
+        const failed = result.length - successful;
+        const ok = failed === 0;
+        const status = successful === 0 && failed > 0 ? 503 : ok ? 200 : 207;
+        return Response.json(
+          { ok, summary: { total: result.length, successful, failed }, result },
+          { status },
+        );
       },
     },
   },

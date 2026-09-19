@@ -45,6 +45,15 @@ function metadata(value: unknown): FeedMetadata {
   return value as FeedMetadata;
 }
 
+function syncOutcome(result: unknown): "sucesso" | "parcial" | "erro" {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return "sucesso";
+  const record = result as Record<string, unknown>;
+  const failed = typeof record.failed === "number" ? record.failed : 0;
+  if (failed <= 0) return "sucesso";
+  const imported = typeof record.imported === "number" ? record.imported : 0;
+  return imported > 0 ? "parcial" : "erro";
+}
+
 function sourceType(url: string) {
   if (/(?:notion\.site|notion\.com)/i.test(url)) return "notion";
   if (/(?:instagram\.com)/i.test(url)) return "instagram";
@@ -319,7 +328,7 @@ export async function syncFeedSourceForAdmin(accessToken: string, id: string) {
           trusted: sourceRecord.trusted,
           autoPublish: sourceRecord.source_type === "instagram" ? false : sourceRecord.auto_publish,
           lastSyncedAt: new Date().toISOString(),
-          lastSyncStatus: "sucesso",
+          lastSyncStatus: syncOutcome(result),
           lastSyncResult: result,
         },
         updated_at: new Date().toISOString(),
@@ -385,7 +394,7 @@ export async function syncAllConfiguredFeedSources() {
           updated_at: new Date().toISOString(),
         })
         .eq("id", record.id);
-      results.push({ ok: true, id: record.id, ...result });
+      results.push({ ok: syncOutcome(result) !== "erro", status: syncOutcome(result), id: record.id, ...result });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Falha ao sincronizar fonte.";
       await supabaseAdmin
