@@ -278,8 +278,11 @@ async function ingestInstagramSource(source: FeedSource) {
   }> = [];
 
   for (const postUrl of postUrls) {
+    let fallbackPost: Awaited<ReturnType<typeof extractInstagramPublicPost>> | null = null;
+    let fallbackImageUrl: string | null = null;
     try {
       const post = await extractInstagramPublicPost(postUrl);
+      fallbackPost = post;
       const postKey = `instagram:${source.id}:${post.shortcode}`;
 
       const { data: alreadySeen, error: seenError } = await supabaseAdmin
@@ -327,6 +330,7 @@ async function ingestInstagramSource(source: FeedSource) {
             source: `instagram-${source.id}`,
             externalId: post.shortcode,
           });
+          fallbackImageUrl = persistentImageUrl;
         } catch (imageError) {
           console.warn(`[feeds] Falha ao persistir capa de ${post.url}:`, imageError);
         }
@@ -393,13 +397,86 @@ async function ingestInstagramSource(source: FeedSource) {
         });
       }
     } catch (cause) {
+      const failure = errorMessage(cause, "Falha ao interpretar publicação.");
+      if (fallbackPost) {
+        try {
+          const postKey = `instagram:${source.id}:${fallbackPost.shortcode}`;
+          const now = new Date().toISOString();
+          const description = fallbackPost.description || fallbackPost.text || null;
+          const fallbackRow = {
+            message_id: null,
+            event_sequence: 0,
+            title:
+              description?.split(/\n/).find((line) => line.trim())?.trim().slice(0, 160) ||
+              fallbackPost.title ||
+              `Publicação de ${source.name}`,
+            category: null,
+            summary: description?.slice(0, 280) || "Publicação aguardando revisão manual.",
+            full_description: description,
+            event_date: null,
+            location: null,
+            city: null,
+            price: null,
+            source_url: fallbackPost.url,
+            ...(fallbackImageUrl || fallbackPost.imageUrls[0]
+              ? { image_url: fallbackImageUrl || fallbackPost.imageUrls[0] }
+              : {}),
+            missing_fields: ["event_date", "location"],
+            warnings: [
+              "A interpretação automática ficou indisponível. Revise e complete os dados desta publicação.",
+              failure.slice(0, 700),
+            ],
+            confidence_score: 0,
+            model_used: "fallback:manual-review",
+            prompt_version: "instagram-manual-fallback-1.0.0",
+            review_status: "necessita_revisao",
+            reviewed_at: null,
+            updated_at: now,
+            extracted_data: {
+              sourceType: "instagram",
+              feedSourceId: source.id,
+              feedSourceName: source.name,
+              feedSourceUrl: source.url,
+              instagramPostKey: postKey,
+              instagramPostUrl: fallbackPost.url,
+              instagramShortcode: fallbackPost.shortcode,
+              importedAt: now,
+              fallbackReason: failure.slice(0, 1000),
+              requiresManualCompletion: true,
+            },
+          };
+          const saved = await upsertFeedRow(fallbackRow, `${postKey}:manual-review`, false);
+          results.push({
+            title: fallbackRow.title,
+            status: saved.status,
+            duplicate: saved.duplicate,
+            postUrl: fallbackPost.url,
+            error: failure,
+          });
+          continue;
+        } catch (fallbackCause) {
+          results.push({
+            title: fallbackPost.title,
+            status: "erro_processamento",
+            duplicate: false,
+            postUrl,
+            failed: true,
+            error: `${failure} | Contingência manual falhou: ${errorMessage(
+              fallbackCause,
+              "erro desconhecido",
+            )}`,
+          });
+          continue;
+        }
+      }
+
       results.push({
         title: null,
         status: "erro_processamento",
         duplicate: false,
         postUrl,
         failed: true,
-        error: errorMessage(cause, "Falha ao interpretar publicação."),
+        error: failure,
       });
     }
   }
