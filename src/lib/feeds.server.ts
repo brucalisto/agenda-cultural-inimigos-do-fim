@@ -50,6 +50,25 @@ const LEGACY_NOTION_SOURCE: FeedSource = {
 
 const LEGACY_IMPORT_BATCH_SIZE = 10;
 
+function errorMessage(cause: unknown, fallback: string) {
+  if (cause instanceof Error && cause.message.trim()) return cause.message;
+  if (typeof cause === "string" && cause.trim()) return cause;
+  if (cause && typeof cause === "object") {
+    const record = cause as Record<string, unknown>;
+    for (const key of ["message", "details", "hint", "code"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    try {
+      const serialized = JSON.stringify(cause);
+      if (serialized && serialized !== "{}") return serialized.slice(0, 1000);
+    } catch {
+      // Usa a mensagem de contingência abaixo.
+    }
+  }
+  return fallback;
+}
+
 export const DEFAULT_FEED_SOURCES: FeedSource[] = [LEGACY_NOTION_SOURCE];
 
 function inferCity(city: string | null, location: string | null) {
@@ -380,7 +399,7 @@ async function ingestInstagramSource(source: FeedSource) {
         duplicate: false,
         postUrl,
         failed: true,
-        error: cause instanceof Error ? cause.message : "Falha ao interpretar publicação.",
+        error: errorMessage(cause, "Falha ao interpretar publicação."),
       });
     }
   }
