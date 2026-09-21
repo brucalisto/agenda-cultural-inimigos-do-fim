@@ -23,7 +23,7 @@ export type AIResult = InterpretedContentsResponse & {
 
 const MAX_CONTENT_CHARS = 12_000;
 const MAX_TRANSCRIPT_CHARS = 3_000;
-const MAX_VISUAL_IMAGES = 10;
+const MAX_VISUAL_IMAGES = 3;
 const TEXT_TIMEOUT_MS = 12_000;
 const VISION_TIMEOUT_MS = 18_000;
 const OPENROUTER_TIMEOUT_MS = 15_000;
