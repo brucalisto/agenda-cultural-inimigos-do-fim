@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import { eventDateKey, todayEventDateKey } from "@/lib/event-datetime";
 import { eventPriceStorageValue } from "@/lib/event-price";
 import { canonicalReviewStatus, normalizeReviewStatus } from "@/lib/workflow-status";
 
@@ -52,17 +51,6 @@ export type InterpretedContent = {
   } | null;
 };
 
-function interpretedEventDateKey(value: string) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  return eventDateKey(value);
-}
-
-function isCurrentFutureOrUndated(item: InterpretedContent) {
-  if (!item.event_date) return true;
-  const key = interpretedEventDateKey(item.event_date);
-  return !key || key >= todayEventDateKey();
-}
-
 function withCanonicalReviewStatus(item: InterpretedContent): InterpretedContent {
   return { ...item, review_status: normalizeReviewStatus(item.review_status) };
 }
@@ -86,9 +74,7 @@ export async function getInterpretedContents() {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data as InterpretedContent[])
-    .map(withCanonicalReviewStatus)
-    .filter(isCurrentFutureOrUndated);
+  return (data as InterpretedContent[]).map(withCanonicalReviewStatus);
 }
 
 export async function getInterpretedContentById(id: string) {
