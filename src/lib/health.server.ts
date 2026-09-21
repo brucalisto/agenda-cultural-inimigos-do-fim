@@ -89,6 +89,32 @@ type AiObservabilityDb = {
   };
 };
 
+type FeedSourceRow = {
+  id: string;
+  name: string;
+  url: string;
+  source_type: string;
+  active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_result: unknown;
+};
+
+type FeedQueryResult = {
+  data: FeedSourceRow[] | null;
+  error: { message: string } | null;
+};
+
+type FeedSourcesDb = {
+  from: (table: "feed_sources") => {
+    select: (columns: string) => {
+      eq: (column: "active", value: boolean) => {
+        order: (column: "name") => PromiseLike<FeedQueryResult>;
+      };
+    };
+  };
+};
+
 function jsonObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
