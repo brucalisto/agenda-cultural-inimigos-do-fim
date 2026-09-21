@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildPublicAgendaEvents } from "@/lib/public-events";
 
-const baseColumns =
-  "id,review_status,title,category,summary,full_description,event_date,time_was_informed,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
+const coreColumns =
+  "id,review_status,title,category,summary,full_description,event_date,location,city,price,contact_name,contact_phone,contact_instagram,source_url,keywords,confidence_score,updated_at,extracted_data";
+const baseColumns = `${coreColumns},time_was_informed`;
 const curatedColumns = `${baseColumns},image_url,is_featured,featured_priority,featured_starts_at,featured_ends_at,latitude,longitude`;
 const PUBLIC_PAGE_SIZE = 500;
 const PUBLIC_MAX_SOURCE_ROWS = 10_000;
@@ -57,7 +58,7 @@ export const Route = createFileRoute("/api/public/events")({
           truncated = fallback.truncated;
 
           if (fallback.error) {
-            const minimal = await fetchPublishedRows(baseColumns);
+            const minimal = await fetchPublishedRows(coreColumns);
             schemaMode = "minimal";
             truncated = minimal.truncated;
 
@@ -68,6 +69,7 @@ export const Route = createFileRoute("/api/public/events")({
 
             events = (minimal.data || []).map((event) => ({
               ...event,
+              time_was_informed: null,
               image_url: null,
               is_featured: false,
               featured_priority: 0,
