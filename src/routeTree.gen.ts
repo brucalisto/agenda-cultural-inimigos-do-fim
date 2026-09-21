@@ -13,8 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CommunityModerationRouteImport } from './routes/community-moderation'
 import { Route as FeedsRouteImport } from './routes/feeds'
 import { Route as GroupsRouteImport } from './routes/groups'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as InterpretedRouteImport } from './routes/interpreted'
@@ -30,10 +32,12 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SubmitEventRouteImport } from './routes/submit-event'
+import { Route as ToolManagementRouteImport } from './routes/tool-management'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
+import { Route as ApiPublicMaintenanceRouteImport } from './routes/api/public/maintenance'
 import { Route as ApiPublicSyncFeedsRouteImport } from './routes/api/public/sync-feeds'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 
@@ -57,6 +61,11 @@ const CommunityRoute = CommunityRouteImport.update({
   path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommunityModerationRoute = CommunityModerationRouteImport.update({
+  id: '/community-moderation',
+  path: '/community-moderation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedsRoute = FeedsRouteImport.update({
   id: '/feeds',
   path: '/feeds',
@@ -65,6 +74,11 @@ const FeedsRoute = FeedsRouteImport.update({
 const GroupsRoute = GroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -142,6 +156,11 @@ const SubmitEventRoute = SubmitEventRouteImport.update({
   path: '/submit-event',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolManagementRoute = ToolManagementRouteImport.update({
+  id: '/tool-management',
+  path: '/tool-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsRoute = ToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -163,6 +182,11 @@ const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
   path: '/api/public/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMaintenanceRoute = ApiPublicMaintenanceRouteImport.update({
+  id: '/api/public/maintenance',
+  path: '/api/public/maintenance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSyncFeedsRoute = ApiPublicSyncFeedsRouteImport.update({
   id: '/api/public/sync-feeds',
   path: '/api/public/sync-feeds',
@@ -180,8 +204,10 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/community': typeof CommunityRoute
+  '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
@@ -197,10 +223,12 @@ export interface FileRoutesByFullPath {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
+  '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -209,8 +237,10 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/community': typeof CommunityRoute
+  '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
@@ -226,10 +256,12 @@ export interface FileRoutesByTo {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
+  '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -239,8 +271,10 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/community': typeof CommunityRoute
+  '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
   '/interpreted': typeof InterpretedRoute
@@ -256,10 +290,12 @@ export interface FileRoutesById {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
+  '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
+  '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -270,8 +306,10 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/community'
+    | '/community-moderation'
     | '/feeds'
     | '/groups'
+    | '/health'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
@@ -287,10 +325,12 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/submit-event'
+    | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
+    | '/api/public/maintenance'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -299,8 +339,10 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/community'
+    | '/community-moderation'
     | '/feeds'
     | '/groups'
+    | '/health'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
@@ -316,10 +358,12 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/submit-event'
+    | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
+    | '/api/public/maintenance'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   id:
@@ -328,8 +372,10 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/community'
+    | '/community-moderation'
     | '/feeds'
     | '/groups'
+    | '/health'
     | '/inbox'
     | '/integrations'
     | '/interpreted'
@@ -345,10 +391,12 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/submit-event'
+    | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
+    | '/api/public/maintenance'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesById: FileRoutesById
@@ -358,8 +406,10 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
   CommunityRoute: typeof CommunityRoute
+  CommunityModerationRoute: typeof CommunityModerationRoute
   FeedsRoute: typeof FeedsRoute
   GroupsRoute: typeof GroupsRoute
+  HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
   IntegrationsRoute: typeof IntegrationsRoute
   InterpretedRoute: typeof InterpretedRoute
@@ -375,10 +425,12 @@ export interface RootRouteChildren {
   RulesRoute: typeof RulesRoute
   SettingsRoute: typeof SettingsRoute
   SubmitEventRoute: typeof SubmitEventRoute
+  ToolManagementRoute: typeof ToolManagementRoute
   ToolsRoute: typeof ToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
+  ApiPublicMaintenanceRoute: typeof ApiPublicMaintenanceRoute
   ApiPublicSyncFeedsRoute: typeof ApiPublicSyncFeedsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
 }
@@ -413,6 +465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/community-moderation': {
+      id: '/community-moderation'
+      path: '/community-moderation'
+      fullPath: '/community-moderation'
+      preLoaderRoute: typeof CommunityModerationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feeds': {
       id: '/feeds'
       path: '/feeds'
@@ -425,6 +484,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof GroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -532,6 +598,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubmitEventRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tool-management': {
+      id: '/tool-management'
+      path: '/tool-management'
+      fullPath: '/tool-management'
+      preLoaderRoute: typeof ToolManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools': {
       id: '/tools'
       path: '/tools'
@@ -560,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/maintenance': {
+      id: '/api/public/maintenance'
+      path: '/api/public/maintenance'
+      fullPath: '/api/public/maintenance'
+      preLoaderRoute: typeof ApiPublicMaintenanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync-feeds': {
       id: '/api/public/sync-feeds'
       path: '/api/public/sync-feeds'
@@ -582,8 +662,10 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
   CommunityRoute: CommunityRoute,
+  CommunityModerationRoute: CommunityModerationRoute,
   FeedsRoute: FeedsRoute,
   GroupsRoute: GroupsRoute,
+  HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
   IntegrationsRoute: IntegrationsRoute,
   InterpretedRoute: InterpretedRoute,
@@ -599,11 +681,13 @@ const rootRouteChildren: RootRouteChildren = {
   RulesRoute: RulesRoute,
   SettingsRoute: SettingsRoute,
   SubmitEventRoute: SubmitEventRoute,
+  ToolManagementRoute: ToolManagementRoute,
   ToolsRoute: ToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
+  ApiPublicMaintenanceRoute: ApiPublicMaintenanceRoute,
   ApiPublicSyncFeedsRoute: ApiPublicSyncFeedsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
 }
