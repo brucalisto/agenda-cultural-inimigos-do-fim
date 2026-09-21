@@ -24,6 +24,7 @@ const baseItem = {
   missing_fields: [],
   warnings: [],
   confidence_score: 0.95,
+  extracted_data: {},
 };
 
 describe("recurrence", () => {
