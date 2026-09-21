@@ -63,6 +63,32 @@ type AiObservabilityDb = {
   };
 };
 
+type FeedSourceRow = {
+  id: string;
+  name: string;
+  url: string;
+  source_type: string;
+  active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_result: unknown;
+};
+
+type FeedQueryResult = {
+  data: FeedSourceRow[] | null;
+  error: { message: string } | null;
+};
+
+type FeedSourcesDb = {
+  from: (table: "feed_sources") => {
+    select: (columns: string) => {
+      eq: (column: "active", value: boolean) => {
+        order: (column: "name") => PromiseLike<FeedQueryResult>;
+      };
+    };
+  };
+};
+
 function jsonObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -108,6 +134,7 @@ export async function getAgendaHealthForAdmin(accessToken: string) {
   const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 
   const aiDb = supabaseAdmin as unknown as AiObservabilityDb;
+  const feedDb = supabaseAdmin as unknown as FeedSourcesDb;
 
   const [eventsResult, messagesResult, feedsResult, aiResult] = await Promise.all([
     supabaseAdmin
@@ -122,7 +149,7 @@ export async function getAgendaHealthForAdmin(accessToken: string) {
       .select("id,processing_status,error_message,received_at,occurred_at")
       .order("received_at", { ascending: false })
       .limit(500),
-    supabaseAdmin
+    feedDb
       .from("feed_sources")
       .select(
         "id,name,url,source_type,active,last_synced_at,last_sync_status,last_sync_result",

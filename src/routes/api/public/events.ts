@@ -31,7 +31,7 @@ async function fetchPublishedRows(columns: string): Promise<PublishedRowsResult>
       return { data: null, error: { message: page.error.message }, truncated: false };
     }
 
-    const pageRows = (page.data || []) as Array<Record<string, unknown>>;
+    const pageRows = (page.data || []) as unknown as Array<Record<string, unknown>>;
     rows.push(...pageRows);
 
     if (pageRows.length < PUBLIC_PAGE_SIZE) {
