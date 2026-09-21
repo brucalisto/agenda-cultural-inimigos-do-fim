@@ -23,7 +23,7 @@ async function fetchPublishedRows(columns: string): Promise<PublishedRowsResult>
     const page = await supabaseAdmin
       .from("interpreted_contents")
       .select(columns)
-      .eq("review_status", "publicado")
+      .in("review_status", ["publicado", "aprovado"])
       .order("event_date", { ascending: true, nullsFirst: false })
       .range(from, to);
 
