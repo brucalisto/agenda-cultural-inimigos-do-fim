@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CommunityModerationRouteImport } from './routes/community-moderation'
 import { Route as FeedsRouteImport } from './routes/feeds'
@@ -35,6 +36,8 @@ import { Route as SubmitEventRouteImport } from './routes/submit-event'
 import { Route as ToolManagementRouteImport } from './routes/tool-management'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as ChatsRoomIdRouteImport } from './routes/chats.$roomId'
+import { Route as CommunitySpaceSlugRouteImport } from './routes/community.$spaceSlug'
 import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
@@ -55,6 +58,11 @@ const AgendaRoute = AgendaRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatsRoute = ChatsRouteImport.update({
+  id: '/chats',
+  path: '/chats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -173,6 +181,16 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ChatsRoomIdRoute = ChatsRoomIdRouteImport.update({
+  id: '/$roomId',
+  path: '/$roomId',
+  getParentRoute: () => ChatsRoute,
+} as any)
+const CommunitySpaceSlugRoute = CommunitySpaceSlugRouteImport.update({
+  id: '/$spaceSlug',
+  path: '/$spaceSlug',
+  getParentRoute: () => CommunityRoute,
+} as any)
 const PeopleProfileIdRoute = PeopleProfileIdRouteImport.update({
   id: '/$profileId',
   path: '/$profileId',
@@ -209,7 +227,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/community': typeof CommunityRoute
+  '/chats': typeof ChatsRouteWithChildren
+  '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
@@ -232,6 +251,8 @@ export interface FileRoutesByFullPath {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/chats/$roomId': typeof ChatsRoomIdRoute
+  '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -243,7 +264,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/community': typeof CommunityRoute
+  '/chats': typeof ChatsRouteWithChildren
+  '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
@@ -266,6 +288,8 @@ export interface FileRoutesByTo {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/chats/$roomId': typeof ChatsRoomIdRoute
+  '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -278,7 +302,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/community': typeof CommunityRoute
+  '/chats': typeof ChatsRouteWithChildren
+  '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
   '/groups': typeof GroupsRoute
@@ -301,6 +326,8 @@ export interface FileRoutesById {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/chats/$roomId': typeof ChatsRoomIdRoute
+  '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -314,6 +341,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/chats'
     | '/community'
     | '/community-moderation'
     | '/feeds'
@@ -337,6 +365,8 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/chats/$roomId'
+    | '/community/$spaceSlug'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -348,6 +378,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/chats'
     | '/community'
     | '/community-moderation'
     | '/feeds'
@@ -371,6 +402,8 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/chats/$roomId'
+    | '/community/$spaceSlug'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -382,6 +415,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/chats'
     | '/community'
     | '/community-moderation'
     | '/feeds'
@@ -405,6 +439,8 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/chats/$roomId'
+    | '/community/$spaceSlug'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -417,7 +453,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
-  CommunityRoute: typeof CommunityRoute
+  ChatsRoute: typeof ChatsRouteWithChildren
+  CommunityRoute: typeof CommunityRouteWithChildren
   CommunityModerationRoute: typeof CommunityModerationRoute
   FeedsRoute: typeof FeedsRoute
   GroupsRoute: typeof GroupsRoute
@@ -468,6 +505,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chats': {
+      id: '/chats'
+      path: '/chats'
+      fullPath: '/chats'
+      preLoaderRoute: typeof ChatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -631,6 +675,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chats/$roomId': {
+      id: '/chats/$roomId'
+      path: '/$roomId'
+      fullPath: '/chats/$roomId'
+      preLoaderRoute: typeof ChatsRoomIdRouteImport
+      parentRoute: typeof ChatsRoute
+    }
+    '/community/$spaceSlug': {
+      id: '/community/$spaceSlug'
+      path: '/$spaceSlug'
+      fullPath: '/community/$spaceSlug'
+      preLoaderRoute: typeof CommunitySpaceSlugRouteImport
+      parentRoute: typeof CommunityRoute
+    }
     '/people/$profileId': {
       id: '/people/$profileId'
       path: '/$profileId'
@@ -676,6 +734,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ChatsRouteChildren {
+  ChatsRoomIdRoute: typeof ChatsRoomIdRoute
+}
+
+const ChatsRouteChildren: ChatsRouteChildren = {
+  ChatsRoomIdRoute: ChatsRoomIdRoute,
+}
+
+const ChatsRouteWithChildren = ChatsRoute._addFileChildren(ChatsRouteChildren)
+
+interface CommunityRouteChildren {
+  CommunitySpaceSlugRoute: typeof CommunitySpaceSlugRoute
+}
+
+const CommunityRouteChildren: CommunityRouteChildren = {
+  CommunitySpaceSlugRoute: CommunitySpaceSlugRoute,
+}
+
+const CommunityRouteWithChildren = CommunityRoute._addFileChildren(
+  CommunityRouteChildren,
+)
+
 interface PeopleRouteChildren {
   PeopleProfileIdRoute: typeof PeopleProfileIdRoute
 }
@@ -691,7 +771,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
-  CommunityRoute: CommunityRoute,
+  ChatsRoute: ChatsRouteWithChildren,
+  CommunityRoute: CommunityRouteWithChildren,
   CommunityModerationRoute: CommunityModerationRoute,
   FeedsRoute: FeedsRoute,
   GroupsRoute: GroupsRoute,
