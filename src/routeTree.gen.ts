@@ -35,6 +35,7 @@ import { Route as SubmitEventRouteImport } from './routes/submit-event'
 import { Route as ToolManagementRouteImport } from './routes/tool-management'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicMaintenanceRouteImport } from './routes/api/public/maintenance'
@@ -172,6 +173,11 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
+const PeopleProfileIdRoute = PeopleProfileIdRouteImport.update({
+  id: '/$profileId',
+  path: '/$profileId',
+  getParentRoute: () => PeopleRoute,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -217,7 +223,7 @@ export interface FileRoutesByFullPath {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
-  '/people': typeof PeopleRoute
+  '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
@@ -250,7 +257,7 @@ export interface FileRoutesByTo {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
-  '/people': typeof PeopleRoute
+  '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
@@ -284,7 +292,7 @@ export interface FileRoutesById {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
-  '/people': typeof PeopleRoute
+  '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/tool-management': typeof ToolManagementRoute
   '/tools': typeof ToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
@@ -361,6 +371,7 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
@@ -394,6 +405,7 @@ export interface FileRouteTypes {
     | '/tool-management'
     | '/tools'
     | '/.well-known/oauth-protected-resource'
+    | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
@@ -419,7 +431,7 @@ export interface RootRouteChildren {
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
   MyProfileRoute: typeof MyProfileRoute
-  PeopleRoute: typeof PeopleRoute
+  PeopleRoute: typeof PeopleRouteWithChildren
   PublishedRoute: typeof PublishedRoute
   ReviewRoute: typeof ReviewRoute
   RulesRoute: typeof RulesRoute
@@ -619,6 +631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/people/$profileId': {
+      id: '/people/$profileId'
+      path: '/$profileId'
+      fullPath: '/people/$profileId'
+      preLoaderRoute: typeof PeopleProfileIdRouteImport
+      parentRoute: typeof PeopleRoute
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -657,6 +676,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PeopleRouteChildren {
+  PeopleProfileIdRoute: typeof PeopleProfileIdRoute
+}
+
+const PeopleRouteChildren: PeopleRouteChildren = {
+  PeopleProfileIdRoute: PeopleProfileIdRoute,
+}
+
+const PeopleRouteWithChildren =
+  PeopleRoute._addFileChildren(PeopleRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
@@ -675,7 +705,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
   MyProfileRoute: MyProfileRoute,
-  PeopleRoute: PeopleRoute,
+  PeopleRoute: PeopleRouteWithChildren,
   PublishedRoute: PublishedRoute,
   ReviewRoute: ReviewRoute,
   RulesRoute: RulesRoute,
