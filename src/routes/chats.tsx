@@ -19,6 +19,7 @@ function ChatsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -27,10 +28,15 @@ function ChatsPage() {
   const [description, setDescription] = useState("");
 
   const loadRooms = useCallback(async (id: string) => {
-    const { data: memberships } = await supabase
-      .from("chat_room_members")
-      .select("room_id")
-      .eq("profile_id", id);
+    const [{ data: memberships }, { data: unreadData }] = await Promise.all([
+      supabase.from("chat_room_members").select("room_id").eq("profile_id", id),
+      supabase.rpc("get_chat_unread_counts"),
+    ]);
+    setUnreadCounts(
+      Object.fromEntries(
+        (unreadData ?? []).map((item) => [item.chat_room_id, Number(item.unread_count)]),
+      ),
+    );
     const roomIds = (memberships ?? []).map((item) => item.room_id);
     if (!roomIds.length) {
       setRooms([]);
@@ -234,6 +240,11 @@ function ChatsPage() {
               <span className="grid size-12 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]">
                 <MessageCircle />
               </span>
+              {unreadCounts[room.id] ? (
+                <span className="float-right -mt-12 grid min-w-7 place-items-center rounded-full bg-[#d86132] px-2 py-1 text-xs font-black text-white">
+                  {unreadCounts[room.id]}
+                </span>
+              ) : null}
               <h2 className="mt-4 text-xl font-black">{room.name || "Conversa privada"}</h2>
               <p className="mt-2 line-clamp-2 text-[#755348]">
                 {room.description || "Espaço reservado para membros convidados."}
