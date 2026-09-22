@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Lock, MessageCircle, Pin, Send } from "lucide-react";
+import { ArrowLeft, ImagePlus, Loader2, Lock, MessageCircle, Send, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
+import { CommunityPostCard } from "@/components/community/CommunityPostCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/database";
 
@@ -26,6 +27,7 @@ function CommunitySpacePage() {
   const [sending, setSending] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [images, setImages] = useState<File[]>([]);
 
   const loadPosts = useCallback(async (spaceId: string) => {
     const { data } = await supabase
@@ -92,20 +94,46 @@ function CommunitySpacePage() {
   async function publishPost() {
     if (!space || !userId || !body.trim()) return;
     setSending(true);
+    const postId = crypto.randomUUID();
+    const uploadedPaths: string[] = [];
+    const mediaUrls: string[] = [];
+    for (const image of images) {
+      const extension = image.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${userId}/posts/${postId}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("community-public-images")
+        .upload(path, image, { contentType: image.type, upsert: false });
+      if (uploadError) {
+        if (uploadedPaths.length)
+          await supabase.storage.from("community-public-images").remove(uploadedPaths);
+        setSending(false);
+        toast.error(uploadError.message);
+        return;
+      }
+      uploadedPaths.push(path);
+      mediaUrls.push(
+        supabase.storage.from("community-public-images").getPublicUrl(path).data.publicUrl,
+      );
+    }
     const { error } = await supabase.from("community_posts").insert({
+      id: postId,
       space_id: space.id,
       author_id: userId,
       title: title.trim() || null,
       body: body.trim(),
+      media_urls: mediaUrls,
       status: "published",
     });
     setSending(false);
     if (error) {
+      if (uploadedPaths.length)
+        await supabase.storage.from("community-public-images").remove(uploadedPaths);
       toast.error(error.message);
       return;
     }
     setTitle("");
     setBody("");
+    setImages([]);
     toast.success("Publicação enviada.");
     await loadPosts(space.id);
   }
@@ -172,7 +200,48 @@ function CommunitySpacePage() {
               rows={4}
               className="mt-3 w-full resize-y rounded-xl border border-[#ead9ca] px-4 py-3 outline-none focus:border-[#9f3d25]"
             />
-            <div className="mt-3 flex justify-end">
+            {images.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {images.map((image, index) => (
+                  <span
+                    key={`${image.name}-${image.lastModified}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#f4e6d7] px-3 py-2 text-sm"
+                  >
+                    {image.name}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setImages((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                      aria-label={`Remover ${image.name}`}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#d8bca8] px-4 py-3 text-sm font-bold text-[#8d321f]">
+                <ImagePlus className="size-4" /> Adicionar imagens
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    const selected = Array.from(event.target.files ?? []);
+                    if (selected.some((file) => file.size > 8 * 1024 * 1024)) {
+                      toast.error("Cada imagem pode ter no máximo 8 MB.");
+                      return;
+                    }
+                    setImages((current) => [...current, ...selected].slice(0, 4));
+                    event.target.value = "";
+                  }}
+                />
+              </label>
               <button
                 type="button"
                 disabled={sending || !body.trim()}
@@ -199,44 +268,7 @@ function CommunitySpacePage() {
         <section className="mt-8 space-y-4" aria-label="Publicações">
           {posts.map((post) => {
             const author = authors[post.author_id];
-            const authorName =
-              author?.artistic_name || author?.display_name || "Membro da comunidade";
-            return (
-              <article
-                key={post.id}
-                className="rounded-3xl border border-[#ead9ca] bg-white p-6 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  {author?.avatar_url ? (
-                    <img
-                      src={author.avatar_url}
-                      alt=""
-                      className="size-11 rounded-2xl object-cover"
-                    />
-                  ) : (
-                    <span className="grid size-11 place-items-center rounded-2xl bg-[#f4e6d7] font-black text-[#9f3d25]">
-                      {authorName[0]}
-                    </span>
-                  )}
-                  <div>
-                    <strong>{authorName}</strong>
-                    <p className="text-xs text-[#8a5c4d]">
-                      {new Date(post.created_at).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
-                  {post.pinned ? (
-                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
-                      <Pin className="size-3" />
-                      Fixado
-                    </span>
-                  ) : null}
-                </div>
-                {post.title ? <h2 className="mt-5 text-xl font-black">{post.title}</h2> : null}
-                <p className="mt-3 whitespace-pre-wrap leading-relaxed text-[#5b392f]">
-                  {post.body}
-                </p>
-              </article>
-            );
+            return <CommunityPostCard key={post.id} post={post} author={author} userId={userId} />;
           })}
           {!posts.length ? (
             <div className="rounded-3xl border-2 border-dashed border-[#ead9ca] p-10 text-center text-[#755348]">
