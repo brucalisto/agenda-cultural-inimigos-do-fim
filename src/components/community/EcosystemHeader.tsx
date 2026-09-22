@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, Menu, MessageCircle, Store, Users, Wrench, X } from "lucide-react";
-import { useState } from "react";
+import { Bell, CalendarDays, Menu, MessageCircle, Store, Users, Wrench, X } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { supabase } from "@/integrations/supabase/client";
 
 const navigation = [
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
@@ -13,6 +15,43 @@ const navigation = [
 
 export function EcosystemHeader() {
   const [open, setOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    async function load() {
+      const { data } = await supabase.auth.getUser();
+      const id = data.user?.id ?? null;
+      setUserId(id);
+      if (!id) return;
+      const refresh = async () => {
+        const { count } = await supabase
+          .from("community_notifications")
+          .select("id", { count: "exact", head: true })
+          .is("read_at", null);
+        setUnread(count ?? 0);
+      };
+      await refresh();
+      channel = supabase
+        .channel(`community-notifications-${id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "community_notifications",
+            filter: `recipient_id=eq.${id}`,
+          },
+          () => void refresh(),
+        )
+        .subscribe();
+    }
+    void load();
+    return () => {
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-[#fffaf3]/95 backdrop-blur">
@@ -40,6 +79,20 @@ export function EcosystemHeader() {
           ))}
         </nav>
         <div className="hidden items-center gap-2 lg:flex">
+          {userId ? (
+            <Link
+              to="/notifications"
+              className="relative grid size-10 place-items-center rounded-xl text-[#5b392f] hover:bg-[#f4e6d7]"
+              aria-label={`${unread} notificações não lidas`}
+            >
+              <Bell className="size-5" />
+              {unread ? (
+                <span className="absolute right-0 top-0 min-w-5 rounded-full bg-[#9f3d25] px-1 text-center text-xs font-bold text-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
           <Link
             to="/submit-event"
             className="rounded-xl border border-[#9f3d25] px-4 py-2 text-sm font-semibold text-[#9f3d25]"
@@ -74,6 +127,22 @@ export function EcosystemHeader() {
             </Link>
           ))}
           <div className="mt-3 grid grid-cols-2 gap-2">
+            {userId ? (
+              <Link
+                to="/notifications"
+                onClick={() => setOpen(false)}
+                className="col-span-2 flex items-center justify-between rounded-xl bg-[#f4e6d7] p-3 font-bold text-[#8d321f]"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Bell className="size-4" /> Notificações
+                </span>
+                {unread ? (
+                  <span className="rounded-full bg-[#9f3d25] px-2 py-0.5 text-xs text-white">
+                    {unread}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
             <Link
               to="/submit-event"
               className="rounded-xl border border-[#9f3d25] p-3 text-center text-sm font-semibold text-[#9f3d25]"
