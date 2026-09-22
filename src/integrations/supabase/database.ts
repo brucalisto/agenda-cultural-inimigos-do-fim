@@ -364,6 +364,22 @@ type CommunityTables = {
       },
     ];
   };
+  chat_read_receipts: {
+    Row: {
+      room_id: string;
+      profile_id: string;
+      last_read_at: string;
+    };
+    Insert: {
+      room_id: string;
+      profile_id: string;
+      last_read_at?: string;
+    };
+    Update: {
+      last_read_at?: string;
+    };
+    Relationships: [];
+  };
   community_event_submissions: {
     Row: {
       id: string;
@@ -433,6 +449,10 @@ type CommunityTables = {
 };
 
 type CommunityFunctions = {
+  can_read_chat_attachment: {
+    Args: { object_name: string };
+    Returns: boolean;
+  };
   create_private_chat: {
     Args: {
       room_name: string;
@@ -441,9 +461,21 @@ type CommunityFunctions = {
     };
     Returns: string;
   };
+  get_chat_unread_counts: {
+    Args: Record<PropertyKey, never>;
+    Returns: Array<{ chat_room_id: string; unread_count: number }>;
+  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
+  };
+  manage_chat_member: {
+    Args: { target_room_id: string; target_profile_id: string; operation: string };
+    Returns: undefined;
+  };
+  mark_chat_read: {
+    Args: { target_room_id: string; read_through?: string };
+    Returns: undefined;
   };
   moderate_marketplace_listing: {
     Args: { listing_id: string; decision: string; notes?: string | null };
