@@ -77,8 +77,10 @@ function PeoplePage() {
 
         <section className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {visible.map((profile) => (
-            <article
+            <Link
               key={profile.id}
+              to="/people/$profileId"
+              params={{ profileId: profile.id }}
               className="rounded-3xl border border-[#ead9ca] bg-white p-6 shadow-sm"
             >
               <div className="flex items-center gap-4">
@@ -109,7 +111,10 @@ function PeoplePage() {
                   {profile.city}
                 </p>
               )}
-            </article>
+              <span className="mt-5 inline-block text-sm font-bold text-[#9f3d25]">
+                Ver perfil e portfólio →
+              </span>
+            </Link>
           ))}
 
           {!visible.length && (
