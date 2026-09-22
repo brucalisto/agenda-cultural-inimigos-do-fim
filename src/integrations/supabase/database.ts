@@ -255,6 +255,100 @@ type CommunityTables = {
       },
     ];
   };
+  community_post_comments: {
+    Row: {
+      id: string;
+      post_id: string;
+      author_id: string;
+      body: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      post_id: string;
+      author_id: string;
+      body: string;
+      status?: string;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Update: Partial<CommunityTables["community_post_comments"]["Insert"]>;
+    Relationships: [];
+  };
+  community_post_reactions: {
+    Row: {
+      post_id: string;
+      profile_id: string;
+      reaction: string;
+      created_at: string;
+    };
+    Insert: {
+      post_id: string;
+      profile_id: string;
+      reaction?: string;
+      created_at?: string;
+    };
+    Update: Partial<CommunityTables["community_post_reactions"]["Insert"]>;
+    Relationships: [];
+  };
+  community_reports: {
+    Row: {
+      id: string;
+      reporter_id: string;
+      entity_type: string;
+      entity_id: string;
+      reason: string;
+      details: string | null;
+      status: string;
+      resolution_notes: string | null;
+      resolved_by: string | null;
+      resolved_at: string | null;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      reporter_id: string;
+      entity_type: string;
+      entity_id: string;
+      reason: string;
+      details?: string | null;
+      status?: string;
+      resolution_notes?: string | null;
+      resolved_by?: string | null;
+      resolved_at?: string | null;
+      created_at?: string;
+    };
+    Update: Partial<CommunityTables["community_reports"]["Insert"]>;
+    Relationships: [];
+  };
+  community_notifications: {
+    Row: {
+      id: string;
+      recipient_id: string;
+      actor_id: string | null;
+      kind: string;
+      entity_type: string;
+      entity_id: string;
+      message: string;
+      read_at: string | null;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      recipient_id: string;
+      actor_id?: string | null;
+      kind: string;
+      entity_type: string;
+      entity_id: string;
+      message: string;
+      read_at?: string | null;
+      created_at?: string;
+    };
+    Update: Partial<CommunityTables["community_notifications"]["Insert"]>;
+    Relationships: [];
+  };
   chat_rooms: {
     Row: {
       id: string;
@@ -364,22 +458,6 @@ type CommunityTables = {
       },
     ];
   };
-  chat_read_receipts: {
-    Row: {
-      room_id: string;
-      profile_id: string;
-      last_read_at: string;
-    };
-    Insert: {
-      room_id: string;
-      profile_id: string;
-      last_read_at?: string;
-    };
-    Update: {
-      last_read_at?: string;
-    };
-    Relationships: [];
-  };
   community_event_submissions: {
     Row: {
       id: string;
@@ -449,10 +527,6 @@ type CommunityTables = {
 };
 
 type CommunityFunctions = {
-  can_read_chat_attachment: {
-    Args: { object_name: string };
-    Returns: boolean;
-  };
   create_private_chat: {
     Args: {
       room_name: string;
@@ -461,20 +535,16 @@ type CommunityFunctions = {
     };
     Returns: string;
   };
-  get_chat_unread_counts: {
-    Args: Record<PropertyKey, never>;
-    Returns: Array<{ chat_room_id: string; unread_count: number }>;
-  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
   };
-  manage_chat_member: {
-    Args: { target_room_id: string; target_profile_id: string; operation: string };
-    Returns: undefined;
+  mark_community_notifications_read: {
+    Args: Record<PropertyKey, never>;
+    Returns: number;
   };
-  mark_chat_read: {
-    Args: { target_room_id: string; read_through?: string };
+  moderate_community_report: {
+    Args: { report_id: string; decision: string; notes?: string | null };
     Returns: undefined;
   };
   moderate_marketplace_listing: {
