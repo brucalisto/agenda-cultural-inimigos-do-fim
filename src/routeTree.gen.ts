@@ -27,6 +27,7 @@ import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as PublishedRouteImport } from './routes/published'
 import { Route as ReviewRouteImport } from './routes/review'
@@ -133,6 +134,11 @@ const McpRoute = McpRouteImport.update({
 const MyProfileRoute = MyProfileRouteImport.update({
   id: '/my-profile',
   path: '/my-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PeopleRoute = PeopleRouteImport.update({
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
+  '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
+  '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
+  '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/marketplace-new'
     | '/mcp'
     | '/my-profile'
+    | '/notifications'
     | '/people'
     | '/published'
     | '/review'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/marketplace-new'
     | '/mcp'
     | '/my-profile'
+    | '/notifications'
     | '/people'
     | '/published'
     | '/review'
@@ -430,6 +441,7 @@ export interface FileRouteTypes {
     | '/marketplace-new'
     | '/mcp'
     | '/my-profile'
+    | '/notifications'
     | '/people'
     | '/published'
     | '/review'
@@ -468,6 +480,7 @@ export interface RootRouteChildren {
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
   MyProfileRoute: typeof MyProfileRoute
+  NotificationsRoute: typeof NotificationsRoute
   PeopleRoute: typeof PeopleRouteWithChildren
   PublishedRoute: typeof PublishedRoute
   ReviewRoute: typeof ReviewRoute
@@ -610,6 +623,13 @@ declare module '@tanstack/react-router' {
       path: '/my-profile'
       fullPath: '/my-profile'
       preLoaderRoute: typeof MyProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/people': {
@@ -786,6 +806,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
   MyProfileRoute: MyProfileRoute,
+  NotificationsRoute: NotificationsRoute,
   PeopleRoute: PeopleRouteWithChildren,
   PublishedRoute: PublishedRoute,
   ReviewRoute: ReviewRoute,
