@@ -433,6 +433,14 @@ type CommunityTables = {
 };
 
 type CommunityFunctions = {
+  create_private_chat: {
+    Args: {
+      room_name: string;
+      room_description?: string | null;
+      invited_profile_ids?: string[];
+    };
+    Returns: string;
+  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
