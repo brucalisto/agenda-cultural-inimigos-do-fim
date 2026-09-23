@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CommunityModerationRouteImport } from './routes/community-moderation'
@@ -26,6 +27,7 @@ import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as MyAreaRouteImport } from './routes/my-area'
 import { Route as MyEventsRouteImport } from './routes/my-events'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
@@ -64,6 +66,11 @@ const AgendaRoute = AgendaRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatsRoute = ChatsRouteImport.update({
@@ -134,6 +141,11 @@ const MarketplaceNewRoute = MarketplaceNewRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyAreaRoute = MyAreaRouteImport.update({
+  id: '/my-area',
+  path: '/my-area',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyEventsRoute = MyEventsRouteImport.update({
@@ -264,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/chats': typeof ChatsRouteWithChildren
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
@@ -278,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-area': typeof MyAreaRoute
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
@@ -307,6 +321,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/chats': typeof ChatsRouteWithChildren
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
@@ -321,6 +336,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-area': typeof MyAreaRoute
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
@@ -351,6 +367,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/chats': typeof ChatsRouteWithChildren
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
@@ -365,6 +382,7 @@ export interface FileRoutesById {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-area': typeof MyAreaRoute
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
@@ -396,6 +414,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/automations'
     | '/chats'
     | '/community'
     | '/community-moderation'
@@ -410,6 +429,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-area'
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
@@ -439,6 +459,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/automations'
     | '/chats'
     | '/community'
     | '/community-moderation'
@@ -453,6 +474,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-area'
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
@@ -482,6 +504,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/automations'
     | '/chats'
     | '/community'
     | '/community-moderation'
@@ -496,6 +519,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-area'
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
@@ -526,6 +550,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
+  AutomationsRoute: typeof AutomationsRoute
   ChatsRoute: typeof ChatsRouteWithChildren
   CommunityRoute: typeof CommunityRouteWithChildren
   CommunityModerationRoute: typeof CommunityModerationRoute
@@ -540,6 +565,7 @@ export interface RootRouteChildren {
   MarketplaceRoute: typeof MarketplaceRouteWithChildren
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
+  MyAreaRoute: typeof MyAreaRoute
   MyEventsRoute: typeof MyEventsRoute
   MyListingsRoute: typeof MyListingsRoute
   MyProfileRoute: typeof MyProfileRoute
@@ -583,6 +609,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chats': {
@@ -681,6 +714,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-area': {
+      id: '/my-area'
+      path: '/my-area'
+      fullPath: '/my-area'
+      preLoaderRoute: typeof MyAreaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-events': {
@@ -903,6 +943,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
+  AutomationsRoute: AutomationsRoute,
   ChatsRoute: ChatsRouteWithChildren,
   CommunityRoute: CommunityRouteWithChildren,
   CommunityModerationRoute: CommunityModerationRoute,
@@ -917,6 +958,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceRoute: MarketplaceRouteWithChildren,
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
+  MyAreaRoute: MyAreaRoute,
   MyEventsRoute: MyEventsRoute,
   MyListingsRoute: MyListingsRoute,
   MyProfileRoute: MyProfileRoute,
