@@ -26,6 +26,11 @@ function ChatsPage() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [thematicName, setThematicName] = useState("");
+  const [thematicDescription, setThematicDescription] = useState("");
+  const [creatingThematic, setCreatingThematic] = useState(false);
+  const [showThematicForm, setShowThematicForm] = useState(false);
+  const [discoverableRooms, setDiscoverableRooms] = useState<Room[]>([]);
 
   const loadRooms = useCallback(async (id: string) => {
     const [{ data: memberships }, { data: unreadData }] = await Promise.all([
@@ -58,6 +63,13 @@ function ChatsPage() {
       if (id) {
         await Promise.all([
           loadRooms(id),
+          supabase
+            .from("chat_rooms")
+            .select("*")
+            .eq("room_type", "group")
+            .eq("approval_status", "approved")
+            .order("created_at", { ascending: false })
+            .then(({ data }) => setDiscoverableRooms(data ?? [])),
           supabase
             .from("community_profiles")
             .select("id,display_name,artistic_name,avatar_url,profile_type")
@@ -95,6 +107,34 @@ function ChatsPage() {
     }
     toast.success("Conversa privada criada.");
     window.location.href = `/chats/${data}`;
+  }
+
+  async function createThematicChat() {
+    if (!thematicName.trim()) return;
+    setCreatingThematic(true);
+    const { data, error } = await supabase.rpc("create_thematic_chat", {
+      room_name: thematicName.trim(),
+      room_description: thematicDescription.trim() || null,
+    });
+    setCreatingThematic(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setThematicName("");
+    setThematicDescription("");
+    setShowThematicForm(false);
+    toast.success("Conversa enviada para revisão.");
+    if (userId) await loadRooms(userId);
+  }
+
+  async function joinThematicChat(roomId: string) {
+    const { error } = await supabase.rpc("join_thematic_chat", { target_room_id: roomId });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    window.location.href = `/chats/${roomId}`;
   }
 
   if (loading)
@@ -229,6 +269,44 @@ function ChatsPage() {
           </section>
         ) : null}
 
+        <section className="mt-6 rounded-3xl border border-[#ead9ca] bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#9f3d25]">Comunidade</p>
+              <h2 className="mt-1 text-2xl font-black">Conversas temáticas</h2>
+              <p className="mt-1 text-sm text-[#755348]">Proponha um tema aberto. Novas conversas passam por revisão antes de aparecer para a comunidade.</p>
+            </div>
+            <button type="button" onClick={() => setShowThematicForm((current) => !current)} className="inline-flex items-center gap-2 rounded-xl border border-[#9f3d25]/25 px-4 py-2.5 text-sm font-bold text-[#9f3d25]"><Plus className="size-4" /> Criar tema</button>
+          </div>
+          {showThematicForm ? (
+            <div className="mt-5 grid gap-3 rounded-2xl bg-[#fffaf3] p-4">
+              <input value={thematicName} maxLength={100} onChange={(event) => setThematicName(event.target.value)} placeholder="Nome da conversa temática" className="rounded-xl border border-[#ead9ca] bg-white px-4 py-3" />
+              <textarea value={thematicDescription} maxLength={600} onChange={(event) => setThematicDescription(event.target.value)} rows={3} placeholder="Explique o tema e o objetivo da conversa" className="rounded-xl border border-[#ead9ca] bg-white px-4 py-3" />
+              <div className="flex justify-end">
+                <button type="button" disabled={creatingThematic || thematicName.trim().length < 3} onClick={() => void createThematicChat()} className="inline-flex items-center gap-2 rounded-xl bg-[#9f3d25] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{creatingThematic ? <Loader2 className="size-4 animate-spin" /> : <Users className="size-4" />} Enviar para revisão</button>
+              </div>
+            </div>
+          ) : null}
+          {discoverableRooms.length ? (
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {discoverableRooms.map((room) => {
+                const alreadyMember = rooms.some((mine) => mine.id === room.id);
+                return (
+                  <div key={room.id} className="rounded-2xl border border-[#ead9ca] p-4">
+                    <strong className="block">{room.name || "Conversa temática"}</strong>
+                    <p className="mt-1 line-clamp-2 text-sm text-[#755348]">{room.description || "Conversa aberta da comunidade."}</p>
+                    {alreadyMember ? (
+                      <Link to="/chats/$roomId" params={{ roomId: room.id }} className="mt-3 inline-block text-sm font-bold text-[#9f3d25]">Abrir conversa →</Link>
+                    ) : (
+                      <button type="button" onClick={() => void joinThematicChat(room.id)} className="mt-3 text-sm font-bold text-[#9f3d25]">Participar →</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+
         <section className="mt-8 grid gap-4 md:grid-cols-2">
           {rooms.map((room) => (
             <Link
@@ -246,6 +324,7 @@ function ChatsPage() {
                 </span>
               ) : null}
               <h2 className="mt-4 text-xl font-black">{room.name || "Conversa privada"}</h2>
+              {room.room_type === "group" && room.approval_status === "pending" ? <span className="mt-2 inline-block rounded-full bg-[#fff0cf] px-3 py-1 text-xs font-bold text-[#68451c]">Em revisão</span> : null}
               <p className="mt-2 line-clamp-2 text-[#755348]">
                 {room.description || "Espaço reservado para membros convidados."}
               </p>
