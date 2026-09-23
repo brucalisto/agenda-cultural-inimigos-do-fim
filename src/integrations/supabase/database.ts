@@ -543,6 +543,10 @@ type CommunityFunctions = {
     Args: Record<PropertyKey, never>;
     Returns: number;
   };
+  manage_own_marketplace_listing: {
+    Args: { target_listing_id: string; operation: string };
+    Returns: string;
+  };
   moderate_community_report: {
     Args: { report_id: string; decision: string; notes?: string | null };
     Returns: undefined;
