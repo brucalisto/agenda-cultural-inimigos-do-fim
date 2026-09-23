@@ -26,6 +26,7 @@ import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as MyEventsRouteImport } from './routes/my-events'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -40,6 +41,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ChatsRoomIdRouteImport } from './routes/chats.$roomId'
 import { Route as CommunitySpaceSlugRouteImport } from './routes/community.$spaceSlug'
+import { Route as EventEditSubmissionIdRouteImport } from './routes/event-edit.$submissionId'
 import { Route as MarketplaceEditListingIdRouteImport } from './routes/marketplace-edit.$listingId'
 import { Route as MarketplaceListingIdRouteImport } from './routes/marketplace.$listingId'
 import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
@@ -134,6 +136,11 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyEventsRoute = MyEventsRouteImport.update({
+  id: '/my-events',
+  path: '/my-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyListingsRoute = MyListingsRouteImport.update({
   id: '/my-listings',
   path: '/my-listings',
@@ -205,6 +212,11 @@ const CommunitySpaceSlugRoute = CommunitySpaceSlugRouteImport.update({
   path: '/$spaceSlug',
   getParentRoute: () => CommunityRoute,
 } as any)
+const EventEditSubmissionIdRoute = EventEditSubmissionIdRouteImport.update({
+  id: '/event-edit/$submissionId',
+  path: '/event-edit/$submissionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketplaceEditListingIdRoute =
   MarketplaceEditListingIdRouteImport.update({
     id: '/marketplace-edit/$listingId',
@@ -266,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
@@ -280,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/event-edit/$submissionId': typeof EventEditSubmissionIdRoute
   '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
@@ -307,6 +321,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
@@ -321,6 +336,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/event-edit/$submissionId': typeof EventEditSubmissionIdRoute
   '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
@@ -349,6 +365,7 @@ export interface FileRoutesById {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
@@ -363,6 +380,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/event-edit/$submissionId': typeof EventEditSubmissionIdRoute
   '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
@@ -392,6 +410,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-events'
     | '/my-listings'
     | '/my-profile'
     | '/notifications'
@@ -406,6 +425,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/event-edit/$submissionId'
     | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
@@ -433,6 +453,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-events'
     | '/my-listings'
     | '/my-profile'
     | '/notifications'
@@ -447,6 +468,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/event-edit/$submissionId'
     | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
@@ -474,6 +496,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-events'
     | '/my-listings'
     | '/my-profile'
     | '/notifications'
@@ -488,6 +511,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/event-edit/$submissionId'
     | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
@@ -516,6 +540,7 @@ export interface RootRouteChildren {
   MarketplaceRoute: typeof MarketplaceRouteWithChildren
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
+  MyEventsRoute: typeof MyEventsRoute
   MyListingsRoute: typeof MyListingsRoute
   MyProfileRoute: typeof MyProfileRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -528,6 +553,7 @@ export interface RootRouteChildren {
   ToolManagementRoute: typeof ToolManagementRoute
   ToolsRoute: typeof ToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  EventEditSubmissionIdRoute: typeof EventEditSubmissionIdRoute
   MarketplaceEditListingIdRoute: typeof MarketplaceEditListingIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
@@ -657,6 +683,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my-events': {
+      id: '/my-events'
+      path: '/my-events'
+      fullPath: '/my-events'
+      preLoaderRoute: typeof MyEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-listings': {
       id: '/my-listings'
       path: '/my-listings'
@@ -754,6 +787,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/community/$spaceSlug'
       preLoaderRoute: typeof CommunitySpaceSlugRouteImport
       parentRoute: typeof CommunityRoute
+    }
+    '/event-edit/$submissionId': {
+      id: '/event-edit/$submissionId'
+      path: '/event-edit/$submissionId'
+      fullPath: '/event-edit/$submissionId'
+      preLoaderRoute: typeof EventEditSubmissionIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/marketplace-edit/$listingId': {
       id: '/marketplace-edit/$listingId'
@@ -877,6 +917,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceRoute: MarketplaceRouteWithChildren,
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
+  MyEventsRoute: MyEventsRoute,
   MyListingsRoute: MyListingsRoute,
   MyProfileRoute: MyProfileRoute,
   NotificationsRoute: NotificationsRoute,
@@ -890,6 +931,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRoute: ToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  EventEditSubmissionIdRoute: EventEditSubmissionIdRoute,
   MarketplaceEditListingIdRoute: MarketplaceEditListingIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,

@@ -71,7 +71,7 @@ function SubmitEventPage() {
       const coverUrl = await uploadCover();
       const { error } = await supabase.from("community_event_submissions").insert({ ...form, author_id: userId, input_type: image ? (form.source_text.trim() ? "mixed" : "image") : "text", cover_url: coverUrl, ai_extracted_data: aiData, status: "pending_review" });
       if (error) throw error;
-      toast.success("Evento enviado para revisão!"); window.location.href = "/agenda";
+      toast.success("Evento enviado para revisão!"); window.location.href = "/my-events";
     } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Não foi possível enviar o evento."); }
     finally { setLoading(false); }
   }

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, CalendarDays, Menu, MessageCircle, Store, Users, Wrench, X } from "lucide-react";
+import { Bell, CalendarDays, Menu, MessageCircle, Store, UserRound, Users, Wrench, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -100,10 +100,10 @@ export function EcosystemHeader() {
             Divulgar evento
           </Link>
           <Link
-            to="/join"
+            to={userId ? "/my-events" : "/join"}
             className="rounded-xl bg-[#9f3d25] px-4 py-2 text-sm font-semibold text-white"
           >
-            Entrar
+            {userId ? "Meus eventos" : "Entrar"}
           </Link>
         </div>
         <button
@@ -128,20 +128,11 @@ export function EcosystemHeader() {
           ))}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {userId ? (
-              <Link
-                to="/notifications"
-                onClick={() => setOpen(false)}
-                className="col-span-2 flex items-center justify-between rounded-xl bg-[#f4e6d7] p-3 font-bold text-[#8d321f]"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Bell className="size-4" /> Notificações
-                </span>
-                {unread ? (
-                  <span className="rounded-full bg-[#9f3d25] px-2 py-0.5 text-xs text-white">
-                    {unread}
-                  </span>
-                ) : null}
-              </Link>
+              <>
+                <Link to="/notifications" onClick={() => setOpen(false)} className="col-span-2 flex items-center justify-between rounded-xl bg-[#f4e6d7] p-3 font-bold text-[#8d321f]"><span className="inline-flex items-center gap-2"><Bell className="size-4" /> Notificações</span>{unread ? <span className="rounded-full bg-[#9f3d25] px-2 py-0.5 text-xs text-white">{unread}</span> : null}</Link>
+                <Link to="/my-events" onClick={() => setOpen(false)} className="flex items-center justify-center gap-2 rounded-xl border border-[#9f3d25] p-3 text-sm font-semibold text-[#9f3d25]"><CalendarDays className="size-4"/>Meus eventos</Link>
+                <Link to="/my-profile" onClick={() => setOpen(false)} className="flex items-center justify-center gap-2 rounded-xl border border-[#d8bca8] p-3 text-sm font-semibold text-[#5b392f]"><UserRound className="size-4"/>Meu perfil</Link>
+              </>
             ) : null}
             <Link
               to="/submit-event"
@@ -150,10 +141,10 @@ export function EcosystemHeader() {
               Divulgar evento
             </Link>
             <Link
-              to="/join"
+              to={userId ? "/my-profile" : "/join"}
               className="rounded-xl bg-[#9f3d25] p-3 text-center text-sm font-semibold text-white"
             >
-              Entrar
+              {userId ? "Meu perfil" : "Entrar"}
             </Link>
           </div>
         </nav>
