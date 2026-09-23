@@ -8,6 +8,9 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  ExternalLink,
+  Mail,
+  Phone,
   ShoppingBag,
   Sparkles,
   UserPlus,
@@ -32,6 +35,17 @@ type Profile = Pick<
   | "full_bio"
   | "city"
   | "avatar_url"
+  | "cover_url"
+  | "neighborhood"
+  | "categories"
+  | "skills"
+  | "instagram"
+  | "website"
+  | "contact_email"
+  | "contact_phone"
+  | "public_email"
+  | "public_phone"
+  | "allow_direct_messages"
   | "collaboration_interests"
 >;
 type PortfolioItem = Tables<"portfolio_items">;
@@ -79,7 +93,7 @@ function PublicProfilePage() {
         supabase
           .from("community_profiles")
           .select(
-            "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,avatar_url,collaboration_interests",
+            "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,neighborhood,avatar_url,cover_url,categories,skills,instagram,website,contact_email,contact_phone,public_email,public_phone,allow_direct_messages,collaboration_interests",
           )
           .eq("id", profileId)
           .eq("visibility", "public")
@@ -257,19 +271,17 @@ function PublicProfilePage() {
                   </span>
                   {userId !== profile.id ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => void startConversation()}
-                        disabled={chatBusy}
-                        className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 font-bold text-[#351810] transition hover:bg-orange-50 disabled:opacity-60"
-                      >
-                        {chatBusy ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <MessageCircle className="size-4" />
-                        )}
-                        {chatBusy ? "Abrindo conversa..." : "Conversar"}
-                      </button>
+                      {profile.allow_direct_messages ? (
+                        <button
+                          type="button"
+                          onClick={() => void startConversation()}
+                          disabled={chatBusy}
+                          className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 font-bold text-[#351810] transition hover:bg-orange-50 disabled:opacity-60"
+                        >
+                          {chatBusy ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
+                          {chatBusy ? "Abrindo conversa..." : "Conversar"}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => void toggleFollow()}
@@ -297,6 +309,25 @@ function PublicProfilePage() {
                 profile.short_bio ||
                 "Este perfil ainda está construindo sua apresentação."}
             </p>
+            {profile.categories.length || profile.skills.length ? (
+              <div className="mt-6">
+                <h3 className="font-bold">Áreas e habilidades</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[...profile.categories, ...profile.skills].map((item) => (
+                    <span key={item} className="rounded-full bg-[#fff3c9] px-3 py-1 text-sm text-[#6d2418]">{item}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {profile.neighborhood ? <p className="mt-5 text-sm text-[#755348]"><b>Região:</b> {profile.neighborhood}</p> : null}
+            {profile.instagram || profile.website || (profile.public_email && profile.contact_email) || (profile.public_phone && profile.contact_phone) ? (
+              <div className="mt-6 grid gap-2 text-sm">
+                {profile.instagram ? <a className="inline-flex items-center gap-2 font-bold text-[#9f3d25]" href={profile.instagram.startsWith("http") ? profile.instagram : `https://instagram.com/${profile.instagram.replace(/^@/, "")}`} target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Instagram</a> : null}
+                {profile.website ? <a className="inline-flex items-center gap-2 font-bold text-[#9f3d25]" href={profile.website.startsWith("http") ? profile.website : `https://${profile.website}`} target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Site</a> : null}
+                {profile.public_email && profile.contact_email ? <a className="inline-flex items-center gap-2 font-bold text-[#9f3d25]" href={`mailto:${profile.contact_email}`}><Mail className="size-4" /> {profile.contact_email}</a> : null}
+                {profile.public_phone && profile.contact_phone ? <span className="inline-flex items-center gap-2"><Phone className="size-4" /> {profile.contact_phone}</span> : null}
+              </div>
+            ) : null}
             {profile.collaboration_interests.length ? (
               <div className="mt-6">
                 <h3 className="font-bold">Interesses e conexões</h3>
