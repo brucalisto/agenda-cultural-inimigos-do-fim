@@ -60,6 +60,9 @@ type CommunityTables = {
       contact_phone: string | null;
       instagram: string | null;
       website: string | null;
+      public_email: boolean;
+      public_phone: boolean;
+      allow_direct_messages: boolean;
       visibility: string;
       onboarding_status: string;
       verified: boolean;
@@ -84,6 +87,9 @@ type CommunityTables = {
       contact_phone?: string | null;
       instagram?: string | null;
       website?: string | null;
+      public_email?: boolean;
+      public_phone?: boolean;
+      allow_direct_messages?: boolean;
       visibility?: string;
       onboarding_status?: string;
       verified?: boolean;
