@@ -26,6 +26,7 @@ import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceNewRouteImport } from './routes/marketplace-new'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PeopleRouteImport } from './routes/people'
@@ -39,6 +40,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ChatsRoomIdRouteImport } from './routes/chats.$roomId'
 import { Route as CommunitySpaceSlugRouteImport } from './routes/community.$spaceSlug'
+import { Route as MarketplaceEditListingIdRouteImport } from './routes/marketplace-edit.$listingId'
 import { Route as MarketplaceListingIdRouteImport } from './routes/marketplace.$listingId'
 import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -132,6 +134,11 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyListingsRoute = MyListingsRouteImport.update({
+  id: '/my-listings',
+  path: '/my-listings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyProfileRoute = MyProfileRouteImport.update({
   id: '/my-profile',
   path: '/my-profile',
@@ -198,6 +205,12 @@ const CommunitySpaceSlugRoute = CommunitySpaceSlugRouteImport.update({
   path: '/$spaceSlug',
   getParentRoute: () => CommunityRoute,
 } as any)
+const MarketplaceEditListingIdRoute =
+  MarketplaceEditListingIdRouteImport.update({
+    id: '/marketplace-edit/$listingId',
+    path: '/marketplace-edit/$listingId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const MarketplaceListingIdRoute = MarketplaceListingIdRouteImport.update({
   id: '/$listingId',
   path: '/$listingId',
@@ -253,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
@@ -266,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -292,6 +307,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
@@ -305,6 +321,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -332,6 +349,7 @@ export interface FileRoutesById {
   '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
+  '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
@@ -345,6 +363,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace-edit/$listingId': typeof MarketplaceEditListingIdRoute
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -373,6 +392,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-listings'
     | '/my-profile'
     | '/notifications'
     | '/people'
@@ -386,6 +406,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
@@ -412,6 +433,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-listings'
     | '/my-profile'
     | '/notifications'
     | '/people'
@@ -425,6 +447,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
@@ -451,6 +474,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/marketplace-new'
     | '/mcp'
+    | '/my-listings'
     | '/my-profile'
     | '/notifications'
     | '/people'
@@ -464,6 +488,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace-edit/$listingId'
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
@@ -491,6 +516,7 @@ export interface RootRouteChildren {
   MarketplaceRoute: typeof MarketplaceRouteWithChildren
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
+  MyListingsRoute: typeof MyListingsRoute
   MyProfileRoute: typeof MyProfileRoute
   NotificationsRoute: typeof NotificationsRoute
   PeopleRoute: typeof PeopleRouteWithChildren
@@ -502,6 +528,7 @@ export interface RootRouteChildren {
   ToolManagementRoute: typeof ToolManagementRoute
   ToolsRoute: typeof ToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  MarketplaceEditListingIdRoute: typeof MarketplaceEditListingIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicMaintenanceRoute: typeof ApiPublicMaintenanceRoute
@@ -630,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my-listings': {
+      id: '/my-listings'
+      path: '/my-listings'
+      fullPath: '/my-listings'
+      preLoaderRoute: typeof MyListingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-profile': {
       id: '/my-profile'
       path: '/my-profile'
@@ -720,6 +754,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/community/$spaceSlug'
       preLoaderRoute: typeof CommunitySpaceSlugRouteImport
       parentRoute: typeof CommunityRoute
+    }
+    '/marketplace-edit/$listingId': {
+      id: '/marketplace-edit/$listingId'
+      path: '/marketplace-edit/$listingId'
+      fullPath: '/marketplace-edit/$listingId'
+      preLoaderRoute: typeof MarketplaceEditListingIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/marketplace/$listingId': {
       id: '/marketplace/$listingId'
@@ -836,6 +877,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceRoute: MarketplaceRouteWithChildren,
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
+  MyListingsRoute: MyListingsRoute,
   MyProfileRoute: MyProfileRoute,
   NotificationsRoute: NotificationsRoute,
   PeopleRoute: PeopleRouteWithChildren,
@@ -848,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRoute: ToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  MarketplaceEditListingIdRoute: MarketplaceEditListingIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicMaintenanceRoute: ApiPublicMaintenanceRoute,
