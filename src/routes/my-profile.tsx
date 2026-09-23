@@ -70,6 +70,20 @@ function ProfileOnboarding() {
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [details, setDetails] = useState({
+    artistic_name: "",
+    profile_type: "artist",
+    neighborhood: "",
+    categories: "",
+    skills: "",
+    instagram: "",
+    website: "",
+    contact_email: "",
+    contact_phone: "",
+    public_email: false,
+    public_phone: false,
+    allow_direct_messages: true,
+  });
   const [answers, setAnswers] = useState<Answers>({
     display_name: "",
     story: "",
@@ -89,7 +103,7 @@ function ProfileOnboarding() {
       const [profileResult, portfolioResult] = await Promise.all([
         supabase
           .from("community_profiles")
-          .select("display_name,full_bio,city,collaboration_interests,avatar_url")
+          .select("display_name,artistic_name,profile_type,full_bio,city,neighborhood,categories,skills,collaboration_interests,avatar_url,instagram,website,contact_email,contact_phone,public_email,public_phone,allow_direct_messages")
           .eq("id", id)
           .maybeSingle(),
         supabase
@@ -114,6 +128,20 @@ function ProfileOnboarding() {
           goals: interests,
         });
         setAvatarUrl(profileResult.data.avatar_url);
+        setDetails({
+          artistic_name: profileResult.data.artistic_name ?? "",
+          profile_type: profileResult.data.profile_type ?? "artist",
+          neighborhood: profileResult.data.neighborhood ?? "",
+          categories: (profileResult.data.categories ?? []).join(", "),
+          skills: (profileResult.data.skills ?? []).join(", "),
+          instagram: profileResult.data.instagram ?? "",
+          website: profileResult.data.website ?? "",
+          contact_email: profileResult.data.contact_email ?? "",
+          contact_phone: profileResult.data.contact_phone ?? "",
+          public_email: profileResult.data.public_email ?? false,
+          public_phone: profileResult.data.public_phone ?? false,
+          allow_direct_messages: profileResult.data.allow_direct_messages ?? true,
+        });
       }
       setPortfolio(portfolioResult.data ?? []);
       setLoading(false);
@@ -147,6 +175,18 @@ function ProfileOnboarding() {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
+      artistic_name: details.artistic_name.trim() || null,
+      profile_type: details.profile_type,
+      neighborhood: details.neighborhood.trim() || null,
+      categories: details.categories.split(",").map((item) => item.trim()).filter(Boolean),
+      skills: details.skills.split(",").map((item) => item.trim()).filter(Boolean),
+      instagram: details.instagram.trim() || null,
+      website: details.website.trim() || null,
+      contact_email: details.contact_email.trim() || null,
+      contact_phone: details.contact_phone.trim() || null,
+      public_email: details.public_email,
+      public_phone: details.public_phone,
+      allow_direct_messages: details.allow_direct_messages,
       onboarding_status: complete ? "complete" : "draft",
       visibility: "public",
       updated_at: new Date().toISOString(),
@@ -309,6 +349,48 @@ function ProfileOnboarding() {
           ) : null}
 
           {isLastStep ? (
+            <div className="mt-7 grid gap-5 border-t border-[#ead9ca] pt-7 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <h2 className="text-xl font-black">Detalhes do perfil</h2>
+                <p className="mt-1 text-sm text-[#755348]">
+                  Complete o que fizer sentido. Contatos ficam privados até você escolher exibi-los.
+                </p>
+              </div>
+              <ProfileField label="Nome artístico" value={details.artistic_name} onChange={(value) => setDetails((current) => ({ ...current, artistic_name: value }))} />
+              <label className="grid gap-2 text-sm font-bold">
+                Tipo de perfil
+                <select value={details.profile_type} onChange={(event) => setDetails((current) => ({ ...current, profile_type: event.target.value }))} className="rounded-xl border border-[#d8bca8] bg-white px-4 py-3 font-normal">
+                  <option value="artist">Artista</option>
+                  <option value="collective">Coletivo</option>
+                  <option value="space">Espaço cultural</option>
+                  <option value="producer">Produção cultural</option>
+                  <option value="professional">Profissional</option>
+                  <option value="other">Outro</option>
+                </select>
+              </label>
+              <ProfileField label="Bairro ou região" value={details.neighborhood} onChange={(value) => setDetails((current) => ({ ...current, neighborhood: value }))} />
+              <ProfileField label="Categorias" help="Separe por vírgulas." value={details.categories} onChange={(value) => setDetails((current) => ({ ...current, categories: value }))} />
+              <ProfileField label="Habilidades" help="Separe por vírgulas." value={details.skills} onChange={(value) => setDetails((current) => ({ ...current, skills: value }))} />
+              <ProfileField label="Instagram" value={details.instagram} onChange={(value) => setDetails((current) => ({ ...current, instagram: value }))} />
+              <ProfileField label="Site" value={details.website} onChange={(value) => setDetails((current) => ({ ...current, website: value }))} />
+              <ProfileField label="E-mail de contato" value={details.contact_email} onChange={(value) => setDetails((current) => ({ ...current, contact_email: value }))} />
+              <ProfileField label="Telefone de contato" value={details.contact_phone} onChange={(value) => setDetails((current) => ({ ...current, contact_phone: value }))} />
+              <label className="flex items-start gap-3 rounded-2xl bg-[#fffaf3] p-4 text-sm md:col-span-2">
+                <input type="checkbox" checked={details.public_email} onChange={(event) => setDetails((current) => ({ ...current, public_email: event.target.checked }))} className="mt-1" />
+                <span><b>Mostrar meu e-mail no perfil público</b><br /><span className="text-[#755348]">Desativado por padrão.</span></span>
+              </label>
+              <label className="flex items-start gap-3 rounded-2xl bg-[#fffaf3] p-4 text-sm md:col-span-2">
+                <input type="checkbox" checked={details.public_phone} onChange={(event) => setDetails((current) => ({ ...current, public_phone: event.target.checked }))} className="mt-1" />
+                <span><b>Mostrar meu telefone no perfil público</b><br /><span className="text-[#755348]">Desativado por padrão.</span></span>
+              </label>
+              <label className="flex items-start gap-3 rounded-2xl bg-[#fffaf3] p-4 text-sm md:col-span-2">
+                <input type="checkbox" checked={details.allow_direct_messages} onChange={(event) => setDetails((current) => ({ ...current, allow_direct_messages: event.target.checked }))} className="mt-1" />
+                <span><b>Permitir novas conversas privadas</b><br /><span className="text-[#755348]">Você pode mudar esta preferência depois.</span></span>
+              </label>
+            </div>
+          ) : null}
+
+          {isLastStep ? (
             <div className="mt-7 border-t border-[#ead9ca] pt-7">
               <h2 className="text-xl font-black">Complete com imagens</h2>
               <p className="mt-1 text-sm text-[#755348]">
@@ -452,5 +534,30 @@ function ProfileOnboarding() {
         </Link>
       </main>
     </div>
+  );
+}
+
+
+function ProfileField({
+  label,
+  help,
+  value,
+  onChange,
+}: {
+  label: string;
+  help?: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-sm font-bold">
+      {label}
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="rounded-xl border border-[#d8bca8] bg-white px-4 py-3 font-normal"
+      />
+      {help ? <span className="text-xs font-normal text-[#755348]">{help}</span> : null}
+    </label>
   );
 }
