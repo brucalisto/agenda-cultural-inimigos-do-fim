@@ -7,6 +7,7 @@ import {
   ImageIcon,
   Loader2,
   MapPin,
+  MessageCircle,
   ShoppingBag,
   Sparkles,
   UserPlus,
@@ -59,6 +60,7 @@ function PublicProfilePage() {
   const [followers, setFollowers] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followBusy, setFollowBusy] = useState(false);
+  const [chatBusy, setChatBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -133,6 +135,28 @@ function PublicProfilePage() {
       active = false;
     };
   }, [profileId]);
+
+  async function startConversation() {
+    if (chatBusy || userId === profileId) return;
+    if (!userId) {
+      toast.info("Entre na comunidade para conversar com este perfil.");
+      window.location.href = "/join";
+      return;
+    }
+
+    setChatBusy(true);
+    const { data, error } = await supabase.rpc("start_direct_chat", {
+      target_profile_id: profileId,
+    });
+
+    if (error || !data) {
+      toast.error("Não foi possível abrir a conversa. Tente novamente.");
+      setChatBusy(false);
+      return;
+    }
+
+    window.location.href = `/chats/${data}`;
+  }
 
   async function toggleFollow() {
     if (!userId) {
@@ -232,16 +256,31 @@ function PublicProfilePage() {
                     <strong className="text-white">{followingCount}</strong> acompanhando
                   </span>
                   {userId !== profile.id ? (
-                    <button
-                      type="button"
-                      onClick={() => void toggleFollow()}
-                      disabled={followBusy}
-                      aria-pressed={following}
-                      className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold transition disabled:opacity-60 ${following ? "bg-white/15 text-white" : "bg-[#ffc857] text-[#351810]"}`}
-                    >
-                      {following ? <Check className="size-4" /> : <UserPlus className="size-4" />}
-                      {following ? "Acompanhando" : "Acompanhar perfil"}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void startConversation()}
+                        disabled={chatBusy}
+                        className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 font-bold text-[#351810] transition hover:bg-orange-50 disabled:opacity-60"
+                      >
+                        {chatBusy ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <MessageCircle className="size-4" />
+                        )}
+                        {chatBusy ? "Abrindo conversa..." : "Conversar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleFollow()}
+                        disabled={followBusy}
+                        aria-pressed={following}
+                        className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold transition disabled:opacity-60 ${following ? "bg-white/15 text-white" : "bg-[#ffc857] text-[#351810]"}`}
+                      >
+                        {following ? <Check className="size-4" /> : <UserPlus className="size-4" />}
+                        {following ? "Acompanhando" : "Acompanhar perfil"}
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </div>
