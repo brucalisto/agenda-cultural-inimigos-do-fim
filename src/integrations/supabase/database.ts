@@ -586,6 +586,10 @@ type CommunityFunctions = {
     };
     Returns: string;
   };
+  start_direct_chat: {
+    Args: { target_profile_id: string };
+    Returns: string;
+  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
