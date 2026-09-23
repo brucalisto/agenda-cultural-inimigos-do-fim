@@ -39,6 +39,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as ChatsRoomIdRouteImport } from './routes/chats.$roomId'
 import { Route as CommunitySpaceSlugRouteImport } from './routes/community.$spaceSlug'
+import { Route as MarketplaceListingIdRouteImport } from './routes/marketplace.$listingId'
 import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
@@ -197,6 +198,11 @@ const CommunitySpaceSlugRoute = CommunitySpaceSlugRouteImport.update({
   path: '/$spaceSlug',
   getParentRoute: () => CommunityRoute,
 } as any)
+const MarketplaceListingIdRoute = MarketplaceListingIdRouteImport.update({
+  id: '/$listingId',
+  path: '/$listingId',
+  getParentRoute: () => MarketplaceRoute,
+} as any)
 const PeopleProfileIdRoute = PeopleProfileIdRouteImport.update({
   id: '/$profileId',
   path: '/$profileId',
@@ -244,7 +250,7 @@ export interface FileRoutesByFullPath {
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
-  '/marketplace': typeof MarketplaceRoute
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -282,7 +289,7 @@ export interface FileRoutesByTo {
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
-  '/marketplace': typeof MarketplaceRoute
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
@@ -298,6 +305,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -321,7 +329,7 @@ export interface FileRoutesById {
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
-  '/marketplace': typeof MarketplaceRoute
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-new': typeof MarketplaceNewRoute
   '/mcp': typeof McpRoute
   '/my-profile': typeof MyProfileRoute
@@ -337,6 +345,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/chats/$roomId': typeof ChatsRoomIdRoute
   '/community/$spaceSlug': typeof CommunitySpaceSlugRoute
+  '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/chats/$roomId'
     | '/community/$spaceSlug'
+    | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
     | '/api/public/events'
@@ -476,7 +488,7 @@ export interface RootRouteChildren {
   InterpretedRoute: typeof InterpretedRoute
   JoinRoute: typeof JoinRoute
   LogsRoute: typeof LogsRoute
-  MarketplaceRoute: typeof MarketplaceRoute
+  MarketplaceRoute: typeof MarketplaceRouteWithChildren
   MarketplaceNewRoute: typeof MarketplaceNewRoute
   McpRoute: typeof McpRoute
   MyProfileRoute: typeof MyProfileRoute
@@ -709,6 +721,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunitySpaceSlugRouteImport
       parentRoute: typeof CommunityRoute
     }
+    '/marketplace/$listingId': {
+      id: '/marketplace/$listingId'
+      path: '/$listingId'
+      fullPath: '/marketplace/$listingId'
+      preLoaderRoute: typeof MarketplaceListingIdRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
     '/people/$profileId': {
       id: '/people/$profileId'
       path: '/$profileId'
@@ -776,6 +795,18 @@ const CommunityRouteWithChildren = CommunityRoute._addFileChildren(
   CommunityRouteChildren,
 )
 
+interface MarketplaceRouteChildren {
+  MarketplaceListingIdRoute: typeof MarketplaceListingIdRoute
+}
+
+const MarketplaceRouteChildren: MarketplaceRouteChildren = {
+  MarketplaceListingIdRoute: MarketplaceListingIdRoute,
+}
+
+const MarketplaceRouteWithChildren = MarketplaceRoute._addFileChildren(
+  MarketplaceRouteChildren,
+)
+
 interface PeopleRouteChildren {
   PeopleProfileIdRoute: typeof PeopleProfileIdRoute
 }
@@ -802,7 +833,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterpretedRoute: InterpretedRoute,
   JoinRoute: JoinRoute,
   LogsRoute: LogsRoute,
-  MarketplaceRoute: MarketplaceRoute,
+  MarketplaceRoute: MarketplaceRouteWithChildren,
   MarketplaceNewRoute: MarketplaceNewRoute,
   McpRoute: McpRoute,
   MyProfileRoute: MyProfileRoute,
