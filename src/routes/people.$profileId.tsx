@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ImageIcon, Loader2, MapPin, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ImageIcon, Loader2, MapPin, Sparkles, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,29 +28,57 @@ function PublicProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [following, setFollowing] = useState(false);
+  const [followers, setFollowers] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followBusy, setFollowBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      const [profileResult, portfolioResult] = await Promise.all([
-        supabase
-          .from("community_profiles")
-          .select(
-            "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,avatar_url,collaboration_interests",
-          )
-          .eq("id", profileId)
-          .eq("visibility", "public")
-          .maybeSingle(),
-        supabase
-          .from("portfolio_items")
-          .select("*")
-          .eq("profile_id", profileId)
-          .eq("is_public", true)
-          .order("sort_order", { ascending: true }),
-      ]);
+      const { data: auth } = await supabase.auth.getUser();
+      const currentUserId = auth.user?.id ?? null;
+      const [profileResult, portfolioResult, followersResult, followingResult, relationResult] =
+        await Promise.all([
+          supabase
+            .from("community_profiles")
+            .select(
+              "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,avatar_url,collaboration_interests",
+            )
+            .eq("id", profileId)
+            .eq("visibility", "public")
+            .maybeSingle(),
+          supabase
+            .from("portfolio_items")
+            .select("*")
+            .eq("profile_id", profileId)
+            .eq("is_public", true)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("community_profile_follows")
+            .select("follower_id", { count: "exact", head: true })
+            .eq("followed_id", profileId),
+          supabase
+            .from("community_profile_follows")
+            .select("followed_id", { count: "exact", head: true })
+            .eq("follower_id", profileId),
+          currentUserId && currentUserId !== profileId
+            ? supabase
+                .from("community_profile_follows")
+                .select("followed_id")
+                .eq("follower_id", currentUserId)
+                .eq("followed_id", profileId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
       if (!active) return;
       setProfile(profileResult.data);
       setPortfolio(portfolioResult.data ?? []);
+      setUserId(currentUserId);
+      setFollowers(followersResult.count ?? 0);
+      setFollowingCount(followingResult.count ?? 0);
+      setFollowing(Boolean(relationResult.data));
       setLoading(false);
     }
     void load();
@@ -57,6 +86,33 @@ function PublicProfilePage() {
       active = false;
     };
   }, [profileId]);
+
+  async function toggleFollow() {
+    if (!userId) {
+      toast.info("Entre na comunidade para acompanhar perfis culturais.");
+      return;
+    }
+    if (userId === profileId || followBusy) return;
+    const wasFollowing = following;
+    setFollowBusy(true);
+    setFollowing(!wasFollowing);
+    setFollowers((current) => Math.max(0, current + (wasFollowing ? -1 : 1)));
+    const result = wasFollowing
+      ? await supabase
+          .from("community_profile_follows")
+          .delete()
+          .eq("follower_id", userId)
+          .eq("followed_id", profileId)
+      : await supabase
+          .from("community_profile_follows")
+          .insert({ follower_id: userId, followed_id: profileId });
+    if (result.error) {
+      setFollowing(wasFollowing);
+      setFollowers((current) => Math.max(0, current + (wasFollowing ? 1 : -1)));
+      toast.error("Não foi possível atualizar esta conexão.");
+    }
+    setFollowBusy(false);
+  }
 
   if (loading)
     return (
@@ -110,7 +166,7 @@ function PublicProfilePage() {
                   name[0]
                 )}
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-bold uppercase tracking-widest text-[#ffc857]">
                   {profile.profile_type}
                 </p>
@@ -121,6 +177,26 @@ function PublicProfilePage() {
                     {profile.city}
                   </p>
                 ) : null}
+                <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-orange-100">
+                  <span>
+                    <strong className="text-white">{followers}</strong> seguidores
+                  </span>
+                  <span>
+                    <strong className="text-white">{followingCount}</strong> acompanhando
+                  </span>
+                  {userId !== profile.id ? (
+                    <button
+                      type="button"
+                      onClick={() => void toggleFollow()}
+                      disabled={followBusy}
+                      aria-pressed={following}
+                      className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold transition disabled:opacity-60 ${following ? "bg-white/15 text-white" : "bg-[#ffc857] text-[#351810]"}`}
+                    >
+                      {following ? <Check className="size-4" /> : <UserPlus className="size-4" />}
+                      {following ? "Acompanhando" : "Acompanhar perfil"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>

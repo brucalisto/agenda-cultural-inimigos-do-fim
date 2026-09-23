@@ -1,5 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, CalendarDays, CheckCheck, Heart, Loader2, MessageCircle, ShieldCheck, Store } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CheckCheck,
+  Heart,
+  Loader2,
+  MessageCircle,
+  ShieldCheck,
+  Store,
+  UserPlus,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +27,7 @@ const icons = {
   report_resolved: ShieldCheck,
   event_status: CalendarDays,
   listing_status: Store,
+  profile_follow: UserPlus,
 } as const;
 
 function destination(item: Notification) {
@@ -102,20 +113,33 @@ function NotificationsPage() {
               const to = destination(item);
               const content = (
                 <>
-                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]"><Icon className="size-5" /></span>
-                  <div><p className="font-bold">{item.message}</p><p className="mt-1 text-xs text-[#8a5c4d]">{new Date(item.created_at).toLocaleString("pt-BR")}</p></div>
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]">
+                    <Icon className="size-5" />
+                  </span>
+                  <div>
+                    <p className="font-bold">{item.message}</p>
+                    <p className="mt-1 text-xs text-[#8a5c4d]">
+                      {new Date(item.created_at).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
                 </>
               );
               const className = `flex gap-4 rounded-2xl border p-4 ${item.read_at ? "border-[#ead9ca] bg-white" : "border-[#d8a88f] bg-[#fff0e6]"}`;
-              return to ? (
+              return item.entity_type === "profile" ? (
+                <Link
+                  key={item.id}
+                  to="/people/$profileId"
+                  params={{ profileId: item.entity_id }}
+                  className={className}
+                >
+                  {content}
+                </Link>
+              ) : to ? (
                 <Link key={item.id} to={to} className={className}>
                   {content}
                 </Link>
               ) : (
-                <article
-                  key={item.id}
-                  className={className}
-                >
+                <article key={item.id} className={className}>
                   {content}
                 </article>
               );

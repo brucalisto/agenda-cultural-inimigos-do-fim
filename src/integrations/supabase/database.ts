@@ -12,6 +12,35 @@ type InterpretedContents = {
 };
 
 type CommunityTables = {
+  community_profile_follows: {
+    Row: {
+      follower_id: string;
+      followed_id: string;
+      created_at: string;
+    };
+    Insert: {
+      follower_id: string;
+      followed_id: string;
+      created_at?: string;
+    };
+    Update: never;
+    Relationships: [
+      {
+        foreignKeyName: "community_profile_follows_follower_id_fkey";
+        columns: ["follower_id"];
+        isOneToOne: false;
+        referencedRelation: "community_profiles";
+        referencedColumns: ["id"];
+      },
+      {
+        foreignKeyName: "community_profile_follows_followed_id_fkey";
+        columns: ["followed_id"];
+        isOneToOne: false;
+        referencedRelation: "community_profiles";
+        referencedColumns: ["id"];
+      },
+    ];
+  };
   community_profiles: {
     Row: {
       id: string;

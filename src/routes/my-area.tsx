@@ -7,6 +7,7 @@ import {
   Loader2,
   Plus,
   Store,
+  UserPlus,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -27,6 +28,7 @@ type DashboardData = {
   listings: Listing[];
   favoriteCount: number;
   unreadCount: number;
+  followingCount: number;
 };
 
 const emptyDashboard: DashboardData = {
@@ -35,6 +37,7 @@ const emptyDashboard: DashboardData = {
   listings: [],
   favoriteCount: 0,
   unreadCount: 0,
+  followingCount: 0,
 };
 
 const eventLabels: Record<string, string> = {
@@ -76,31 +79,41 @@ function MyAreaPage() {
         return;
       }
 
-      const [profileResult, eventsResult, listingsResult, favoritesResult, notificationsResult] =
-        await Promise.all([
-          supabase.from("community_profiles").select("*").eq("id", id).maybeSingle(),
-          supabase
-            .from("community_event_submissions")
-            .select("*")
-            .eq("author_id", id)
-            .order("updated_at", { ascending: false })
-            .limit(3),
-          supabase
-            .from("marketplace_listings")
-            .select("*")
-            .eq("owner_id", id)
-            .order("updated_at", { ascending: false })
-            .limit(3),
-          supabase
-            .from("marketplace_favorites")
-            .select("listing_id", { count: "exact", head: true })
-            .eq("user_id", id),
-          supabase
-            .from("community_notifications")
-            .select("id", { count: "exact", head: true })
-            .eq("recipient_id", id)
-            .is("read_at", null),
-        ]);
+      const [
+        profileResult,
+        eventsResult,
+        listingsResult,
+        favoritesResult,
+        notificationsResult,
+        followingResult,
+      ] = await Promise.all([
+        supabase.from("community_profiles").select("*").eq("id", id).maybeSingle(),
+        supabase
+          .from("community_event_submissions")
+          .select("*")
+          .eq("author_id", id)
+          .order("updated_at", { ascending: false })
+          .limit(3),
+        supabase
+          .from("marketplace_listings")
+          .select("*")
+          .eq("owner_id", id)
+          .order("updated_at", { ascending: false })
+          .limit(3),
+        supabase
+          .from("marketplace_favorites")
+          .select("listing_id", { count: "exact", head: true })
+          .eq("user_id", id),
+        supabase
+          .from("community_notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", id)
+          .is("read_at", null),
+        supabase
+          .from("community_profile_follows")
+          .select("followed_id", { count: "exact", head: true })
+          .eq("follower_id", id),
+      ]);
 
       setDashboard({
         profile: profileResult.data,
@@ -108,6 +121,7 @@ function MyAreaPage() {
         listings: listingsResult.data ?? [],
         favoriteCount: favoritesResult.count ?? 0,
         unreadCount: notificationsResult.count ?? 0,
+        followingCount: followingResult.count ?? 0,
       });
       setLoading(false);
     }
@@ -222,7 +236,7 @@ function MyAreaPage() {
             </section>
           ) : null}
 
-          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumo">
+          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5" aria-label="Resumo">
             <SummaryCard
               icon={CalendarDays}
               value={dashboard.events.length}
@@ -246,6 +260,12 @@ function MyAreaPage() {
               value={dashboard.unreadCount}
               label="Notificações novas"
               to="/notifications"
+            />
+            <SummaryCard
+              icon={UserPlus}
+              value={dashboard.followingCount}
+              label="Perfis acompanhados"
+              to="/people"
             />
           </section>
 
@@ -336,7 +356,7 @@ function SummaryCard({
   icon: typeof CalendarDays;
   value: number;
   label: string;
-  to: "/my-events" | "/my-listings" | "/marketplace" | "/notifications";
+  to: "/my-events" | "/my-listings" | "/marketplace" | "/notifications" | "/people";
 }) {
   return (
     <Link
