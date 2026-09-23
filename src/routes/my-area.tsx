@@ -6,13 +6,19 @@ import {
   Heart,
   Loader2,
   Plus,
+  ImagePlus,
+  Mic,
+  Send,
+  X,
   Store,
   UserPlus,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
+import { VoiceTextarea } from "@/components/community/VoiceTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/database";
 
@@ -68,6 +74,12 @@ function MyAreaPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData>(emptyDashboard);
+  const [spaces, setSpaces] = useState<Tables<"community_spaces">[]>([]);
+  const [postSpaceId, setPostSpaceId] = useState("");
+  const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
+  const [postImages, setPostImages] = useState<File[]>([]);
+  const [posting, setPosting] = useState(false);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -86,6 +98,7 @@ function MyAreaPage() {
         favoritesResult,
         notificationsResult,
         followingResult,
+        spacesResult,
       ] = await Promise.all([
         supabase.from("community_profiles").select("*").eq("id", id).maybeSingle(),
         supabase
@@ -113,8 +126,17 @@ function MyAreaPage() {
           .from("community_profile_follows")
           .select("followed_id", { count: "exact", head: true })
           .eq("follower_id", id),
+        supabase
+          .from("community_spaces")
+          .select("*")
+          .eq("active", true)
+          .eq("posting_policy", "members")
+          .order("created_at"),
       ]);
 
+      const availableSpaces = spacesResult.data ?? [];
+      setSpaces(availableSpaces);
+      setPostSpaceId((current) => current || availableSpaces[0]?.id || "");
       setDashboard({
         profile: profileResult.data,
         events: eventsResult.data ?? [],
@@ -128,6 +150,48 @@ function MyAreaPage() {
 
     void loadDashboard();
   }, []);
+
+  async function publishCommunityPost() {
+    if (!userId || !postSpaceId || !postBody.trim() || posting) return;
+    setPosting(true);
+    const postId = crypto.randomUUID();
+    const uploadedPaths: string[] = [];
+    const mediaUrls: string[] = [];
+    try {
+      for (const image of postImages) {
+        if (!["image/jpeg", "image/png", "image/webp"].includes(image.type) || image.size > 8 * 1024 * 1024) {
+          throw new Error("Use imagens JPG, PNG ou WebP de até 8 MB.");
+        }
+        const extension = image.type === "image/png" ? "png" : image.type === "image/webp" ? "webp" : "jpg";
+        const path = `${userId}/posts/${postId}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("community-public-images")
+          .upload(path, image, { contentType: image.type, upsert: false });
+        if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
+        mediaUrls.push(supabase.storage.from("community-public-images").getPublicUrl(path).data.publicUrl);
+      }
+      const { error } = await supabase.from("community_posts").insert({
+        id: postId,
+        space_id: postSpaceId,
+        author_id: userId,
+        title: postTitle.trim() || null,
+        body: postBody.trim(),
+        media_urls: mediaUrls,
+        status: "published",
+      });
+      if (error) throw error;
+      setPostTitle("");
+      setPostBody("");
+      setPostImages([]);
+      toast.success("Publicação enviada para a comunidade.");
+    } catch (cause) {
+      if (uploadedPaths.length) await supabase.storage.from("community-public-images").remove(uploadedPaths);
+      toast.error(cause instanceof Error ? cause.message : "Não foi possível publicar.");
+    } finally {
+      setPosting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -235,6 +299,69 @@ function MyAreaPage() {
               </Link>
             </section>
           ) : null}
+
+          <section className="mt-6 rounded-3xl border border-[#ead9ca] bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]"><Send className="size-5" /></span>
+              <div>
+                <h2 className="text-xl font-black">Publicar na comunidade</h2>
+                <p className="mt-1 text-sm text-[#755348]">Escolha um espaço, escreva ou dite sua mensagem, confira a prévia e publique.</p>
+              </div>
+            </div>
+            {spaces.length ? (
+              <>
+                <label className="mt-5 grid gap-2 text-sm font-bold">
+                  Espaço
+                  <select value={postSpaceId} onChange={(event) => setPostSpaceId(event.target.value)} className="rounded-xl border border-[#ead9ca] bg-white px-4 py-3 font-normal">
+                    {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                  </select>
+                </label>
+                <input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} placeholder="Título (opcional)" className="mt-3 w-full rounded-xl border border-[#ead9ca] px-4 py-3 outline-none focus:border-[#9f3d25]" />
+                <div className="mt-3">
+                  <VoiceTextarea value={postBody} onChange={setPostBody} placeholder="Escreva aqui ou use o microfone..." rows={5} />
+                </div>
+                {postImages.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {postImages.map((image, index) => (
+                      <span key={`${image.name}-${image.lastModified}`} className="inline-flex items-center gap-2 rounded-full bg-[#f4e6d7] px-3 py-2 text-sm">
+                        {image.name}
+                        <button type="button" onClick={() => setPostImages((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remover ${image.name}`}><X className="size-4" /></button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {postBody.trim() ? (
+                  <div className="mt-4 rounded-2xl bg-[#fffaf3] p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#9f3d25]">Prévia</p>
+                    {postTitle.trim() ? <strong className="mt-2 block">{postTitle.trim()}</strong> : null}
+                    <p className="mt-2 whitespace-pre-line text-sm text-[#755348]">{postBody.trim()}</p>
+                    {postImages.length ? <p className="mt-2 text-xs font-bold text-[#9f3d25]">{postImages.length} imagem(ns) anexada(s)</p> : null}
+                  </div>
+                ) : null}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#d8bca8] px-4 py-3 text-sm font-bold text-[#8d321f]">
+                    <ImagePlus className="size-4" /> Adicionar imagens
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" disabled={posting} onChange={(event) => {
+                      const selected = Array.from(event.target.files ?? []);
+                      if (selected.some((file) => file.size > 8 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type))) {
+                        toast.error("Use imagens JPG, PNG ou WebP de até 8 MB.");
+                        event.target.value = "";
+                        return;
+                      }
+                      setPostImages((current) => [...current, ...selected].slice(0, 4));
+                      event.target.value = "";
+                    }} />
+                  </label>
+                  <span className="inline-flex items-center gap-2 text-xs text-[#755348]"><Mic className="size-4" /> Texto ou voz</span>
+                  <button type="button" disabled={posting || !postSpaceId || !postBody.trim()} onClick={() => void publishCommunityPost()} className="inline-flex items-center gap-2 rounded-xl bg-[#9f3d25] px-5 py-3 font-bold text-white disabled:opacity-40">
+                    {posting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Publicar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-5 rounded-2xl bg-[#f4e6d7] p-4 text-sm text-[#755348]">Não há espaços abertos para publicação neste momento.</p>
+            )}
+          </section>
 
           <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5" aria-label="Resumo">
             <SummaryCard
