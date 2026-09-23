@@ -596,6 +596,14 @@ type CommunityFunctions = {
     Args: { target_profile_id: string };
     Returns: string;
   };
+  create_thematic_chat: {
+    Args: { room_name: string; room_description?: string | null };
+    Returns: string;
+  };
+  join_thematic_chat: {
+    Args: { target_room_id: string };
+    Returns: undefined;
+  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
