@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, CheckCheck, Heart, Loader2, MessageCircle, ShieldCheck } from "lucide-react";
+import { Bell, CalendarDays, CheckCheck, Heart, Loader2, MessageCircle, ShieldCheck, Store } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,7 +15,15 @@ const icons = {
   comment: MessageCircle,
   reaction: Heart,
   report_resolved: ShieldCheck,
+  event_status: CalendarDays,
+  listing_status: Store,
 } as const;
+
+function destination(item: Notification) {
+  if (item.entity_type === "event_submission") return "/my-events" as const;
+  if (item.entity_type === "marketplace_listing") return "/my-listings" as const;
+  return null;
+}
 
 function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);
@@ -91,20 +99,24 @@ function NotificationsPage() {
           <section className="mt-8 space-y-3" aria-label="Suas notificações">
             {items.map((item) => {
               const Icon = icons[item.kind as keyof typeof icons] ?? Bell;
-              return (
+              const to = destination(item);
+              const content = (
+                <>
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]"><Icon className="size-5" /></span>
+                  <div><p className="font-bold">{item.message}</p><p className="mt-1 text-xs text-[#8a5c4d]">{new Date(item.created_at).toLocaleString("pt-BR")}</p></div>
+                </>
+              );
+              const className = `flex gap-4 rounded-2xl border p-4 ${item.read_at ? "border-[#ead9ca] bg-white" : "border-[#d8a88f] bg-[#fff0e6]"}`;
+              return to ? (
+                <Link key={item.id} to={to} className={className}>
+                  {content}
+                </Link>
+              ) : (
                 <article
                   key={item.id}
-                  className={`flex gap-4 rounded-2xl border p-4 ${item.read_at ? "border-[#ead9ca] bg-white" : "border-[#d8a88f] bg-[#fff0e6]"}`}
+                  className={className}
                 >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]">
-                    <Icon className="size-5" />
-                  </span>
-                  <div>
-                    <p className="font-bold">{item.message}</p>
-                    <p className="mt-1 text-xs text-[#8a5c4d]">
-                      {new Date(item.created_at).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
+                  {content}
                 </article>
               );
             })}
