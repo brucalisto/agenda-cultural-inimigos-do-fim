@@ -350,21 +350,38 @@ function PublicProfilePage() {
             <h2 className="mt-2 text-3xl font-black">Conheça esse trabalho</h2>
             {portfolio.length ? (
               <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-3">
-                {portfolio.map((item) => (
-                  <figure
-                    key={item.id}
-                    className="overflow-hidden rounded-3xl border border-[#ead9ca] bg-white shadow-sm"
-                  >
-                    <img
-                      src={item.media_url}
-                      alt={item.alt_text ?? item.title ?? `Trabalho de ${name}`}
-                      className="aspect-square w-full object-cover"
-                    />
-                    {item.title ? (
-                      <figcaption className="p-4 text-sm font-bold">{item.title}</figcaption>
-                    ) : null}
-                  </figure>
-                ))}
+                {portfolio.map((item) =>
+                  item.media_type === "image" ? (
+                    <figure
+                      key={item.id}
+                      className="overflow-hidden rounded-3xl border border-[#ead9ca] bg-white shadow-sm"
+                    >
+                      <img
+                        src={item.media_url}
+                        alt={item.alt_text ?? item.title ?? `Trabalho de ${name}`}
+                        className="aspect-square w-full object-cover"
+                      />
+                      {item.title || item.description ? (
+                        <figcaption className="p-4">
+                          {item.title ? <strong className="block text-sm">{item.title}</strong> : null}
+                          {item.description ? <span className="mt-1 block text-xs text-[#755348]">{item.description}</span> : null}
+                        </figcaption>
+                      ) : null}
+                    </figure>
+                  ) : (
+                    <a
+                      key={item.id}
+                      href={item.media_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="grid min-h-44 content-center rounded-3xl border border-[#ead9ca] bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      <ExternalLink className="mx-auto size-8 text-[#9f3d25]" />
+                      <strong className="mt-3">{item.title || "Abrir trabalho"}</strong>
+                      {item.description ? <span className="mt-2 text-sm text-[#755348]">{item.description}</span> : null}
+                    </a>
+                  ),
+                )}
               </div>
             ) : (
               <div className="mt-5 rounded-3xl border-2 border-dashed border-[#ead9ca] p-10 text-center text-[#755348]">
