@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Image, MapPin, Search, ShoppingBag, SlidersHorizontal, Wrench } from "lucide-react";
+import { Heart, Image, MapPin, Search, ShoppingBag, SlidersHorizontal, Wrench } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,16 +29,61 @@ function MarketplacePage() {
   const [type, setType] = useState("");
   const [category, setCategory] = useState("");
   const [city, setCity] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase("pt-BR"));
 
   useEffect(() => {
-    void supabase
-      .from("marketplace_listings")
-      .select("*")
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setItems(data ?? []));
+    async function load() {
+      const [{ data: listings }, { data: auth }] = await Promise.all([
+        supabase
+          .from("marketplace_listings")
+          .select("*")
+          .eq("status", "published")
+          .order("created_at", { ascending: false }),
+        supabase.auth.getUser(),
+      ]);
+      setItems(listings ?? []);
+      const id = auth.user?.id ?? null;
+      setUserId(id);
+      if (!id) return;
+      const { data } = await supabase
+        .from("marketplace_favorites")
+        .select("listing_id")
+        .eq("user_id", id);
+      setFavorites(new Set((data ?? []).map((favorite) => favorite.listing_id)));
+    }
+    void load();
   }, []);
+
+  async function toggleFavorite(listingId: string) {
+    if (!userId) {
+      toast.info("Entre na comunidade para salvar seus favoritos.");
+      return;
+    }
+    const saved = favorites.has(listingId);
+    setFavorites((current) => {
+      const next = new Set(current);
+      saved ? next.delete(listingId) : next.add(listingId);
+      return next;
+    });
+    const result = saved
+      ? await supabase
+          .from("marketplace_favorites")
+          .delete()
+          .eq("user_id", userId)
+          .eq("listing_id", listingId)
+      : await supabase.from("marketplace_favorites").insert({ user_id: userId, listing_id: listingId });
+    if (result.error) {
+      setFavorites((current) => {
+        const next = new Set(current);
+        saved ? next.add(listingId) : next.delete(listingId);
+        return next;
+      });
+      toast.error("Não foi possível atualizar o favorito.");
+    }
+  }
 
   const categories = useMemo(() => unique(items.map((item) => item.category)), [items]);
   const cities = useMemo(() => unique(items.map((item) => item.city)), [items]);
@@ -51,12 +97,13 @@ function MarketplacePage() {
           (!deferredQuery || searchable.includes(deferredQuery)) &&
           (!type || item.listing_type === type) &&
           (!category || item.category === category) &&
-          (!city || item.city === city)
+          (!city || item.city === city) &&
+          (!favoritesOnly || favorites.has(item.id))
         );
       }),
-    [category, city, deferredQuery, items, type],
+    [category, city, deferredQuery, favorites, favoritesOnly, items, type],
   );
-  const hasFilters = Boolean(query || type || category || city);
+  const hasFilters = Boolean(query || type || category || city || favoritesOnly);
 
   return (
     <div className="min-h-screen bg-[#fffaf3] text-[#351810]">
@@ -111,6 +158,21 @@ function MarketplacePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!userId) {
+                    toast.info("Entre na comunidade para acessar seus favoritos.");
+                    return;
+                  }
+                  setFavoritesOnly((current) => !current);
+                }}
+                aria-pressed={favoritesOnly}
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold ${favoritesOnly ? "border-[#9f3d25] bg-[#9f3d25] text-white" : "border-[#d8bca8] text-[#755348]"}`}
+              >
+                <Heart className={`size-4 ${favoritesOnly ? "fill-current" : ""}`} />
+                Favoritos
+              </button>
               <Link
                 to="/my-listings"
                 className="rounded-xl border border-[#d8bca8] px-4 py-2 text-sm font-bold text-[#755348]"
@@ -174,6 +236,7 @@ function MarketplacePage() {
                   setType("");
                   setCategory("");
                   setCity("");
+                  setFavoritesOnly(false);
                 }}
                 className="rounded-xl px-3 text-sm font-bold text-[#9f3d25]"
               >
@@ -188,8 +251,17 @@ function MarketplacePage() {
             {visible.map((item) => (
               <article
                 key={item.id}
-                className="group overflow-hidden rounded-3xl border border-[#ead9ca] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                className="group relative overflow-hidden rounded-3xl border border-[#ead9ca] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
+                <button
+                  type="button"
+                  onClick={() => void toggleFavorite(item.id)}
+                  aria-label={favorites.has(item.id) ? `Remover ${item.title} dos favoritos` : `Salvar ${item.title} nos favoritos`}
+                  aria-pressed={favorites.has(item.id)}
+                  className="absolute right-3 top-3 z-10 grid size-11 place-items-center rounded-full bg-white/95 text-[#9f3d25] shadow-md backdrop-blur"
+                >
+                  <Heart className={`size-5 ${favorites.has(item.id) ? "fill-current" : ""}`} />
+                </button>
                 <Link
                   to="/marketplace/$listingId"
                   params={{ listingId: item.id }}
@@ -251,6 +323,7 @@ function MarketplacePage() {
                       setType("");
                       setCategory("");
                       setCity("");
+                      setFavoritesOnly(false);
                     }}
                     className="mt-5 rounded-xl border border-[#9f3d25] px-5 py-3 font-bold text-[#9f3d25]"
                   >

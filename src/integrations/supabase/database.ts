@@ -150,6 +150,28 @@ type CommunityTables = {
       },
     ];
   };
+  marketplace_favorites: {
+    Row: {
+      user_id: string;
+      listing_id: string;
+      created_at: string;
+    };
+    Insert: {
+      user_id: string;
+      listing_id: string;
+      created_at?: string;
+    };
+    Update: never;
+    Relationships: [
+      {
+        foreignKeyName: "marketplace_favorites_listing_id_fkey";
+        columns: ["listing_id"];
+        isOneToOne: false;
+        referencedRelation: "marketplace_listings";
+        referencedColumns: ["id"];
+      },
+    ];
+  };
   platform_tools: {
     Row: {
       id: string;
