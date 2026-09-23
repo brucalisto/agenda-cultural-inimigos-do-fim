@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, Image, Loader2, MapPin, Store, UserRound } from "lucide-react";
+import { ArrowLeft, ExternalLink, Heart, Image, Loader2, MapPin, Store, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,8 @@ function ListingDetailPage() {
   const [related, setRelated] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [favorite, setFavorite] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -35,7 +38,7 @@ function ListingDetailPage() {
         setLoading(false);
         return;
       }
-      const [ownerResult, relatedResult] = await Promise.all([
+      const [ownerResult, relatedResult, authResult] = await Promise.all([
         supabase
           .from("community_profiles")
           .select("id,display_name,artistic_name,avatar_url,short_bio,city,verified")
@@ -48,13 +51,50 @@ function ListingDetailPage() {
           .eq("category", data.category ?? "")
           .neq("id", data.id)
           .limit(3),
+        supabase.auth.getUser(),
       ]);
       setOwner(ownerResult.data);
       setRelated(relatedResult.data ?? []);
+      const id = authResult.data.user?.id ?? null;
+      setUserId(id);
+      if (id) {
+        const { data: saved } = await supabase
+          .from("marketplace_favorites")
+          .select("listing_id")
+          .eq("user_id", id)
+          .eq("listing_id", data.id)
+          .maybeSingle();
+        setFavorite(Boolean(saved));
+      }
       setLoading(false);
     }
     void load();
   }, [listingId]);
+
+  async function toggleFavorite() {
+    if (!listing) return;
+    if (!userId) {
+      toast.info("Entre na comunidade para salvar seus favoritos.");
+      return;
+    }
+    const wasFavorite = favorite;
+    setFavorite(!wasFavorite);
+    const result = wasFavorite
+      ? await supabase
+          .from("marketplace_favorites")
+          .delete()
+          .eq("user_id", userId)
+          .eq("listing_id", listing.id)
+      : await supabase
+          .from("marketplace_favorites")
+          .insert({ user_id: userId, listing_id: listing.id });
+    if (result.error) {
+      setFavorite(wasFavorite);
+      toast.error("Não foi possível atualizar o favorito.");
+    } else {
+      toast.success(wasFavorite ? "Removido dos favoritos." : "Trabalho salvo nos favoritos.");
+    }
+  }
 
   if (loading)
     return (
@@ -162,6 +202,15 @@ function ListingDetailPage() {
                 Tenho interesse <ExternalLink className="size-4" />
               </a>
             ) : null}
+            <button
+              type="button"
+              onClick={() => void toggleFavorite()}
+              aria-pressed={favorite}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#d8bca8] px-5 py-3 font-bold text-[#9f3d25]"
+            >
+              <Heart className={`size-5 ${favorite ? "fill-current" : ""}`} />
+              {favorite ? "Salvo nos favoritos" : "Salvar nos favoritos"}
+            </button>
 
             {owner ? (
               <div className="mt-7 border-t border-[#ead9ca] pt-6">
