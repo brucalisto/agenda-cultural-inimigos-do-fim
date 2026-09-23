@@ -6,6 +6,11 @@ import {
   ChevronRight,
   ImagePlus,
   Loader2,
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  Link as LinkIcon,
   Mic,
   Sparkles,
   Trash2,
@@ -68,6 +73,13 @@ function ProfileOnboarding() {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
+  const [portfolioBusyId, setPortfolioBusyId] = useState<string | null>(null);
+  const [portfolioDraft, setPortfolioDraft] = useState({
+    title: "",
+    description: "",
+    alt_text: "",
+    media_url: "",
+  });
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [details, setDetails] = useState({
@@ -275,6 +287,79 @@ function ProfileOnboarding() {
     }
   }
 
+  async function addPortfolioLink() {
+    if (!userId || !portfolioDraft.media_url.trim()) return;
+    let normalizedUrl = portfolioDraft.media_url.trim();
+    if (!/^https?:\/\//i.test(normalizedUrl)) normalizedUrl = `https://${normalizedUrl}`;
+    try {
+      new URL(normalizedUrl);
+    } catch {
+      toast.error("Informe um link válido.");
+      return;
+    }
+    setUploadingPortfolio(true);
+    const { data, error } = await supabase
+      .from("portfolio_items")
+      .insert({
+        profile_id: userId,
+        media_type: "link",
+        title: portfolioDraft.title.trim() || "Link do portfólio",
+        description: portfolioDraft.description.trim() || null,
+        alt_text: portfolioDraft.alt_text.trim() || null,
+        media_url: normalizedUrl,
+        sort_order: portfolio.length,
+        is_public: true,
+      })
+      .select("*")
+      .single();
+    setUploadingPortfolio(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPortfolio((current) => [...current, data]);
+    setPortfolioDraft({ title: "", description: "", alt_text: "", media_url: "" });
+    toast.success("Link adicionado ao portfólio.");
+  }
+
+  async function updatePortfolioItem(item: PortfolioItem, patch: Partial<PortfolioItem>) {
+    setPortfolioBusyId(item.id);
+    const { data, error } = await supabase
+      .from("portfolio_items")
+      .update(patch)
+      .eq("id", item.id)
+      .select("*")
+      .single();
+    setPortfolioBusyId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPortfolio((current) => current.map((candidate) => candidate.id === item.id ? data : candidate));
+  }
+
+  async function movePortfolioItem(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= portfolio.length) return;
+    const current = portfolio[index];
+    const target = portfolio[targetIndex];
+    setPortfolioBusyId(current.id);
+    const [currentResult, targetResult] = await Promise.all([
+      supabase.from("portfolio_items").update({ sort_order: target.sort_order }).eq("id", current.id),
+      supabase.from("portfolio_items").update({ sort_order: current.sort_order }).eq("id", target.id),
+    ]);
+    setPortfolioBusyId(null);
+    if (currentResult.error || targetResult.error) {
+      toast.error("Não foi possível reorganizar o portfólio.");
+      return;
+    }
+    setPortfolio((items) => {
+      const next = [...items];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  }
+
   async function removePortfolioItem(item: PortfolioItem) {
     const { error } = await supabase.from("portfolio_items").delete().eq("id", item.id);
     if (error) {
@@ -453,32 +538,43 @@ function ProfileOnboarding() {
                     />
                   </label>
                 </div>
+                <div className="mt-5 rounded-2xl bg-[#fffaf3] p-4">
+                  <h4 className="font-bold">Adicionar link externo</h4>
+                  <p className="mt-1 text-xs text-[#755348]">Use para vídeo, áudio, matéria, projeto ou outro trabalho publicado na web.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <input value={portfolioDraft.title} onChange={(event) => setPortfolioDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Título" className="rounded-xl border border-[#d8bca8] bg-white px-3 py-2" />
+                    <input value={portfolioDraft.media_url} onChange={(event) => setPortfolioDraft((current) => ({ ...current, media_url: event.target.value }))} placeholder="https://..." className="rounded-xl border border-[#d8bca8] bg-white px-3 py-2" />
+                    <input value={portfolioDraft.description} onChange={(event) => setPortfolioDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Descrição (opcional)" className="rounded-xl border border-[#d8bca8] bg-white px-3 py-2" />
+                    <input value={portfolioDraft.alt_text} onChange={(event) => setPortfolioDraft((current) => ({ ...current, alt_text: event.target.value }))} placeholder="Descrição acessível (opcional)" className="rounded-xl border border-[#d8bca8] bg-white px-3 py-2" />
+                  </div>
+                  <button type="button" disabled={!portfolioDraft.media_url.trim() || uploadingPortfolio} onClick={() => void addPortfolioLink()} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#9f3d25]/25 px-4 py-2 text-sm font-bold text-[#9f3d25] disabled:opacity-40">
+                    <LinkIcon className="size-4" /> Adicionar link
+                  </button>
+                </div>
                 {portfolio.length ? (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {portfolio.map((item) => (
-                      <figure
-                        key={item.id}
-                        className="relative aspect-square overflow-hidden rounded-2xl bg-[#f4e6d7]"
-                      >
-                        <img
-                          src={item.media_url}
-                          alt={item.alt_text ?? item.title ?? "Trabalho do portfólio"}
-                          className="size-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void removePortfolioItem(item)}
-                          className="absolute right-2 top-2 grid size-9 place-items-center rounded-full bg-white/95 text-red-700 shadow-md"
-                          aria-label={`Remover ${item.title ?? "imagem"} do portfólio`}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </figure>
+                  <div className="mt-4 grid gap-3">
+                    {portfolio.map((item, index) => (
+                      <article key={item.id} className="grid gap-3 rounded-2xl border border-[#ead9ca] bg-white p-3 sm:grid-cols-[96px_1fr_auto]">
+                        <div className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-[#f4e6d7]">
+                          {item.media_type === "image" ? <img src={item.media_url} alt={item.alt_text ?? item.title ?? "Trabalho do portfólio"} className="size-full object-cover" /> : <LinkIcon className="size-7 text-[#9f3d25]" />}
+                        </div>
+                        <div className="grid gap-2">
+                          <input value={item.title ?? ""} onChange={(event) => setPortfolio((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, title: event.target.value } : candidate))} onBlur={() => void updatePortfolioItem(item, { title: item.title })} placeholder="Título do trabalho" className="rounded-lg border px-3 py-2 text-sm" />
+                          <input value={item.description ?? ""} onChange={(event) => setPortfolio((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, description: event.target.value } : candidate))} onBlur={() => void updatePortfolioItem(item, { description: item.description })} placeholder="Descrição" className="rounded-lg border px-3 py-2 text-sm" />
+                          {item.media_type === "image" ? <input value={item.alt_text ?? ""} onChange={(event) => setPortfolio((items) => items.map((candidate) => candidate.id === item.id ? { ...candidate, alt_text: event.target.value } : candidate))} onBlur={() => void updatePortfolioItem(item, { alt_text: item.alt_text })} placeholder="Descrição acessível da imagem" className="rounded-lg border px-3 py-2 text-sm" /> : null}
+                        </div>
+                        <div className="flex items-start gap-1 sm:flex-col">
+                          <button type="button" disabled={index === 0 || portfolioBusyId === item.id} onClick={() => void movePortfolioItem(index, -1)} className="grid size-9 place-items-center rounded-lg border disabled:opacity-30" aria-label="Mover para cima"><ArrowUp className="size-4" /></button>
+                          <button type="button" disabled={index === portfolio.length - 1 || portfolioBusyId === item.id} onClick={() => void movePortfolioItem(index, 1)} className="grid size-9 place-items-center rounded-lg border disabled:opacity-30" aria-label="Mover para baixo"><ArrowDown className="size-4" /></button>
+                          <button type="button" disabled={portfolioBusyId === item.id} onClick={() => void updatePortfolioItem(item, { is_public: !item.is_public })} className="grid size-9 place-items-center rounded-lg border" aria-label={item.is_public ? "Ocultar do perfil público" : "Exibir no perfil público"}>{item.is_public ? <Eye className="size-4" /> : <EyeOff className="size-4" />}</button>
+                          <button type="button" onClick={() => void removePortfolioItem(item)} className="grid size-9 place-items-center rounded-lg border text-red-700" aria-label={`Remover ${item.title ?? "item"} do portfólio`}><Trash2 className="size-4" /></button>
+                        </div>
+                      </article>
                     ))}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-2xl border-2 border-dashed border-[#ead9ca] p-6 text-center text-sm text-[#755348]">
-                    Seu portfólio ainda não tem imagens.
+                    Seu portfólio ainda não tem trabalhos.
                   </div>
                 )}
               </div>
