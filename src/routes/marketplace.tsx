@@ -110,12 +110,20 @@ function MarketplacePage() {
                 {visible.length === 1 ? "anúncio encontrado" : "anúncios encontrados"}
               </p>
             </div>
-            <Link
-              to="/marketplace-new"
-              className="rounded-xl border border-[#9f3d25] px-4 py-2 text-sm font-bold text-[#9f3d25]"
-            >
-              Divulgar meu trabalho
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/my-listings"
+                className="rounded-xl border border-[#d8bca8] px-4 py-2 text-sm font-bold text-[#755348]"
+              >
+                Meus anúncios
+              </Link>
+              <Link
+                to="/marketplace-new"
+                className="rounded-xl border border-[#9f3d25] px-4 py-2 text-sm font-bold text-[#9f3d25]"
+              >
+                Divulgar meu trabalho
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 rounded-2xl border border-[#ead9ca] bg-white p-4 md:grid-cols-[auto_1fr_1fr_1fr_auto]">
