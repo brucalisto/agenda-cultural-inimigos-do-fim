@@ -604,6 +604,10 @@ type CommunityFunctions = {
     Args: { target_room_id: string };
     Returns: undefined;
   };
+  moderate_thematic_chat: {
+    Args: { target_room_id: string; decision: string; notes?: string | null };
+    Returns: undefined;
+  };
   is_chat_room_member: {
     Args: { target_room_id: string; target_profile_id?: string };
     Returns: boolean;
