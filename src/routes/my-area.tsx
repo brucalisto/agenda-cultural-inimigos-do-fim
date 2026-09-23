@@ -265,7 +265,7 @@ function MyAreaPage() {
               icon={UserPlus}
               value={dashboard.followingCount}
               label="Perfis acompanhados"
-              to="/people"
+              to="/following"
             />
           </section>
 
@@ -356,7 +356,7 @@ function SummaryCard({
   icon: typeof CalendarDays;
   value: number;
   label: string;
-  to: "/my-events" | "/my-listings" | "/marketplace" | "/notifications" | "/people";
+  to: "/my-events" | "/my-listings" | "/marketplace" | "/notifications" | "/following";
 }) {
   return (
     <Link

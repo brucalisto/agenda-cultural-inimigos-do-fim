@@ -7,6 +7,7 @@ import {
   Palette,
   Radio,
   Sparkles,
+  UserCheck,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -109,6 +110,23 @@ function CommunityPage() {
         </section>
 
         <section className="mx-auto max-w-7xl px-4 py-12 lg:px-8">
+          <Link
+            to="/following"
+            className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-[#351810] p-6 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+          >
+            <span className="flex items-center gap-4">
+              <span className="grid size-12 place-items-center rounded-2xl bg-[#ffc857] text-[#351810]">
+                <UserCheck />
+              </span>
+              <span>
+                <strong className="block text-xl">Acompanhando</strong>
+                <span className="text-sm text-[#f1d5c7]">
+                  Veja as novidades dos perfis que você segue
+                </span>
+              </span>
+            </span>
+            <span className="font-bold text-[#ffc857]">Abrir meu feed →</span>
+          </Link>
           <div>
             <p className="font-bold uppercase tracking-widest text-[#9f3d25]">Espaços</p>
             <h2 className="mt-2 text-3xl font-black">Onde as conversas acontecem</h2>

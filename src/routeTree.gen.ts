@@ -17,6 +17,7 @@ import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CommunityModerationRouteImport } from './routes/community-moderation'
 import { Route as FeedsRouteImport } from './routes/feeds'
+import { Route as FollowingRouteImport } from './routes/following'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as InboxRouteImport } from './routes/inbox'
@@ -91,6 +92,11 @@ const CommunityModerationRoute = CommunityModerationRouteImport.update({
 const FeedsRoute = FeedsRouteImport.update({
   id: '/feeds',
   path: '/feeds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FollowingRoute = FollowingRouteImport.update({
+  id: '/following',
+  path: '/following',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsRoute = GroupsRouteImport.update({
@@ -281,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
+  '/following': typeof FollowingRoute
   '/groups': typeof GroupsRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
@@ -326,6 +333,7 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
+  '/following': typeof FollowingRoute
   '/groups': typeof GroupsRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
@@ -372,6 +380,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRouteWithChildren
   '/community-moderation': typeof CommunityModerationRoute
   '/feeds': typeof FeedsRoute
+  '/following': typeof FollowingRoute
   '/groups': typeof GroupsRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
@@ -419,6 +428,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/community-moderation'
     | '/feeds'
+    | '/following'
     | '/groups'
     | '/health'
     | '/inbox'
@@ -464,6 +474,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/community-moderation'
     | '/feeds'
+    | '/following'
     | '/groups'
     | '/health'
     | '/inbox'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/community-moderation'
     | '/feeds'
+    | '/following'
     | '/groups'
     | '/health'
     | '/inbox'
@@ -555,6 +567,7 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRouteWithChildren
   CommunityModerationRoute: typeof CommunityModerationRoute
   FeedsRoute: typeof FeedsRoute
+  FollowingRoute: typeof FollowingRoute
   GroupsRoute: typeof GroupsRoute
   HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
@@ -644,6 +657,13 @@ declare module '@tanstack/react-router' {
       path: '/feeds'
       fullPath: '/feeds'
       preLoaderRoute: typeof FeedsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/following': {
+      id: '/following'
+      path: '/following'
+      fullPath: '/following'
+      preLoaderRoute: typeof FollowingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/groups': {
@@ -948,6 +968,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRouteWithChildren,
   CommunityModerationRoute: CommunityModerationRoute,
   FeedsRoute: FeedsRoute,
+  FollowingRoute: FollowingRoute,
   GroupsRoute: GroupsRoute,
   HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
