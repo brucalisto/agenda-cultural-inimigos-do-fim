@@ -1,11 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, ImageIcon, Loader2, MapPin, Sparkles, UserPlus } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  Clock,
+  ImageIcon,
+  Loader2,
+  MapPin,
+  ShoppingBag,
+  Sparkles,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/database";
+import { formatEventDate, formatEventTime } from "@/lib/event-datetime";
 
 export const Route = createFileRoute("/people/$profileId")({ component: PublicProfilePage });
 
@@ -22,11 +34,25 @@ type Profile = Pick<
   | "collaboration_interests"
 >;
 type PortfolioItem = Tables<"portfolio_items">;
+type Listing = Tables<"marketplace_listings">;
+type ProfileEvent = {
+  id: string;
+  title: string | null;
+  category: string | null;
+  summary: string | null;
+  event_date: string;
+  location: string | null;
+  city: string | null;
+  price: string | null;
+  image_url: string | null;
+};
 
 function PublicProfilePage() {
   const { profileId } = Route.useParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [events, setEvents] = useState<ProfileEvent[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
@@ -39,42 +65,63 @@ function PublicProfilePage() {
     async function load() {
       const { data: auth } = await supabase.auth.getUser();
       const currentUserId = auth.user?.id ?? null;
-      const [profileResult, portfolioResult, followersResult, followingResult, relationResult] =
-        await Promise.all([
-          supabase
-            .from("community_profiles")
-            .select(
-              "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,avatar_url,collaboration_interests",
-            )
-            .eq("id", profileId)
-            .eq("visibility", "public")
-            .maybeSingle(),
-          supabase
-            .from("portfolio_items")
-            .select("*")
-            .eq("profile_id", profileId)
-            .eq("is_public", true)
-            .order("sort_order", { ascending: true }),
-          supabase
-            .from("community_profile_follows")
-            .select("follower_id", { count: "exact", head: true })
-            .eq("followed_id", profileId),
-          supabase
-            .from("community_profile_follows")
-            .select("followed_id", { count: "exact", head: true })
-            .eq("follower_id", profileId),
-          currentUserId && currentUserId !== profileId
-            ? supabase
-                .from("community_profile_follows")
-                .select("followed_id")
-                .eq("follower_id", currentUserId)
-                .eq("followed_id", profileId)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-        ]);
+      const [
+        profileResult,
+        portfolioResult,
+        listingsResult,
+        profileEventsResponse,
+        followersResult,
+        followingResult,
+        relationResult,
+      ] = await Promise.all([
+        supabase
+          .from("community_profiles")
+          .select(
+            "id,display_name,artistic_name,profile_type,short_bio,full_bio,city,avatar_url,collaboration_interests",
+          )
+          .eq("id", profileId)
+          .eq("visibility", "public")
+          .maybeSingle(),
+        supabase
+          .from("portfolio_items")
+          .select("*")
+          .eq("profile_id", profileId)
+          .eq("is_public", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("marketplace_listings")
+          .select("*")
+          .eq("owner_id", profileId)
+          .eq("status", "published")
+          .order("created_at", { ascending: false })
+          .limit(6),
+        fetch(`/api/public/profile-events?profileId=${encodeURIComponent(profileId)}`),
+        supabase
+          .from("community_profile_follows")
+          .select("follower_id", { count: "exact", head: true })
+          .eq("followed_id", profileId),
+        supabase
+          .from("community_profile_follows")
+          .select("followed_id", { count: "exact", head: true })
+          .eq("follower_id", profileId),
+        currentUserId && currentUserId !== profileId
+          ? supabase
+              .from("community_profile_follows")
+              .select("followed_id")
+              .eq("follower_id", currentUserId)
+              .eq("followed_id", profileId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      if (!active) return;
+      const profileEventsPayload = profileEventsResponse.ok
+        ? ((await profileEventsResponse.json()) as { events?: ProfileEvent[] })
+        : null;
       if (!active) return;
       setProfile(profileResult.data);
       setPortfolio(portfolioResult.data ?? []);
+      setListings(listingsResult.data ?? []);
+      setEvents(profileEventsPayload?.events ?? []);
       setUserId(currentUserId);
       setFollowers(followersResult.count ?? 0);
       setFollowingCount(followingResult.count ?? 0);
@@ -257,8 +304,155 @@ function PublicProfilePage() {
             )}
           </article>
         </section>
+
+        {events.length || userId === profile.id ? (
+          <section className="border-t border-[#ead9ca] bg-white px-4 py-12">
+            <div className="mx-auto max-w-6xl">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-widest text-[#9f3d25]">
+                    Agenda
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black">Próximos eventos</h2>
+                </div>
+                <Link to="/agenda" className="font-bold text-[#9f3d25]">
+                  Ver agenda completa →
+                </Link>
+              </div>
+              {events.length ? (
+                <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                  {events.map((event) => (
+                    <article
+                      key={event.id}
+                      className="overflow-hidden rounded-3xl border border-[#ead9ca] bg-[#fffaf3] shadow-sm"
+                    >
+                      {event.image_url ? (
+                        <img
+                          src={event.image_url}
+                          alt={`Imagem de ${event.title ?? "evento cultural"}`}
+                          loading="lazy"
+                          className="aspect-video w-full object-cover"
+                        />
+                      ) : null}
+                      <div className="p-5">
+                        <span className="text-xs font-bold uppercase text-[#9f3d25]">
+                          {event.category || "Evento cultural"}
+                        </span>
+                        <h3 className="mt-2 text-xl font-black">{event.title || "Evento"}</h3>
+                        <p className="mt-3 flex items-center gap-2 text-sm font-bold">
+                          <CalendarDays className="size-4 text-[#9f3d25]" />
+                          {formatEventDate(event.event_date, {
+                            weekday: "short",
+                            day: "2-digit",
+                            month: "short",
+                          })}
+                          <Clock className="ml-2 size-4 text-[#9f3d25]" />
+                          {formatEventTime(event.event_date)}
+                        </p>
+                        {event.location || event.city ? (
+                          <p className="mt-2 flex items-start gap-2 text-sm text-[#755348]">
+                            <MapPin className="mt-0.5 size-4 shrink-0" />
+                            {[event.location, event.city].filter(Boolean).join(" · ")}
+                          </p>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <OwnerEmptyState
+                  description="Quando seu evento for aprovado e publicado, ele aparecerá automaticamente aqui."
+                  actionLabel="Divulgar um evento"
+                  actionTo="/submit-event"
+                />
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {listings.length || userId === profile.id ? (
+          <section className="bg-[#f4e6d7] px-4 py-12">
+            <div className="mx-auto max-w-6xl">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-widest text-[#9f3d25]">
+                    Marketplace
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black">Trabalhos e serviços</h2>
+                </div>
+                <Link to="/marketplace" className="font-bold text-[#9f3d25]">
+                  Explorar marketplace →
+                </Link>
+              </div>
+              {listings.length ? (
+                <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                  {listings.map((listing) => (
+                    <Link
+                      key={listing.id}
+                      to="/marketplace/$listingId"
+                      params={{ listingId: listing.id }}
+                      className="group overflow-hidden rounded-3xl border border-[#dfcbb9] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      {listing.cover_url ? (
+                        <img
+                          src={listing.cover_url}
+                          alt={`Imagem de ${listing.title}`}
+                          loading="lazy"
+                          className="aspect-video w-full object-cover"
+                        />
+                      ) : (
+                        <span className="grid aspect-video place-items-center bg-[#fffaf3] text-[#9f3d25]">
+                          <ShoppingBag className="size-10" />
+                        </span>
+                      )}
+                      <span className="block p-5">
+                        <span className="text-xs font-bold uppercase text-[#9f3d25]">
+                          {listing.category || "Trabalho da comunidade"}
+                        </span>
+                        <strong className="mt-2 block text-xl group-hover:text-[#9f3d25]">
+                          {listing.title}
+                        </strong>
+                        {listing.price_label ? (
+                          <span className="mt-3 block font-bold">{listing.price_label}</span>
+                        ) : null}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <OwnerEmptyState
+                  description="Divulgue produtos, serviços, aulas ou experiências para completar sua vitrine."
+                  actionLabel="Criar um anúncio"
+                  actionTo="/marketplace-new"
+                />
+              )}
+            </div>
+          </section>
+        ) : null}
       </main>
       <EcosystemFooter />
+    </div>
+  );
+}
+
+function OwnerEmptyState({
+  description,
+  actionLabel,
+  actionTo,
+}: {
+  description: string;
+  actionLabel: string;
+  actionTo: "/submit-event" | "/marketplace-new";
+}) {
+  return (
+    <div className="mt-6 rounded-3xl border-2 border-dashed border-[#d8bca8] p-8 text-center">
+      <p className="text-[#755348]">{description}</p>
+      <Link
+        to={actionTo}
+        className="mt-5 inline-block rounded-xl bg-[#9f3d25] px-5 py-3 font-bold text-white"
+      >
+        {actionLabel}
+      </Link>
     </div>
   );
 }

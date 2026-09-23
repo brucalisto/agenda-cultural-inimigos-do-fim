@@ -51,6 +51,7 @@ import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicMaintenanceRouteImport } from './routes/api/public/maintenance'
+import { Route as ApiPublicProfileEventsRouteImport } from './routes/api/public/profile-events'
 import { Route as ApiPublicSyncFeedsRouteImport } from './routes/api/public/sync-feeds'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
 
@@ -266,6 +267,11 @@ const ApiPublicMaintenanceRoute = ApiPublicMaintenanceRouteImport.update({
   path: '/api/public/maintenance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicProfileEventsRoute = ApiPublicProfileEventsRouteImport.update({
+  id: '/api/public/profile-events',
+  path: '/api/public/profile-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSyncFeedsRoute = ApiPublicSyncFeedsRouteImport.update({
   id: '/api/public/sync-feeds',
   path: '/api/public/sync-feeds',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
+  '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
+  '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -414,6 +422,7 @@ export interface FileRoutesById {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
+  '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
   '/api/public/sync-feeds': typeof ApiPublicSyncFeedsRoute
   '/api/public/whatsapp-webhook': typeof ApiPublicWhatsappWebhookRoute
 }
@@ -462,6 +471,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
+    | '/api/public/profile-events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
+    | '/api/public/profile-events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   id:
@@ -554,6 +565,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/events'
     | '/api/public/maintenance'
+    | '/api/public/profile-events'
     | '/api/public/sync-feeds'
     | '/api/public/whatsapp-webhook'
   fileRoutesById: FileRoutesById
@@ -597,6 +609,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicMaintenanceRoute: typeof ApiPublicMaintenanceRoute
+  ApiPublicProfileEventsRoute: typeof ApiPublicProfileEventsRoute
   ApiPublicSyncFeedsRoute: typeof ApiPublicSyncFeedsRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
 }
@@ -897,6 +910,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMaintenanceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/profile-events': {
+      id: '/api/public/profile-events'
+      path: '/api/public/profile-events'
+      fullPath: '/api/public/profile-events'
+      preLoaderRoute: typeof ApiPublicProfileEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync-feeds': {
       id: '/api/public/sync-feeds'
       path: '/api/public/sync-feeds'
@@ -999,6 +1019,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicMaintenanceRoute: ApiPublicMaintenanceRoute,
+  ApiPublicProfileEventsRoute: ApiPublicProfileEventsRoute,
   ApiPublicSyncFeedsRoute: ApiPublicSyncFeedsRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
 }
