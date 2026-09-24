@@ -1,0 +1,4 @@
+import { createFileRoute } from "@tanstack/react-router";
+
+function authorized(request:Request){const expected=process.env["CRON_SECRET"]||process.env["FEED_SYNC_SECRET"];if(!expected)return false;const header=request.headers.get("authorization")||"";return header===`Bearer ${expected}`||request.headers.get("x-cron-secret")===expected}
+export const Route=createFileRoute("/api/public/email-worker")({server:{handlers:{POST:async({request})=>{if(!authorized(request))return Response.json({error:"Não autorizado"},{status:401});try{const{processEmailDeliveryQueue}=await import("@/lib/email-delivery.server");const result=await processEmailDeliveryQueue({limit:20});return Response.json(result)}catch(error){console.error("Falha no worker de e-mail:",error);return Response.json({ok:false,error:error instanceof Error?error.message:"Falha no worker de e-mail"},{status:500})}}}}});
