@@ -1,15 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Bell,
-  CalendarDays,
-  CheckCheck,
-  Heart,
-  Loader2,
-  MessageCircle,
-  ShieldCheck,
-  Store,
-  UserPlus,
-} from "lucide-react";
+import { Bell, CalendarDays, Check, CheckCheck, Heart, Loader2, MessageCircle, ShieldCheck, Store, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,141 +8,23 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/database";
 
 export const Route = createFileRoute("/notifications")({ component: NotificationsPage });
-
 type Notification = Tables<"community_notifications">;
-
-const icons = {
-  comment: MessageCircle,
-  reaction: Heart,
-  report_resolved: ShieldCheck,
-  event_status: CalendarDays,
-  listing_status: Store,
-  profile_follow: UserPlus,
-} as const;
+const icons = { comment: MessageCircle, reaction: Heart, report_resolved: ShieldCheck, event_status: CalendarDays, listing_status: Store, profile_follow: UserPlus, chat_message: MessageCircle, chat_reply: MessageCircle } as const;
 
 function destination(item: Notification) {
-  if (item.entity_type === "event_submission") return "/my-events" as const;
-  if (item.entity_type === "marketplace_listing") return "/my-listings" as const;
+  if (item.entity_type === "chat_room") return { to: "/chats/$roomId" as const, params: { roomId: item.entity_id } };
+  if (item.entity_type === "profile") return { to: "/people/$profileId" as const, params: { profileId: item.entity_id } };
+  if (item.entity_type === "event_submission") return { to: "/my-events" as const };
+  if (item.entity_type === "marketplace_listing") return { to: "/my-listings" as const };
   return null;
 }
 
 function NotificationsPage() {
-  const [items, setItems] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const { data: authData } = await supabase.auth.getUser();
-    const id = authData.user?.id ?? null;
-    setUserId(id);
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("community_notifications")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (error) toast.error(error.message);
-    setItems(data ?? []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function markAllRead() {
-    const { error } = await supabase.rpc("mark_community_notifications_read");
-    if (error) toast.error(error.message);
-    else
-      setItems((current) =>
-        current.map((item) => ({ ...item, read_at: item.read_at ?? new Date().toISOString() })),
-      );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#fffaf3] text-[#351810]">
-      <EcosystemHeader />
-      <main className="mx-auto max-w-3xl px-4 py-10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-[#9f3d25]">
-              Comunidade
-            </p>
-            <h1 className="mt-1 text-4xl font-black">Notificações</h1>
-          </div>
-          {userId && items.some((item) => !item.read_at) ? (
-            <button
-              type="button"
-              onClick={() => void markAllRead()}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#9f3d25] px-4 py-2 text-sm font-bold text-[#9f3d25]"
-            >
-              <CheckCheck className="size-4" /> Marcar tudo como lido
-            </button>
-          ) : null}
-        </div>
-
-        {loading ? (
-          <div className="grid min-h-64 place-items-center">
-            <Loader2 className="size-8 animate-spin text-[#9f3d25]" />
-          </div>
-        ) : !userId ? (
-          <div className="mt-8 rounded-3xl bg-white p-8 text-center shadow-sm">
-            <Bell className="mx-auto size-9 text-[#9f3d25]" />
-            <p className="mt-3">Entre na sua conta para ver suas notificações.</p>
-            <Link to="/join" className="mt-4 inline-block font-bold text-[#9f3d25]">
-              Entrar na comunidade
-            </Link>
-          </div>
-        ) : items.length ? (
-          <section className="mt-8 space-y-3" aria-label="Suas notificações">
-            {items.map((item) => {
-              const Icon = icons[item.kind as keyof typeof icons] ?? Bell;
-              const to = destination(item);
-              const content = (
-                <>
-                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]">
-                    <Icon className="size-5" />
-                  </span>
-                  <div>
-                    <p className="font-bold">{item.message}</p>
-                    <p className="mt-1 text-xs text-[#8a5c4d]">
-                      {new Date(item.created_at).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
-                </>
-              );
-              const className = `flex gap-4 rounded-2xl border p-4 ${item.read_at ? "border-[#ead9ca] bg-white" : "border-[#d8a88f] bg-[#fff0e6]"}`;
-              return item.entity_type === "profile" ? (
-                <Link
-                  key={item.id}
-                  to="/people/$profileId"
-                  params={{ profileId: item.entity_id }}
-                  className={className}
-                >
-                  {content}
-                </Link>
-              ) : to ? (
-                <Link key={item.id} to={to} className={className}>
-                  {content}
-                </Link>
-              ) : (
-                <article key={item.id} className={className}>
-                  {content}
-                </article>
-              );
-            })}
-          </section>
-        ) : (
-          <div className="mt-8 rounded-3xl border-2 border-dashed border-[#ead9ca] p-10 text-center text-[#755348]">
-            <Bell className="mx-auto size-9 text-[#9f3d25]" />
-            <p className="mt-3">Nenhuma notificação por enquanto.</p>
-          </div>
-        )}
-      </main>
-      <EcosystemFooter />
-    </div>
-  );
+  const [items,setItems]=useState<Notification[]>([]),[loading,setLoading]=useState(true),[userId,setUserId]=useState<string|null>(null);
+  const load=useCallback(async()=>{const{data:authData}=await supabase.auth.getUser();const id=authData.user?.id??null;setUserId(id);if(!id){setLoading(false);return}const{data,error}=await supabase.from("community_notifications").select("*").order("created_at",{ascending:false}).limit(100);if(error)toast.error(error.message);setItems(data??[]);setLoading(false)},[]);
+  useEffect(()=>{let channel:ReturnType<typeof supabase.channel>|null=null;void load().then(()=>{if(!userId)return});supabase.auth.getUser().then(({data})=>{const id=data.user?.id;if(!id)return;channel=supabase.channel(`notifications-page-${id}`).on("postgres_changes",{event:"*",schema:"public",table:"community_notifications",filter:`recipient_id=eq.${id}`},()=>void load()).subscribe()});return()=>{if(channel)void supabase.removeChannel(channel)}},[load,userId]);
+  async function markAllRead(){const{error}=await supabase.rpc("mark_community_notifications_read");if(error)toast.error(error.message);else setItems(c=>c.map(i=>({...i,read_at:i.read_at??new Date().toISOString()})))}
+  async function markOneRead(item:Notification){if(item.read_at)return;const now=new Date().toISOString();const{error}=await supabase.from("community_notifications").update({read_at:now}).eq("id",item.id);if(error){toast.error(error.message);return}setItems(c=>c.map(i=>i.id===item.id?{...i,read_at:now}:i))}
+  return <div className="min-h-screen bg-[#fffaf3] text-[#351810]"><EcosystemHeader/><main className="mx-auto max-w-3xl px-4 py-10"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm font-black uppercase tracking-widest text-[#9f3d25]">Comunidade</p><h1 className="mt-1 text-4xl font-black">Notificações</h1><p className="mt-2 text-sm text-[#755348]">Mensagens, respostas e novidades importantes da sua participação.</p></div>{userId&&items.some(i=>!i.read_at)?<button type="button" onClick={()=>void markAllRead()} className="inline-flex items-center gap-2 rounded-xl border border-[#9f3d25] px-4 py-2 text-sm font-bold text-[#9f3d25]"><CheckCheck className="size-4"/>Marcar tudo como lido</button>:null}</div>
+  {loading?<div className="grid min-h-64 place-items-center"><Loader2 className="size-8 animate-spin text-[#9f3d25]"/></div>:!userId?<div className="mt-8 rounded-3xl bg-white p-8 text-center shadow-sm"><Bell className="mx-auto size-9 text-[#9f3d25]"/><p className="mt-3">Entre na sua conta para ver suas notificações.</p><Link to="/join" className="mt-4 inline-block font-bold text-[#9f3d25]">Entrar na comunidade</Link></div>:items.length?<section className="mt-8 space-y-3" aria-label="Suas notificações">{items.map(item=>{const Icon=icons[item.kind as keyof typeof icons]??Bell,dest=destination(item);const content=<><span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f4e6d7] text-[#9f3d25]"><Icon className="size-5"/></span><div className="min-w-0 flex-1"><p className="font-bold">{item.message}</p><p className="mt-1 text-xs text-[#8a5c4d]">{new Date(item.created_at).toLocaleString("pt-BR")}</p></div>{!item.read_at?<button type="button" title="Marcar como lida" aria-label="Marcar como lida" onClick={e=>{e.preventDefault();e.stopPropagation();void markOneRead(item)}} className="grid size-9 shrink-0 place-items-center rounded-xl text-[#9f3d25] hover:bg-[#f4e6d7]"><Check className="size-4"/></button>:null}</>;const cls=`flex items-center gap-4 rounded-2xl border p-4 transition ${item.read_at?"border-[#ead9ca] bg-white":"border-[#d8a88f] bg-[#fff0e6]"}`;if(dest?.to==="/chats/$roomId")return <Link key={item.id} to="/chats/$roomId" params={dest.params as {roomId:string}} onClick={()=>void markOneRead(item)} className={cls}>{content}</Link>;if(dest?.to==="/people/$profileId")return <Link key={item.id} to="/people/$profileId" params={dest.params as {profileId:string}} onClick={()=>void markOneRead(item)} className={cls}>{content}</Link>;if(dest?.to==="/my-events")return <Link key={item.id} to="/my-events" onClick={()=>void markOneRead(item)} className={cls}>{content}</Link>;if(dest?.to==="/my-listings")return <Link key={item.id} to="/my-listings" onClick={()=>void markOneRead(item)} className={cls}>{content}</Link>;return <article key={item.id} className={cls}>{content}</article>})}</section>:<div className="mt-8 rounded-3xl border-2 border-dashed border-[#ead9ca] p-10 text-center text-[#755348]"><Bell className="mx-auto size-9 text-[#9f3d25]"/><p className="mt-3">Nenhuma notificação por enquanto.</p></div>}</main><EcosystemFooter/></div>
 }
