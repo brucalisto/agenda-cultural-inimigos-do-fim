@@ -28,17 +28,23 @@ jobs:
       - name: Lint
         id: lint
         continue-on-error: true
-        run: bun run lint 2>&1 | tee lint.log
+        run: |
+          set -o pipefail
+          bun run lint 2>&1 | tee lint.log
 
       - name: Testes de regressão
         id: test
         continue-on-error: true
-        run: bun run test 2>&1 | tee test.log
+        run: |
+          set -o pipefail
+          bun run test 2>&1 | tee test.log
 
       - name: Build
         id: build
         continue-on-error: true
-        run: bun run build 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          bun run build 2>&1 | tee build.log
 
       - name: Salvar diagnóstico
         if: always()
