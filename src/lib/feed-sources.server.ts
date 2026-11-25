@@ -118,26 +118,7 @@ async function ensureSource(input: {
     .eq("endpoint_url", input.url)
     .maybeSingle();
   if (lookupError) throw lookupError;
-  if (existing) {
-    const current = metadata(existing.field_mapping);
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from("publication_destinations")
-      .update({
-        enabled: existing.enabled !== false,
-        field_mapping: {
-          ...current,
-          sourceType: input.type,
-          trusted: input.trusted,
-          autoPublish: input.type === "instagram" ? false : input.autoPublish,
-        } as never,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id)
-      .select("id,nome,endpoint_url,provider,enabled,field_mapping,created_at,updated_at")
-      .single();
-    if (updateError) throw updateError;
-    return updated as PublicationDestinationRow;
-  }
+  if (existing) return existing as PublicationDestinationRow;
 
   const { data, error } = await supabaseAdmin
     .from("publication_destinations")
@@ -388,7 +369,7 @@ export async function syncAllConfiguredFeedSources() {
             trusted: record.trusted,
             autoPublish: record.source_type === "instagram" ? false : record.auto_publish,
             lastSyncedAt: new Date().toISOString(),
-            lastSyncStatus: "sucesso",
+            lastSyncStatus: syncOutcome(result),
             lastSyncResult: result,
           },
           updated_at: new Date().toISOString(),
