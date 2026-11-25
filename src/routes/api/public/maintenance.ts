@@ -2,10 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { geocodePublishedEvents } from "@/lib/event-geocoding.server";
 
 function authorized(request: Request) {
-  const expected = process.env["CRON_SECRET"] || process.env["FEED_SYNC_SECRET"];
-  if (!expected) return false;
+  const secrets = [process.env["CRON_SECRET"], process.env["FEED_SYNC_SECRET"]].filter(Boolean);
   const header = request.headers.get("authorization") || "";
-  return header === `Bearer ${expected}` || request.headers.get("x-cron-secret") === expected;
+  return secrets.some((secret) => header === `Bearer ${secret}` || request.headers.get("x-cron-secret") === secret);
 }
 
 export const Route = createFileRoute("/api/public/maintenance")({
