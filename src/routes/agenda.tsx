@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   AtSign,
@@ -90,7 +90,6 @@ const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const todayKey = () => todayEventDateKey();
 const normalize = (value: string | null | undefined) => (value || "").trim().toLowerCase();
-const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const priceKind = (price: string | null): Exclude<PriceFilter, "all"> => {
   if (!price?.trim()) return "unknown";
@@ -461,7 +460,8 @@ function PublicAgenda() {
     const date = new Date(`${today}T12:00:00`);
     return new Date(date.getFullYear(), date.getMonth(), 1);
   });
-  const geocoding = useRef(new Set<string>());
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -479,17 +479,32 @@ function PublicAgenda() {
     const requestedView = params.get("visao");
     setView(requestedView === "cards" || requestedView === "calendar" || requestedView === "list" ? requestedView : "list");
 
-    const loadEvents = () =>
-      fetch("/api/public/events")
-        .then((response) => response.json())
-        .then((value) => setEvents(value.events || []))
-        .catch(() => setEvents([]))
-        .finally(() => setLoading(false));
+  }, []);
 
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    let running = false;
+    const loadEvents = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const response = await fetch("/api/public/events", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Agenda indisponível");
+        const value = await response.json();
+        if (!Array.isArray(value.events)) throw new Error("Resposta inválida");
+        if (active) { setEvents(value.events); setLoadError(false); }
+      } catch {
+        if (active) setLoadError(true);
+      } finally {
+        running = false;
+        if (active) setLoading(false);
+      }
+    };
     void loadEvents();
     const refresh = window.setInterval(loadEvents, 60_000);
-    return () => window.clearInterval(refresh);
-  }, []);
+    return () => { active = false; controller.abort(); window.clearInterval(refresh); };
+  }, [reload]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -503,51 +518,6 @@ function PublicAgenda() {
     if (view !== "list") params.set("visao", view);
     window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
   }, [query, city, category, price, appliedFrom, appliedTo, includePast, view]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const missing = events.filter(
-      (event) =>
-        !Number.isFinite(event.latitude) &&
-        !Number.isFinite(event.longitude) &&
-        Boolean(event.location || event.city) &&
-        !geocoding.current.has(event.id),
-    );
-    if (!missing.length) return;
-
-    const run = async () => {
-      for (const event of missing) {
-        if (cancelled) return;
-        geocoding.current.add(event.id);
-        try {
-          const response = await fetch("/api/public/events", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: event.id }),
-          });
-          if (response.ok) {
-            const result = await response.json();
-            if (Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
-              setEvents((current) =>
-                current.map((item) =>
-                  item.id === event.id
-                    ? { ...item, latitude: result.latitude, longitude: result.longitude }
-                    : item,
-                ),
-              );
-            }
-          }
-        } catch {
-          // Um endereço incompleto não deve impedir a agenda de funcionar.
-        }
-        await delay(1100);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [events]);
 
   const cities = useMemo(
     () => [...new Set(events.map(eventCity).filter((value) => value !== "Não informada"))].sort((a, b) => a.localeCompare(b)),
@@ -712,11 +682,19 @@ function PublicAgenda() {
 
         {loading ? <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-[#eee6d9]" />)}</div> : null}
 
-        {!loading && !filtered.length ? (
+        {!loading && loadError ? (
+          <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5">
+            <p className="font-bold">Não foi possível atualizar a agenda.</p>
+            <p className="mt-1 text-sm">Tente novamente. Os eventos já carregados permanecem disponíveis.</p>
+            <Button onClick={() => setReload((value) => value + 1)} className="mt-3">Tentar novamente</Button>
+          </div>
+        ) : null}
+        {!loading && !loadError && !filtered.length ? (
           <div className="rounded-[1.75rem] border border-dashed border-[#cfbea6] bg-white p-14 text-center">
             <CalendarDays className="mx-auto h-10 w-10 text-stone-600" />
             <h2 className="mt-4 text-xl font-bold">Nenhum evento encontrado</h2>
-            <p className="mt-2 text-stone-400">Tente ampliar o período ou remover alguns filtros.</p>
+            <p className="mt-2 text-stone-600">{events.length ? "Não há eventos publicados neste período ou com estes filtros." : "Ainda não há eventos disponíveis na agenda."}</p>
+            {events.length > 0 && !includePast && !appliedFrom && !appliedTo ? <Button onClick={() => setPeriod("all")} variant="outline" className="mt-4">Ver também eventos anteriores</Button> : null}
             {hasFilters ? <Button onClick={clearFilters} className="mt-6 bg-[#a43a28] text-white hover:bg-[#843020]">Limpar filtros</Button> : null}
           </div>
         ) : null}
