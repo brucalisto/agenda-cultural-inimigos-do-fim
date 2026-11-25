@@ -5,25 +5,32 @@ on:
     - cron: "0 */3 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: agenda-feed-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Chamar sincronização protegida
         env:
           FEED_SYNC_SECRET: ${{ secrets.FEED_SYNC_SECRET }}
         run: |
           test -n "$FEED_SYNC_SECRET" || { echo "Configure o secret FEED_SYNC_SECRET"; exit 1; }
-          curl --fail-with-body --retry 2 --max-time 240 \
+          curl --silent --show-error --fail --retry 0 --max-time 240 \
             -X POST \
             -H "Authorization: Bearer $FEED_SYNC_SECRET" \
             "https://inimigosdofim.app/api/public/sync-feeds"
 
       - name: Atualizar coordenadas pendentes da agenda
+        if: ${{ !cancelled() }}
         env:
           FEED_SYNC_SECRET: ${{ secrets.FEED_SYNC_SECRET }}
         run: |
-          curl --fail-with-body --retry 2 --max-time 90 \
+          test -n "$FEED_SYNC_SECRET" || { echo "Configure o secret FEED_SYNC_SECRET"; exit 1; }
+          curl --silent --show-error --fail --retry 0 --max-time 90 \
             -X POST \
             -H "Authorization: Bearer $FEED_SYNC_SECRET" \
             "https://inimigosdofim.app/api/public/maintenance"
