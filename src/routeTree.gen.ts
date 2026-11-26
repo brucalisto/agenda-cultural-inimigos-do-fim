@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminChatModerationRouteImport } from './routes/admin-chat-moderation'
+import { Route as AdminModerationRouteImport } from './routes/admin-moderation'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AutomationsRouteImport } from './routes/automations'
@@ -22,6 +24,7 @@ import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
+import { Route as IntegrationsEmailRouteImport } from './routes/integrations-email'
 import { Route as InterpretedRouteImport } from './routes/interpreted'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LogsRouteImport } from './routes/logs'
@@ -32,11 +35,13 @@ import { Route as MyAreaRouteImport } from './routes/my-area'
 import { Route as MyEventsRouteImport } from './routes/my-events'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as MyProfileRouteImport } from './routes/my-profile'
+import { Route as NotificationPreferencesRouteImport } from './routes/notification-preferences'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as PublishedRouteImport } from './routes/published'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RulesRouteImport } from './routes/rules'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SubmitEventRouteImport } from './routes/submit-event'
 import { Route as ToolManagementRouteImport } from './routes/tool-management'
@@ -49,6 +54,7 @@ import { Route as MarketplaceEditListingIdRouteImport } from './routes/marketpla
 import { Route as MarketplaceListingIdRouteImport } from './routes/marketplace.$listingId'
 import { Route as PeopleProfileIdRouteImport } from './routes/people.$profileId'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
+import { Route as ApiPublicEmailWorkerRouteImport } from './routes/api/public/email-worker'
 import { Route as ApiPublicEventsRouteImport } from './routes/api/public/events'
 import { Route as ApiPublicMaintenanceRouteImport } from './routes/api/public/maintenance'
 import { Route as ApiPublicProfileEventsRouteImport } from './routes/api/public/profile-events'
@@ -58,6 +64,16 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChatModerationRoute = AdminChatModerationRouteImport.update({
+  id: '/admin-chat-moderation',
+  path: '/admin-chat-moderation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminModerationRoute = AdminModerationRouteImport.update({
+  id: '/admin-moderation',
+  path: '/admin-moderation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgendaRoute = AgendaRouteImport.update({
@@ -120,6 +136,11 @@ const IntegrationsRoute = IntegrationsRouteImport.update({
   path: '/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntegrationsEmailRoute = IntegrationsEmailRouteImport.update({
+  id: '/integrations-email',
+  path: '/integrations-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InterpretedRoute = InterpretedRouteImport.update({
   id: '/interpreted',
   path: '/interpreted',
@@ -170,6 +191,11 @@ const MyProfileRoute = MyProfileRouteImport.update({
   path: '/my-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationPreferencesRoute = NotificationPreferencesRouteImport.update({
+  id: '/notification-preferences',
+  path: '/notification-preferences',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -193,6 +219,11 @@ const ReviewRoute = ReviewRouteImport.update({
 const RulesRoute = RulesRouteImport.update({
   id: '/rules',
   path: '/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -257,6 +288,11 @@ const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicEmailWorkerRoute = ApiPublicEmailWorkerRouteImport.update({
+  id: '/api/public/email-worker',
+  path: '/api/public/email-worker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEventsRoute = ApiPublicEventsRouteImport.update({
   id: '/api/public/events',
   path: '/api/public/events',
@@ -286,6 +322,8 @@ const ApiPublicWhatsappWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin-chat-moderation': typeof AdminChatModerationRoute
+  '/admin-moderation': typeof AdminModerationRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/automations': typeof AutomationsRoute
@@ -298,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
+  '/integrations-email': typeof IntegrationsEmailRoute
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
@@ -308,11 +347,13 @@ export interface FileRoutesByFullPath {
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
+  '/notification-preferences': typeof NotificationPreferencesRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tool-management': typeof ToolManagementRoute
@@ -325,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/api/public/email-worker': typeof ApiPublicEmailWorkerRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
@@ -333,6 +375,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-chat-moderation': typeof AdminChatModerationRoute
+  '/admin-moderation': typeof AdminModerationRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/automations': typeof AutomationsRoute
@@ -345,6 +389,7 @@ export interface FileRoutesByTo {
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
+  '/integrations-email': typeof IntegrationsEmailRoute
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
@@ -355,11 +400,13 @@ export interface FileRoutesByTo {
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
+  '/notification-preferences': typeof NotificationPreferencesRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tool-management': typeof ToolManagementRoute
@@ -372,6 +419,7 @@ export interface FileRoutesByTo {
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/api/public/email-worker': typeof ApiPublicEmailWorkerRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
@@ -381,6 +429,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin-chat-moderation': typeof AdminChatModerationRoute
+  '/admin-moderation': typeof AdminModerationRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/automations': typeof AutomationsRoute
@@ -393,6 +443,7 @@ export interface FileRoutesById {
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/integrations': typeof IntegrationsRoute
+  '/integrations-email': typeof IntegrationsEmailRoute
   '/interpreted': typeof InterpretedRoute
   '/join': typeof JoinRoute
   '/logs': typeof LogsRoute
@@ -403,11 +454,13 @@ export interface FileRoutesById {
   '/my-events': typeof MyEventsRoute
   '/my-listings': typeof MyListingsRoute
   '/my-profile': typeof MyProfileRoute
+  '/notification-preferences': typeof NotificationPreferencesRoute
   '/notifications': typeof NotificationsRoute
   '/people': typeof PeopleRouteWithChildren
   '/published': typeof PublishedRoute
   '/review': typeof ReviewRoute
   '/rules': typeof RulesRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/submit-event': typeof SubmitEventRoute
   '/tool-management': typeof ToolManagementRoute
@@ -420,6 +473,7 @@ export interface FileRoutesById {
   '/marketplace/$listingId': typeof MarketplaceListingIdRoute
   '/people/$profileId': typeof PeopleProfileIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
+  '/api/public/email-worker': typeof ApiPublicEmailWorkerRoute
   '/api/public/events': typeof ApiPublicEventsRoute
   '/api/public/maintenance': typeof ApiPublicMaintenanceRoute
   '/api/public/profile-events': typeof ApiPublicProfileEventsRoute
@@ -430,6 +484,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin-chat-moderation'
+    | '/admin-moderation'
     | '/agenda'
     | '/auth'
     | '/automations'
@@ -442,6 +498,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/inbox'
     | '/integrations'
+    | '/integrations-email'
     | '/interpreted'
     | '/join'
     | '/logs'
@@ -452,11 +509,13 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
+    | '/notification-preferences'
     | '/notifications'
     | '/people'
     | '/published'
     | '/review'
     | '/rules'
+    | '/search'
     | '/settings'
     | '/submit-event'
     | '/tool-management'
@@ -469,6 +528,7 @@ export interface FileRouteTypes {
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
+    | '/api/public/email-worker'
     | '/api/public/events'
     | '/api/public/maintenance'
     | '/api/public/profile-events'
@@ -477,6 +537,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin-chat-moderation'
+    | '/admin-moderation'
     | '/agenda'
     | '/auth'
     | '/automations'
@@ -489,6 +551,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/inbox'
     | '/integrations'
+    | '/integrations-email'
     | '/interpreted'
     | '/join'
     | '/logs'
@@ -499,11 +562,13 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
+    | '/notification-preferences'
     | '/notifications'
     | '/people'
     | '/published'
     | '/review'
     | '/rules'
+    | '/search'
     | '/settings'
     | '/submit-event'
     | '/tool-management'
@@ -516,6 +581,7 @@ export interface FileRouteTypes {
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
+    | '/api/public/email-worker'
     | '/api/public/events'
     | '/api/public/maintenance'
     | '/api/public/profile-events'
@@ -524,6 +590,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin-chat-moderation'
+    | '/admin-moderation'
     | '/agenda'
     | '/auth'
     | '/automations'
@@ -536,6 +604,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/inbox'
     | '/integrations'
+    | '/integrations-email'
     | '/interpreted'
     | '/join'
     | '/logs'
@@ -546,11 +615,13 @@ export interface FileRouteTypes {
     | '/my-events'
     | '/my-listings'
     | '/my-profile'
+    | '/notification-preferences'
     | '/notifications'
     | '/people'
     | '/published'
     | '/review'
     | '/rules'
+    | '/search'
     | '/settings'
     | '/submit-event'
     | '/tool-management'
@@ -563,6 +634,7 @@ export interface FileRouteTypes {
     | '/marketplace/$listingId'
     | '/people/$profileId'
     | '/.lovable/oauth/consent'
+    | '/api/public/email-worker'
     | '/api/public/events'
     | '/api/public/maintenance'
     | '/api/public/profile-events'
@@ -572,6 +644,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminChatModerationRoute: typeof AdminChatModerationRoute
+  AdminModerationRoute: typeof AdminModerationRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
   AutomationsRoute: typeof AutomationsRoute
@@ -584,6 +658,7 @@ export interface RootRouteChildren {
   HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
   IntegrationsRoute: typeof IntegrationsRoute
+  IntegrationsEmailRoute: typeof IntegrationsEmailRoute
   InterpretedRoute: typeof InterpretedRoute
   JoinRoute: typeof JoinRoute
   LogsRoute: typeof LogsRoute
@@ -594,11 +669,13 @@ export interface RootRouteChildren {
   MyEventsRoute: typeof MyEventsRoute
   MyListingsRoute: typeof MyListingsRoute
   MyProfileRoute: typeof MyProfileRoute
+  NotificationPreferencesRoute: typeof NotificationPreferencesRoute
   NotificationsRoute: typeof NotificationsRoute
   PeopleRoute: typeof PeopleRouteWithChildren
   PublishedRoute: typeof PublishedRoute
   ReviewRoute: typeof ReviewRoute
   RulesRoute: typeof RulesRoute
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   SubmitEventRoute: typeof SubmitEventRoute
   ToolManagementRoute: typeof ToolManagementRoute
@@ -607,6 +684,7 @@ export interface RootRouteChildren {
   EventEditSubmissionIdRoute: typeof EventEditSubmissionIdRoute
   MarketplaceEditListingIdRoute: typeof MarketplaceEditListingIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicEmailWorkerRoute: typeof ApiPublicEmailWorkerRoute
   ApiPublicEventsRoute: typeof ApiPublicEventsRoute
   ApiPublicMaintenanceRoute: typeof ApiPublicMaintenanceRoute
   ApiPublicProfileEventsRoute: typeof ApiPublicProfileEventsRoute
@@ -621,6 +699,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-chat-moderation': {
+      id: '/admin-chat-moderation'
+      path: '/admin-chat-moderation'
+      fullPath: '/admin-chat-moderation'
+      preLoaderRoute: typeof AdminChatModerationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-moderation': {
+      id: '/admin-moderation'
+      path: '/admin-moderation'
+      fullPath: '/admin-moderation'
+      preLoaderRoute: typeof AdminModerationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agenda': {
@@ -707,6 +799,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/integrations-email': {
+      id: '/integrations-email'
+      path: '/integrations-email'
+      fullPath: '/integrations-email'
+      preLoaderRoute: typeof IntegrationsEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/interpreted': {
       id: '/interpreted'
       path: '/interpreted'
@@ -777,6 +876,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MyProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notification-preferences': {
+      id: '/notification-preferences'
+      path: '/notification-preferences'
+      fullPath: '/notification-preferences'
+      preLoaderRoute: typeof NotificationPreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notifications': {
       id: '/notifications'
       path: '/notifications'
@@ -810,6 +916,13 @@ declare module '@tanstack/react-router' {
       path: '/rules'
       fullPath: '/rules'
       preLoaderRoute: typeof RulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -894,6 +1007,13 @@ declare module '@tanstack/react-router' {
       path: '/.lovable/oauth/consent'
       fullPath: '/.lovable/oauth/consent'
       preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/email-worker': {
+      id: '/api/public/email-worker'
+      path: '/api/public/email-worker'
+      fullPath: '/api/public/email-worker'
+      preLoaderRoute: typeof ApiPublicEmailWorkerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/events': {
@@ -981,6 +1101,8 @@ const PeopleRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminChatModerationRoute: AdminChatModerationRoute,
+  AdminModerationRoute: AdminModerationRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
   AutomationsRoute: AutomationsRoute,
@@ -993,6 +1115,7 @@ const rootRouteChildren: RootRouteChildren = {
   HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
   IntegrationsRoute: IntegrationsRoute,
+  IntegrationsEmailRoute: IntegrationsEmailRoute,
   InterpretedRoute: InterpretedRoute,
   JoinRoute: JoinRoute,
   LogsRoute: LogsRoute,
@@ -1003,11 +1126,13 @@ const rootRouteChildren: RootRouteChildren = {
   MyEventsRoute: MyEventsRoute,
   MyListingsRoute: MyListingsRoute,
   MyProfileRoute: MyProfileRoute,
+  NotificationPreferencesRoute: NotificationPreferencesRoute,
   NotificationsRoute: NotificationsRoute,
   PeopleRoute: PeopleRouteWithChildren,
   PublishedRoute: PublishedRoute,
   ReviewRoute: ReviewRoute,
   RulesRoute: RulesRoute,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   SubmitEventRoute: SubmitEventRoute,
   ToolManagementRoute: ToolManagementRoute,
@@ -1017,6 +1142,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventEditSubmissionIdRoute: EventEditSubmissionIdRoute,
   MarketplaceEditListingIdRoute: MarketplaceEditListingIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicEmailWorkerRoute: ApiPublicEmailWorkerRoute,
   ApiPublicEventsRoute: ApiPublicEventsRoute,
   ApiPublicMaintenanceRoute: ApiPublicMaintenanceRoute,
   ApiPublicProfileEventsRoute: ApiPublicProfileEventsRoute,
