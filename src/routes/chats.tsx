@@ -9,7 +9,7 @@ import type { Tables } from "@/integrations/supabase/database";
 
 export const Route = createFileRoute("/chats")({ component: ChatsPage });
 
-type Room = Tables<"chat_rooms">;
+type Room = Tables<"chat_rooms"> & { approval_status?: string };
 type Profile = Pick<
   Tables<"community_profiles">,
   "id" | "display_name" | "artistic_name" | "avatar_url" | "profile_type"
@@ -35,7 +35,9 @@ function ChatsPage() {
   const loadRooms = useCallback(async (id: string) => {
     const [{ data: memberships }, { data: unreadData }] = await Promise.all([
       supabase.from("chat_room_members").select("room_id").eq("profile_id", id),
-      supabase.rpc("get_chat_unread_counts"),
+      supabase.rpc("get_chat_unread_counts" as never) as unknown as Promise<{
+        data: Array<{ chat_room_id: string; unread_count: number | string }> | null;
+      }>,
     ]);
     setUnreadCounts(
       Object.fromEntries(
@@ -67,7 +69,7 @@ function ChatsPage() {
             .from("chat_rooms")
             .select("*")
             .eq("room_type", "group")
-            .eq("approval_status", "approved")
+            .eq("approval_status" as never, "approved")
             .order("created_at", { ascending: false })
             .then(({ data }) => setDiscoverableRooms(data ?? [])),
           supabase

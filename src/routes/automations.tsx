@@ -44,8 +44,9 @@ function AutomationsPage() {
           const status = await manageWhatsAppIntegration({ data: { action: "status", accessToken } });
           if (!active) return;
           if (status.kind !== "status") throw new Error("Resposta inesperada do dispositivo.");
-          setDevice(status.connected ? "Conectado" : "Desconectado");
-          if (status.connected) {
+          const nextStatus = status as unknown as { connected: boolean };
+          setDevice(nextStatus.connected ? "Conectado" : "Desconectado");
+          if (nextStatus.connected) {
             const result = await manageWhatsAppIntegration({ data: { action: "groups", accessToken } });
             if (active && result.kind === "groups") setGroups((result as unknown as { groups?: Group[] }).groups ?? []);
           }
@@ -64,7 +65,10 @@ function AutomationsPage() {
   async function associateGroup() {
     const group = groups.find((item) => item.id === selected);
     const groupId = group?.id || manualId.trim();
-    if (!groupId) return toast.error("Selecione um grupo ou informe o ID completo.");
+    if (!groupId) {
+      toast.error("Selecione um grupo ou informe o ID completo.");
+      return;
+    }
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

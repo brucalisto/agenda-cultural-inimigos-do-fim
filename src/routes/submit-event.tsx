@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { EcosystemFooter, EcosystemHeader } from "@/components/community/EcosystemHeader";
 import { VoiceTextarea } from "@/components/community/VoiceTextarea";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { assistCommunityEvent } from "@/lib/community-event.functions";
 
 export const Route = createFileRoute("/submit-event")({ component: SubmitEventPage });
@@ -176,7 +177,7 @@ function SubmitEventPage() {
         author_id: userId,
         input_type: image ? (draft.form.source_text.trim() ? "mixed" : "image") : "text",
         cover_url: coverUrl,
-        ai_extracted_data: draft.aiData,
+        ai_extracted_data: draft.aiData as unknown as Json,
         status: "pending_review",
       }));
       const { error } = await supabase.from("community_event_submissions").insert(rows);

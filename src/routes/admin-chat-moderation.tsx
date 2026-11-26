@@ -9,7 +9,7 @@ import type { Tables } from "@/integrations/supabase/database";
 
 export const Route = createFileRoute("/admin-chat-moderation")({ component: AdminChatModerationPage });
 
-type Room = Tables<"chat_rooms">;
+type Room = Tables<"chat_rooms"> & { approval_status?: string };
 
 function AdminChatModerationPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
@@ -22,7 +22,7 @@ function AdminChatModerationPage() {
       .from("chat_rooms")
       .select("*")
       .eq("room_type", "group")
-      .eq("approval_status", "pending")
+      .eq("approval_status" as never, "pending")
       .order("created_at", { ascending: true });
     if (error) {
       setAuthorized(false);
@@ -40,10 +40,10 @@ function AdminChatModerationPage() {
         return;
       }
       const { data: admin } = await supabase
-        .from("admin_users")
+        .from("admin_users" as never)
         .select("id")
         .eq("id", data.user.id)
-        .maybeSingle();
+        .maybeSingle() as unknown as { data: { id: string } | null };
       if (!admin) {
         setAuthorized(false);
         return;
