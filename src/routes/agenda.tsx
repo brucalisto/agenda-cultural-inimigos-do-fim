@@ -121,18 +121,16 @@ const eventCity = (event: EventItem) => {
   return parts.at(-1) || "Não informada";
 };
 
-// The venue and municipality are distinct fields; always show the known city.
+// Show the municipality alongside the venue whenever it is known.
 function eventLocationLabel(event: EventItem): string {
   const location = event.location?.trim() || "";
   const city = event.city?.trim() || "";
   if (!city) return location || "Local não informado";
   if (!location) return city;
-  const canonical = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const cityKey = canonical(city).replace(/\s*[-–,/]\s*sp$/, "").trim();
-  const locationKey = canonical(location);
-  const escapedCity = cityKey.replace(/[.*+?^${}()|[\]\\]/g, "\\const instagramHandle =");
-  if (cityKey && new RegExp("(^|[^a-z0-9])" + escapedCity + "([^a-z0-9]|$)").test(locationKey)) return location;
-  return `${location} — ${city}`;
+  const canonical = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const cityKey = canonical(city).replace(/ sp$/, "");
+  if (cityKey && (" " + canonical(location) + " ").includes(" " + cityKey + " ")) return location;
+  return location + " — " + city;
 }
 
 const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0];
