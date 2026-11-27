@@ -121,6 +121,20 @@ const eventCity = (event: EventItem) => {
   return parts.at(-1) || "Não informada";
 };
 
+// The venue and municipality are distinct fields; always show the known city.
+function eventLocationLabel(event: EventItem): string {
+  const location = event.location?.trim() || "";
+  const city = event.city?.trim() || "";
+  if (!city) return location || "Local não informado";
+  if (!location) return city;
+  const canonical = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const cityKey = canonical(city).replace(/\s*[-–,/]\s*sp$/, "").trim();
+  const locationKey = canonical(location);
+  const escapedCity = cityKey.replace(/[.*+?^${}()|[\]\\]/g, "\\const instagramHandle =");
+  if (cityKey && new RegExp("(^|[^a-z0-9])" + escapedCity + "([^a-z0-9]|$)").test(locationKey)) return location;
+  return `${location} — ${city}`;
+}
+
 const instagramHandle = (value: string) => value.trim().replace(/^@/, "").split(/[/?#]/)[0];
 const instagramUrl = (value: string) =>
   /^https?:\/\//i.test(value)
@@ -210,7 +224,7 @@ function EventCard({ event, onSelect }: { event: EventItem; onSelect: (event: Ev
           </p>
           <p className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-            <span className="line-clamp-2">{event.location || eventCity(event)}</span>
+            <span className="line-clamp-2">{eventLocationLabel(event)}</span>
           </p>
         </div>
         <span className="mt-4 flex items-center gap-2 text-xs font-bold text-[#a43a28]">
@@ -247,7 +261,7 @@ function EventRow({ event, onSelect }: { event: EventItem; onSelect: (event: Eve
       </div>
       <div className="flex items-start gap-2 text-sm text-[#5f574d]">
         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-        <span className="line-clamp-2">{event.location || eventCity(event)}</span>
+        <span className="line-clamp-2">{eventLocationLabel(event)}</span>
       </div>
       <div>
         <span
@@ -287,7 +301,7 @@ function FeaturedEvents({ events, onSelect }: { events: EventItem[]; onSelect: (
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="space-y-2 text-sm">
             <p className="flex gap-2"><CalendarDays className="h-4 w-4 text-[#e5b64a]" />{formatEventDateTime(event.event_date)}</p>
-            <p className="flex gap-2"><MapPin className="h-4 w-4 text-[#e5b64a]" />{event.location || eventCity(event)}</p>
+            <p className="flex gap-2"><MapPin className="h-4 w-4 text-[#e5b64a]" />{eventLocationLabel(event)}</p>
           </div>
           <Button onClick={() => onSelect(event)} className="rounded-full bg-[#fff7df] px-6 text-[#442b1e] hover:bg-white">
             Ver evento <ArrowRight className="ml-2 h-4 w-4" />
@@ -386,7 +400,7 @@ function EventsMap({ events }: { events: EventItem[] }) {
       leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
       const layers = mapped.map((event) => {
         const title = (event.title || "Evento cultural").replace(/[<>]/g, "");
-        const local = (event.location || eventCity(event)).replace(/[<>]/g, "");
+        const local = (eventLocationLabel(event)).replace(/[<>]/g, "");
         const marker = leaflet.marker([event.latitude as number, event.longitude as number]);
         marker.addTo(map).bindPopup(`<strong>${title}</strong><br>${formatEventDateTime(event.event_date)}<br>${local}<br><a href="#evento-${event.id}">Ver evento</a>`);
         return marker;
@@ -760,7 +774,7 @@ function PublicAgenda() {
               </div>
               <div className="grid gap-3 rounded-2xl border border-[#e1d5c5] bg-white p-4 sm:grid-cols-2">
                 <p className="flex gap-2"><Clock className="h-5 w-5 text-amber-500" />{formatEventDateTime(selected.event_date)}</p>
-                <p className="flex gap-2"><MapPin className="h-5 w-5 text-amber-500" />{selected.location || eventCity(selected)}</p>
+                <p className="flex gap-2"><MapPin className="h-5 w-5 text-amber-500" />{eventLocationLabel(selected)}</p>
               </div>
               <p className="whitespace-pre-wrap leading-7 text-[#5f574d]">{selected.full_description || selected.summary}</p>
               {selected.contact_phone || selected.contact_instagram ? (
